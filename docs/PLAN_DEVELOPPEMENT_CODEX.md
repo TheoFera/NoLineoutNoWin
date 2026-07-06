@@ -30,9 +30,9 @@ npm run dev
 
 Puis ouvrir l'adresse affichée par Vite.
 
-## Lot 1 — Nettoyage du squelette
+## Lot 1 — Squelette, menu d'accueil et entrée en entraînement
 
-Objectif : faire vérifier par Codex que le projet compile, que les scènes se lancent et que les règles non négociables sont respectées.
+Objectif : faire vérifier par Codex que le projet compile, que les scènes se lancent, que le menu d'accueil fonctionne et que l'entrée en entraînement jouable se fait sans écran intermédiaire inutile.
 
 Fichiers prioritaires :
 
@@ -46,29 +46,51 @@ Critère de sortie :
 
 - `npm run check` passe.
 - `npm run build` passe.
-- On peut ouvrir le menu.
-- On peut aller en entraînement.
+- Le jeu démarre sur le menu d'accueil.
+- Sans sauvegarde, `Jouer` mène à la création du club.
+- Avec sauvegarde, `Continuer` mène directement à l'entraînement jouable.
 - On peut jouer une touche.
 
-## Lot 2 — Vraie création de club
+## Lot 2 — Création de partie et équipe de départ
 
-Objectif : remplacer la création de club temporaire par un écran utilisable mobile.
+Objectif : créer une nouvelle partie proprement et générer l'équipe initiale du joueur.
 
 À coder :
 
-- saisie du nom du club ;
-- choix couleur principale ;
-- choix couleur secondaire ;
+- création du club ;
 - création de sauvegarde ;
+- génération de l'équipe de départ ;
+- joueurs de champ avec Saut / Lift / Main uniquement ;
+- au moins un talonneur avec Lancer ;
+- consultation simple de l'équipe ;
 - textes traduits.
 
 Critère de sortie :
 
 - le nom choisi apparaît en entraînement ;
-- les couleurs apparaissent sur les joueurs ;
+- l'équipe existe en sauvegarde ;
+- l'équipe peut être consultée ;
 - la sauvegarde conserve le club.
 
-## Lot 3 — Entraînement offensif
+## Lot 3 — Navigation autour de l'entraînement
+
+Objectif : structurer l'accès à l'équipe, au championnat et au match depuis l'entraînement jouable.
+
+À coder :
+
+- accès au prochain match ;
+- accès à l'équipe ;
+- accès au championnat ;
+- navigation simple depuis la scène d'entraînement ;
+- pas d'écran intermédiaire `Entraînement`.
+
+Critère de sortie :
+
+- l'entraînement jouable sert de point d'entrée après `Continuer` ;
+- on peut aller vers match, équipe et championnat ;
+- le retour après match mène bien à l'entraînement jouable.
+
+## Lot 4 — Entraînement offensif
 
 Objectif : créer/modifier/enregistrer des combinaisons.
 
@@ -85,7 +107,7 @@ Critère de sortie :
 - une combinaison modifiée reste sauvegardée ;
 - en match, la combinaison apparaît correctement.
 
-## Lot 4 — Touches offensives complètes
+## Lot 5 — Touches offensives complètes
 
 Objectif : rendre l'action offensive agréable.
 
@@ -104,7 +126,7 @@ Critère de sortie :
 - les résultats varient selon stats, lancer, position et pression ;
 - pas d'information inutile affichée.
 
-## Lot 5 — Touches défensives
+## Lot 6 — Touches défensives
 
 Objectif : permettre au joueur de défendre sur lancer adverse.
 
@@ -123,7 +145,7 @@ Critère de sortie :
 - le contre dépend de la position choisie ;
 - un saut derrière la cible ne contre pas directement.
 
-## Lot 6 — Match complet V1
+## Lot 7 — Match complet V1
 
 Objectif : faire un match complet court.
 
@@ -141,7 +163,7 @@ Critère de sortie :
 - toutes les touches générées sont jouées ;
 - le score n'est pas généré uniquement à la fin.
 
-## Lot 7 — Championnat simple
+## Lot 8 — Championnat simple et progression sportive
 
 Objectif : créer une saison de Régionale 3.
 
@@ -151,7 +173,8 @@ Objectif : créer une saison de Régionale 3.
 - calendrier ;
 - résultats des autres matchs ;
 - classement ;
-- montée si top 2.
+- montée si top 2 ;
+- enchaînement propre entre phase club, match et classement.
 
 Critère de sortie :
 
@@ -159,7 +182,7 @@ Critère de sortie :
 - les autres équipes jouent ;
 - la fin de saison monte ou maintient le club.
 
-## Lot 8 — Progression des joueurs
+## Lot 9 — Progression des joueurs
 
 Objectif : faire progresser les joueurs selon les actions.
 
@@ -177,7 +200,7 @@ Critère de sortie :
 - un joueur qui saute progresse plutôt en Saut ;
 - un joueur utilisé à la main progresse plutôt en Main.
 
-## Lot 9 — Polissage mobile
+## Lot 10 — Polissage mobile
 
 Objectif : rendre le jeu réellement confortable sur téléphone.
 
@@ -197,7 +220,7 @@ Critère de sortie :
 - pas d'élément coupé ;
 - pas de bouton inutile pendant le match.
 
-## Lot 10 — Capacitor / Android
+## Lot 11 — Capacitor / Android
 
 Objectif : générer l'application Android.
 

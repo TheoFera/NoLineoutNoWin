@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
+import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
@@ -19,9 +20,9 @@ export class ResultScene extends Phaser.Scene {
       align: "center",
       wordWrap: { width: 330 }
     }).setOrigin(0.5);
-    new UIButton(this, 195, 330, 260, 52, t("result.backTraining"), () => {
-      GameStore.clearMatch();
-      this.scene.start("TrainingScene");
+    new UIButton(this, 195, 330, 260, 52, t("result.continue"), () => {
+      GameStore.completeCurrentMatch();
+      navigateTo(this, "LineoutScene", { mode: "training" });
     });
   }
 }

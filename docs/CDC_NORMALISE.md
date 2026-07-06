@@ -4,7 +4,7 @@ Ce document est la version de travail que Codex doit suivre. Il intègre les cor
 
 ## 1. Concept
 
-Jeu mobile tactique centré sur la touche au rugby. Le joueur ne contrôle pas tout le match. Il intervient uniquement sur les touches. Le reste du match est simulé par un timer rapide, un score, la possession et l'occupation.
+Jeu mobile tactique centré sur la touche au rugby. Le joueur passe par un menu d'accueil, puis entre directement dans l'entraînement jouable ou dans un match. Il ne contrôle pas tout le match. Il intervient uniquement sur les touches. Le reste du match est simulé par un timer rapide, un score, la possession et l'occupation.
 
 ## 2. Stack
 
@@ -69,13 +69,41 @@ Ne pas ajouter : endurance, lecture, force, timing, mental, morale, agilité, vi
 
 La lecture doit être faite par le joueur humain.
 
-## 5. Menu principal
+## 5. Flux de lancement et boucle de jeu
 
-- Nouvelle partie
-- Continuer
-- Parties en cours plus tard
-- Options
-- Langue : Français / English
+Il y a un menu d'accueil simple dans le flux joueur.
+
+Au lancement :
+
+- le jeu ouvre le menu d'accueil ;
+- si aucune sauvegarde n'existe, le bouton principal mène à la création du club ;
+- si une sauvegarde existe, le bouton principal mène directement à l'entraînement jouable.
+
+Boucle principale visée :
+
+```text
+Lancement
+→ menu d'accueil
+→ création du club si besoin
+→ entraînement jouable
+→ match
+→ résultat
+→ retour à l'entraînement jouable
+```
+
+Le menu d'accueil affiche au minimum :
+
+- le titre du jeu ;
+- un bouton Jouer ou Continuer ;
+- un bouton Paramètres.
+
+Dans l'entraînement jouable, le joueur peut au minimum :
+
+- jouer le match ;
+- consulter l'équipe ;
+- consulter le championnat.
+
+L'écran intermédiaire avec le titre `Entraînement` ne fait pas partie du flux cible.
 
 ## 6. Création du club
 
@@ -115,7 +143,7 @@ Pas de relégation, recrutement, départs ou vieillissement dans la V1.
 
 ## 9. Match
 
-Un match dure entre 80 et 82 minutes. Le timer avance vite jusqu'à une touche. Le joueur joue la touche. Puis le timer reprend.
+Un match dure entre 80 et 82 minutes. Le timer avance vite jusqu'à une touche. Le joueur joue la touche. Puis le timer reprend. En fin de match, un écran de résultat simple s'affiche avant le retour à l'entraînement jouable.
 
 Variables internes :
 
@@ -187,19 +215,21 @@ Mais l'interface affiche seulement un résultat simple.
 
 La V1 doit contenir :
 
-- menu principal
-- options langue
-- nouvelle partie
-- création du club simple
-- saison Régionale 3
-- championnat simple
-- classement
-- match avec timer rapide
-- 4 à 6 touches en Régionale 3
-- touches offensives par clic sur joueur
-- touches défensives avec priorité
-- stats Saut / Lift / Main
-- talonneur avec Lancer
-- progression simple
-- sauvegarde locale
-- montée si top 2
+- menu d'accueil simple ;
+- création du club simple ;
+- entrée directe dans l'entraînement jouable ;
+- équipe consultable ;
+- championnat simple ;
+- saison Régionale 3 ;
+- classement ;
+- match avec timer rapide ;
+- écran de résultat simple ;
+- 4 à 6 touches en Régionale 3 ;
+- touches offensives par clic sur joueur ;
+- touches défensives avec priorité ;
+- stats Saut / Lift / Main ;
+- talonneur avec Lancer ;
+- progression simple ;
+- sauvegarde locale ;
+- montée si top 2 ;
+- langue Français / English.

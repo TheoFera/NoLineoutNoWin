@@ -1,3 +1,4 @@
+import type { ChampionshipState } from "./Championship";
 import type { Combination } from "./Combination";
 import type { DivisionId } from "./Division";
 import type { Team } from "./Team";
@@ -10,6 +11,7 @@ export type SaveGame = {
   currentDivisionId: DivisionId;
   season: number;
   playerTeam: Team;
+  championship: ChampionshipState;
   offensiveCombinations: Combination[];
   defensivePriority: string[];
   defenseMemory: DefenseMemory;

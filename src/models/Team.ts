@@ -12,5 +12,6 @@ export type Team = {
   divisionId: DivisionId;
   colors: JerseyColors;
   hooker: Hooker;
-  lineoutPlayers: FieldPlayer[]; // exactement 7 joueurs de touche pour la V1
+  fieldPlayers: FieldPlayer[]; // effectif disponible pour préparer la touche
+  lineoutPlayers: FieldPlayer[]; // exactement 7 joueurs retenus pour la touche en V1
 };

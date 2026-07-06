@@ -9,11 +9,13 @@ export function generateMatchLineouts(division: Division): MatchLineoutEvent[] {
   const lineouts: MatchLineoutEvent[] = [];
 
   for (let i = 0; i < count; i += 1) {
+    const throwingSide = Math.random() > 0.45 ? "us" : "opponent";
     lineouts.push({
       id: `lineout_${i + 1}`,
       minute: randomInt(4, 78),
       pitchZone: zones[randomInt(0, zones.length - 1)],
-      throwingSide: Math.random() > 0.45 ? "us" : "opponent",
+      throwingSide,
+      numberOfPlayers: throwingSide === "us" ? 7 : randomInt(4, 7),
       resolved: false
     });
   }

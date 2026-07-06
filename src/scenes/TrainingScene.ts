@@ -21,6 +21,5 @@ export class TrainingScene extends Phaser.Scene {
     new UIButton(this, 195, 300, 280, 52, t("training.playMatch"), () => this.scene.start("MatchScene"));
     new UIButton(this, 195, 370, 280, 52, t("menu.team"), () => this.scene.start("TeamScene"));
     new UIButton(this, 195, 440, 280, 52, t("menu.championship"), () => this.scene.start("ChampionshipScene"));
-    new UIButton(this, 195, 510, 280, 52, t("button.back"), () => this.scene.start("MainMenuScene"));
   }
 }

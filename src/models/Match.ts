@@ -2,11 +2,19 @@ import type { DivisionId } from "./Division";
 import type { PitchZone, ThrowingSide } from "./Lineout";
 import type { Team } from "./Team";
 
+export type MatchPlayerUsage = {
+  jump: number;
+  lift: number;
+  hands: number;
+  throwing: number;
+};
+
 export type MatchLineoutEvent = {
   id: string;
   minute: number;
   pitchZone: PitchZone;
   throwingSide: ThrowingSide;
+  numberOfPlayers: number;
   resolved: boolean;
 };
 
@@ -23,4 +31,5 @@ export type MatchStateData = {
   occupation: number; // 0 à 100
   lineouts: MatchLineoutEvent[];
   currentLineoutIndex: number;
+  playerUsage: Record<string, MatchPlayerUsage>;
 };
