@@ -48,13 +48,7 @@ export class ChampionshipScene extends Phaser.Scene {
       this.add.text(302, y, `${record.leaguePoints} pts`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0.5);
     });
 
-    this.add.text(195, 646, t("championship.top2Hint"), {
-      font: UI.font.small,
-      color: UI.colors.muted,
-      align: "center",
-      wordWrap: { width: 320 }
-    }).setOrigin(0.5);
-
-    new UIButton(this, 195, 735, 220, 48, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }));
+    new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"));
+    new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }));
   }
 }

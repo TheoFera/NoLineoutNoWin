@@ -1,13 +1,14 @@
 export type LineoutPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type CombinationPlayerSlot = {
-  playerId: string;
+  playerId: string | null;
   position: LineoutPosition;
 };
 
 export type Combination = {
   id: string;
   nameKey: string;
+  customName?: string;
   slots: CombinationPlayerSlot[];
   risk: number;
   complexity: number;

@@ -7,6 +7,7 @@ import { MatchScene } from "./scenes/MatchScene";
 import { LineoutScene } from "./scenes/LineoutScene";
 import { TeamScene } from "./scenes/TeamScene";
 import { ChampionshipScene } from "./scenes/ChampionshipScene";
+import { CombinationListScene } from "./scenes/CombinationListScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { ResultScene } from "./scenes/ResultScene";
 
@@ -35,6 +36,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     LineoutScene,
     TeamScene,
     ChampionshipScene,
+    CombinationListScene,
     SettingsScene,
     ResultScene
   ]

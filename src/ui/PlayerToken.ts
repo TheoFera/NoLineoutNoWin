@@ -14,8 +14,11 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     this.numberText = scene.add.text(0, 0, String(player.number), { font: "bold 15px Arial", color: UI.colors.text }).setOrigin(0.5);
     this.add([this.circle, this.numberText]);
     this.setSize(44, 52);
-    this.setInteractive(new Phaser.Geom.Rectangle(-22, -26, 44, 52), Phaser.Geom.Rectangle.Contains);
-    scene.input.setDraggable(this);
+    this.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(-22, -26, 44, 52),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true
+    });
     scene.add.existing(this);
   }
 
