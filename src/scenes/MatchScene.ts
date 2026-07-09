@@ -59,7 +59,7 @@ export class MatchScene extends Phaser.Scene {
     renderMenuBackdrop(this);
 
     const next = match.lineouts[match.currentLineoutIndex];
-    this.renderScoreboard(match);
+    this.renderScoreboard(match, next);
 
     if (!next) {
       this.renderFullTimePanel();
@@ -76,31 +76,75 @@ export class MatchScene extends Phaser.Scene {
     this.renderDefensiveBoard(next);
   }
 
-  private renderScoreboard(match: MatchStateData): void {
-    this.add.text(195, 38, t("match.title"), {
-      font: UI.font.title,
-      color: UI.colors.text
-    }).setOrigin(0.5);
+  private renderScoreboard(match: MatchStateData, next?: MatchLineoutEvent): void {
+    const minute = next?.minute ?? match.minute;
+    const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
 
-    this.add.text(52, 78, match.home.name.toUpperCase(), {
-      font: "bold 14px Arial",
+    this.add.rectangle(98, 42, 196, 76, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
+    this.add.rectangle(292, 42, 196, 76, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
+    this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
+
+    this.add.text(72, 20, match.home.name.toUpperCase(), {
+      font: "bold 11px Arial",
       color: UI.colors.text,
-      wordWrap: { width: 110 }
+      wordWrap: { width: 105 }
     }).setOrigin(0, 0.5);
-    this.add.text(338, 78, match.away.name.toUpperCase(), {
-      font: "bold 14px Arial",
+    this.add.text(72, 55, String(match.ourScore), {
+      font: "bold 28px Arial",
+      color: UI.colors.text
+    }).setOrigin(0, 0.5);
+    this.add.text(318, 20, match.away.name.toUpperCase(), {
+      font: "bold 11px Arial",
       color: UI.colors.text,
       align: "right",
-      wordWrap: { width: 110 }
+      wordWrap: { width: 105 }
+    }).setOrigin(1, 0.5);
+    this.add.text(318, 55, String(match.opponentScore), {
+      font: "bold 28px Arial",
+      color: UI.colors.text
     }).setOrigin(1, 0.5);
 
-    this.add.text(195, 80, `${match.ourScore} - ${match.opponentScore}`, {
-      font: "bold 34px Arial",
-      color: "#f8fafc"
-    }).setOrigin(0.5);
+    this.add.text(195, 34, this.formatMinute(minute), { font: "bold 22px Arial", color: "#fbbf24" }).setOrigin(0.5);
+    this.add.text(195, 62, t(periodKey), { font: "bold 11px Arial", color: "#84cc16" }).setOrigin(0.5);
 
-    this.renderMetricBar(104, 126, 120, match.possession, t("match.possession"), 0x60a5fa);
-    this.renderMetricBar(286, 126, 120, match.occupation, t("match.occupation"), 0x84cc16);
+    this.add.rectangle(78, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
+    this.add.rectangle(195, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
+    this.add.rectangle(312, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
+
+    this.add.text(78, 96, t("match.possession").toUpperCase(), {
+      font: "bold 9px Arial",
+      color: UI.colors.text
+    }).setOrigin(0.5);
+    this.add.text(54, 114, `${match.possession}%`, {
+      font: "bold 15px Arial",
+      color: "#60a5fa"
+    }).setOrigin(0.5);
+    this.add.text(102, 114, `${100 - match.possession}%`, {
+      font: "bold 15px Arial",
+      color: "#ef4444"
+    }).setOrigin(0.5);
+    this.add.rectangle(78, 130, 82, 6, 0x1e293b);
+    this.add.rectangle(78 - 41 + (82 * match.possession) / 200, 130, (82 * match.possession) / 100, 5, 0x2563eb).setOrigin(0, 0.5);
+    this.add.rectangle(78 + (82 * match.possession) / 200, 130, (82 * (100 - match.possession)) / 100, 5, 0xdc2626).setOrigin(0, 0.5);
+
+    this.add.text(195, 96, t("match.occupation").toUpperCase(), {
+      font: "bold 9px Arial",
+      color: UI.colors.text
+    }).setOrigin(0.5);
+    this.add.text(195, 118, `${match.occupation}%`, {
+      font: "bold 18px Arial",
+      color: "#84cc16"
+    }).setOrigin(0.5);
+    this.add.text(312, 96, t("match.zone").toUpperCase(), {
+      font: "bold 9px Arial",
+      color: UI.colors.text
+    }).setOrigin(0.5);
+    this.add.text(312, 118, t(`match.zone.${next?.pitchZone ?? "middle"}`), {
+      font: "bold 12px Arial",
+      color: "#f8fafc",
+      align: "center",
+      wordWrap: { width: 92 }
+    }).setOrigin(0.5);
   }
 
   private renderCurrentPhasePanel(next: MatchLineoutEvent): void {
@@ -284,16 +328,7 @@ export class MatchScene extends Phaser.Scene {
     }
   }
 
-  private renderMetricBar(x: number, y: number, width: number, value: number, label: string, color: number): void {
-    this.add.text(x, y - 18, label, {
-      font: "bold 12px Arial",
-      color: UI.colors.muted
-    }).setOrigin(0.5);
-    this.add.rectangle(x, y, width, 12, 0x1e293b).setStrokeStyle(1, 0x475569);
-    this.add.rectangle(x - width / 2 + (width * value) / 200, y, (width * value) / 100, 8, color).setOrigin(0, 0.5);
-    this.add.text(x, y + 16, `${value}%`, {
-      font: "bold 12px Arial",
-      color: UI.colors.text
-    }).setOrigin(0.5);
+  private formatMinute(minute: number): string {
+    return `${minute}'`;
   }
 }
