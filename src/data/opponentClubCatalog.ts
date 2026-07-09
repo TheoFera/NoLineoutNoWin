@@ -1,0 +1,35 @@
+import type { OpponentClub } from "../models/OpponentClub";
+
+// Couleurs normalisées à partir du fichier fourni. Certains libellés ont été approximés en hex simple.
+export const OPPONENT_CLUB_CATALOG: OpponentClub[] = [
+  { id: "stade_toulousain", name: "Stade Toulousain", sourceDivisionId: "top_14", colors: { primary: 0x8b1111, secondary: 0xffffff }, colorKey: "rouge-noir-blanc" },
+  { id: "union_bordeaux_begles", name: "Union Bordeaux-Bègles", sourceDivisionId: "top_14", colors: { primary: 0x6f1d3a, secondary: 0xffffff }, colorKey: "bordeaux-blanc" },
+  { id: "stade_rochelais", name: "Stade Rochelais", sourceDivisionId: "top_14", colors: { primary: 0xfacc15, secondary: 0x111111 }, colorKey: "jaune-noir" },
+  { id: "rc_toulon", name: "RC Toulon", sourceDivisionId: "top_14", colors: { primary: 0xdc2626, secondary: 0x111111 }, colorKey: "rouge-noir" },
+  { id: "aviron_bayonnais", name: "Aviron Bayonnais", sourceDivisionId: "top_14", colors: { primary: 0x7dd3fc, secondary: 0xffffff }, colorKey: "bleu-ciel-blanc" },
+  { id: "asm_clermont_auvergne", name: "ASM Clermont Auvergne", sourceDivisionId: "top_14", colors: { primary: 0xfacc15, secondary: 0x2563eb }, colorKey: "jaune-bleu" },
+  { id: "castres_olympique", name: "Castres Olympique", sourceDivisionId: "top_14", colors: { primary: 0x2563eb, secondary: 0xffffff }, colorKey: "bleu-blanc" },
+  { id: "section_paloise", name: "Section Paloise", sourceDivisionId: "top_14", colors: { primary: 0x15803d, secondary: 0xffffff }, colorKey: "vert-blanc" },
+  { id: "usa_perpignan", name: "USA Perpignan", sourceDivisionId: "top_14", colors: { primary: 0x9f1239, secondary: 0xeab308 }, colorKey: "sang-et-or-jaune" },
+  { id: "lou_rugby", name: "LOU Rugby", sourceDivisionId: "top_14", colors: { primary: 0xdc2626, secondary: 0x111111 }, colorKey: "rouge-noir" },
+  { id: "racing_92", name: "Racing 92", sourceDivisionId: "top_14", colors: { primary: 0x38bdf8, secondary: 0xffffff }, colorKey: "ciel-blanc" },
+  { id: "stade_francais_paris", name: "Stade Français Paris", sourceDivisionId: "top_14", colors: { primary: 0xec4899, secondary: 0x2563eb }, colorKey: "rose-bleu" },
+  { id: "montpellier_herault_rugby", name: "Montpellier Hérault Rugby", sourceDivisionId: "top_14", colors: { primary: 0x2563eb, secondary: 0xffffff }, colorKey: "bleu-blanc" },
+  { id: "us_montauban", name: "US Montauban", sourceDivisionId: "top_14", colors: { primary: 0x15803d, secondary: 0x111111 }, colorKey: "vert-noir" },
+  { id: "ca_brive", name: "CA Brive", sourceDivisionId: "pro_d2", colors: { primary: 0x111111, secondary: 0xffffff }, colorKey: "noir-blanc" },
+  { id: "rc_vannes", name: "RC Vannes", sourceDivisionId: "pro_d2", colors: { primary: 0x2563eb, secondary: 0xffffff }, colorKey: "bleu-blanc" },
+  { id: "provence_rugby", name: "Provence Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0x111111, secondary: 0xd4af37 }, colorKey: "noir-or" },
+  { id: "fc_grenoble_rugby", name: "FC Grenoble Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0x2563eb }, colorKey: "rouge-bleu" },
+  { id: "colomiers_rugby", name: "Colomiers Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0x2563eb, secondary: 0xffffff }, colorKey: "bleu-blanc" },
+  { id: "us_dax", name: "US Dax", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0xffffff }, colorKey: "rouge-blanc" },
+  { id: "stade_montois_rugby", name: "Stade Montois Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0xfacc15, secondary: 0x111111 }, colorKey: "jaune-noir" },
+  { id: "uson_nevers", name: "USON Nevers", sourceDivisionId: "pro_d2", colors: { primary: 0xfacc15, secondary: 0x2563eb }, colorKey: "jaune-bleu" },
+  { id: "oyonnax_rugby", name: "Oyonnax Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0x111111 }, colorKey: "rouge-noir" },
+  { id: "soyaux_angouleme_xv", name: "Soyaux Angoulême XV", sourceDivisionId: "pro_d2", colors: { primary: 0x7c3aed, secondary: 0xffffff }, colorKey: "violet-blanc" },
+  { id: "valence_romans_drome_rugby", name: "Valence Romans Drôme Rugby", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0x2563eb }, colorKey: "damier-rouge-blanc-bleu" },
+  { id: "stade_aurillacois", name: "Stade Aurillacois", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0x2563eb }, colorKey: "rouge-bleu" },
+  { id: "su_agen", name: "SU Agen", sourceDivisionId: "pro_d2", colors: { primary: 0x2563eb, secondary: 0xffffff }, colorKey: "bleu-blanc" },
+  { id: "biarritz_olympique", name: "Biarritz Olympique", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0xffffff }, colorKey: "rouge-blanc" },
+  { id: "as_beziers_herault", name: "AS Béziers Hérault", sourceDivisionId: "pro_d2", colors: { primary: 0xdc2626, secondary: 0x2563eb }, colorKey: "rouge-bleu" },
+  { id: "us_carcassonne", name: "US Carcassonne", sourceDivisionId: "pro_d2", colors: { primary: 0xfacc15, secondary: 0x111111 }, colorKey: "jaune-noir" }
+];

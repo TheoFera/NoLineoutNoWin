@@ -12,6 +12,7 @@ type RugbyPlayerLayerPaths = {
   jersey: string;
   shorts: string;
   socks: string;
+  details: string;
 };
 
 export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseName): RugbyPlayerLayerPaths {
@@ -21,12 +22,17 @@ export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseNam
     body: `${basePath}/body.png`,
     jersey: `${basePath}/jersey.png`,
     shorts: `${basePath}/shorts.png`,
-    socks: `${basePath}/socks.png`
+    socks: `${basePath}/socks.png`,
+    details: `${basePath}/details.png`
   };
 }
 
 export function getRugbyPlayerTextureKey(bodyShape: BodyShapeName, pose: PoseName, layer: PlayerLayerName): string {
   return `rugby-player:${bodyShape}:${pose}:${layer}`;
+}
+
+export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseName, layer: PlayerLayerName): boolean {
+  return true;
 }
 
 export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): void {
@@ -35,6 +41,10 @@ export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): vo
       const assets = getRugbyPlayerAssetPaths(bodyShape, pose);
 
       for (const layer of RUGBY_PLAYER_LAYER_NAMES) {
+        if (!hasRugbyPlayerLayerAsset(bodyShape, pose, layer)) {
+          continue;
+        }
+
         loader.image(getRugbyPlayerTextureKey(bodyShape, pose, layer), assets[layer]);
       }
     }

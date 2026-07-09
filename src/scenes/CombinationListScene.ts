@@ -5,7 +5,6 @@ import { getAvailableOffensiveCombinations, getCombinationDisplayName, normalize
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
-import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
 import { UI_DEPTH } from "../ui/UIDepth";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
@@ -37,9 +36,7 @@ export class CombinationListScene extends Phaser.Scene {
     const fallbackCombinationId = combinations[0]?.id;
     this.selectedCombinationId ??= fallbackCombinationId;
 
-    renderMenuBackdrop(this);
-    renderMenuHeader(this, t("lineout.combinationsTitle"));
-
+    this.renderCombinationBackground();
     combinations.forEach((combination, index) => {
       this.renderCombinationRow(combination, index);
     });
@@ -63,11 +60,11 @@ export class CombinationListScene extends Phaser.Scene {
       this.add.rectangle(28, y, 6, 74, UI.colors.accent, 0.95);
     }
 
-    new UIButton(this, 145, y, 196, 42, getCombinationDisplayName(combination, t), () => {
+    new UIButton(this, 145, y, 196, 40, getCombinationDisplayName(combination, t), () => {
       navigateTo(this, "LineoutScene", { mode: "training", combinationId: combination.id });
     });
 
-    new UIButton(this, 292, y, 96, 42, t("button.rename"), () => {
+    new UIButton(this, 292, y, 115, 40, t("button.rename"), () => {
       this.openRenameOverlay(combination);
     }, {
       variant: "secondary"
@@ -182,5 +179,14 @@ export class CombinationListScene extends Phaser.Scene {
     GameStore.setOffensiveCombinations(updatedCombinations);
     this.destroyNameInput();
     this.scene.restart({ combinationId });
+  }
+
+  private renderCombinationBackground(): void {
+    const background = this.add.image(195, 422, "combi-menu-background");
+    const source = background.texture.getSourceImage() as { width: number; height: number; };
+    const scale = Math.max(390 / source.width, 844 / source.height);
+
+    background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
   }
 }

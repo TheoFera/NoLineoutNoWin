@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getRugbyPlayerTextureKey, RUGBY_PLAYER_FRAME_HEIGHT, RUGBY_PLAYER_FRAME_WIDTH } from "./RugbyPlayerAssets";
+import { getRugbyPlayerTextureKey, hasRugbyPlayerLayerAsset, RUGBY_PLAYER_FRAME_HEIGHT, RUGBY_PLAYER_FRAME_WIDTH } from "./RugbyPlayerAssets";
 import type { BodyShapeName, Kit, PoseName } from "./RugbyPlayerTypes";
 
 export class RugbyPlayer extends Phaser.GameObjects.Container {
@@ -10,6 +10,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
   private jerseyLayer: Phaser.GameObjects.Image;
   private shortsLayer: Phaser.GameObjects.Image;
   private socksLayer: Phaser.GameObjects.Image;
+  private detailsLayer?: Phaser.GameObjects.Image;
 
   constructor(scene: Phaser.Scene, x: number, y: number, pose: PoseName, kit: Kit, bodyShape: BodyShapeName) {
     super(scene, x, y);
@@ -22,8 +23,12 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.jerseyLayer = this.createLayer(scene, "jersey");
     this.shortsLayer = this.createLayer(scene, "shorts");
     this.socksLayer = this.createLayer(scene, "socks");
+    this.detailsLayer = this.createOptionalDetailsLayer(scene);
 
     this.add([this.bodyLayer, this.jerseyLayer, this.shortsLayer, this.socksLayer]);
+    if (this.detailsLayer) {
+      this.add(this.detailsLayer);
+    }
     this.setSize(RUGBY_PLAYER_FRAME_WIDTH, RUGBY_PLAYER_FRAME_HEIGHT);
 
     this.applyKitTint();
@@ -63,6 +68,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.jerseyLayer.setDisplaySize(width, height);
     this.shortsLayer.setDisplaySize(width, height);
     this.socksLayer.setDisplaySize(width, height);
+    this.detailsLayer?.setDisplaySize(width, height);
     this.setSize(width, height);
     return this;
   }
@@ -75,8 +81,16 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return this.bodyShape;
   }
 
-  private createLayer(scene: Phaser.Scene, layer: "body" | "jersey" | "shorts" | "socks"): Phaser.GameObjects.Image {
+  private createLayer(scene: Phaser.Scene, layer: "body" | "jersey" | "shorts" | "socks" | "details"): Phaser.GameObjects.Image {
     return scene.add.image(0, 0, getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer)).setOrigin(0.5, 1);
+  }
+
+  private createOptionalDetailsLayer(scene: Phaser.Scene): Phaser.GameObjects.Image | undefined {
+    if (!hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "details")) {
+      return undefined;
+    }
+
+    return this.createLayer(scene, "details");
   }
 
   private refreshTextures(): void {
@@ -84,6 +98,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.jerseyLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "jersey"));
     this.shortsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "shorts"));
     this.socksLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "socks"));
+    this.refreshDetailsLayer();
   }
 
   private applyKitTint(): void {
@@ -91,5 +106,23 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.jerseyLayer.setTint(this.kit.jerseyPrimary);
     this.shortsLayer.setTint(this.kit.shortsPrimary);
     this.socksLayer.setTint(this.kit.socksPrimary);
+    this.detailsLayer?.setTint(this.kit.detailsSecondary);
+  }
+
+  private refreshDetailsLayer(): void {
+    if (!hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "details")) {
+      this.detailsLayer?.destroy();
+      this.detailsLayer = undefined;
+      return;
+    }
+
+    if (!this.detailsLayer) {
+      this.detailsLayer = this.createLayer(this.scene, "details");
+      this.detailsLayer.setDisplaySize(this.bodyLayer.displayWidth, this.bodyLayer.displayHeight);
+      this.add(this.detailsLayer);
+      return;
+    }
+
+    this.detailsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "details"));
   }
 }

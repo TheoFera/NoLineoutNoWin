@@ -973,7 +973,8 @@ export class LineoutScene extends Phaser.Scene {
     return {
       jerseyPrimary,
       shortsPrimary: secondaryColor,
-      socksPrimary: secondaryColor
+      socksPrimary: jerseyPrimary,
+      detailsSecondary: secondaryColor
     };
   }
 

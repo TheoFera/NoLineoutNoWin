@@ -22,7 +22,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "club.namePlaceholder": { fr: "Ex. RC Drancy", en: "E.g. Drancy RC" },
   "club.primaryColor": { fr: "Couleur principale", en: "Primary color" },
   "club.secondaryColor": { fr: "Couleur secondaire", en: "Secondary color" },
-  "club.preview": { fr: "Aperçu du maillot", en: "Kit preview" },
+  "club.preview": { fr: "Maillot", en: "Kit" },
   "club.startGame": { fr: "Créer le club", en: "Create club" },
   "club.backMenu": { fr: "Retour", en: "Back" },
   "club.nameRequired": { fr: "Le nom du club est obligatoire.", en: "Club name is required." },

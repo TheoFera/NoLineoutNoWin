@@ -57,10 +57,5 @@ export class SettingsScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
-    this.add.rectangle(195, 146, 312, 3, 0xf8fafc, 0.18);
-    this.add.rectangle(195, 698, 312, 3, 0xf8fafc, 0.16);
-    this.add.rectangle(60, 422, 2, 610, 0xf8fafc, 0.08);
-    this.add.rectangle(330, 422, 2, 610, 0xf8fafc, 0.08);
   }
 }

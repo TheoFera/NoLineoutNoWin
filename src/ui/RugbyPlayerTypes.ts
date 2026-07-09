@@ -29,9 +29,10 @@ export type Kit = {
   jerseyPrimary: number;
   shortsPrimary: number;
   socksPrimary: number;
+  detailsSecondary: number;
 };
 
-export const RUGBY_PLAYER_LAYER_NAMES = ["body", "jersey", "shorts", "socks"] as const;
+export const RUGBY_PLAYER_LAYER_NAMES = ["body", "jersey", "shorts", "socks", "details"] as const;
 
 export type PlayerLayerName = typeof RUGBY_PLAYER_LAYER_NAMES[number];
 

@@ -1,11 +1,12 @@
-import { generateOpponent } from "../ai/OpponentGenerator";
+import { getOpponentCatalog } from "../ai/OpponentGenerator";
 import type { ChampionshipState, ChampionshipTeamRecord } from "../models/Championship";
 import type { DivisionId } from "../models/Division";
-import { getDivision, getNextDivision } from "./DivisionRules";
+import type { OpponentClub } from "../models/OpponentClub";
+import { getNextDivision } from "./DivisionRules";
 import { randomInt } from "../utils/Random";
 
 const PLAYER_TEAM_ID = "player_team";
-const OPPONENT_COUNT = 7;
+const OPPONENT_COUNT = 5;
 const WIN_POINTS = 4;
 const DRAW_POINTS = 2;
 
@@ -30,6 +31,44 @@ function createRecord(teamId: string, name: string): ChampionshipTeamRecord {
     pointsAgainst: 0,
     leaguePoints: 0
   };
+}
+
+function pickChampionshipOpponents(divisionId: DivisionId, count: number): OpponentClub[] {
+  const catalog = getOpponentCatalog();
+  const preferred = shuffle(catalog.filter((club) => club.sourceDivisionId === divisionId));
+  const fallback = shuffle(catalog.filter((club) => club.sourceDivisionId !== divisionId));
+  const ordered = [...preferred, ...fallback];
+  const selected: OpponentClub[] = [];
+  const seenColorKeys = new Set<string>();
+
+  for (const club of ordered) {
+    if (seenColorKeys.has(club.colorKey)) {
+      continue;
+    }
+
+    selected.push(club);
+    seenColorKeys.add(club.colorKey);
+    if (selected.length === count) {
+      return selected;
+    }
+  }
+
+  for (const club of ordered) {
+    if (selected.some((item) => item.id === club.id)) {
+      continue;
+    }
+
+    selected.push(club);
+    if (selected.length === count) {
+      return selected;
+    }
+  }
+
+  if (selected.length < count) {
+    throw new Error(`Not enough opponent clubs to build a championship of ${count} teams.`);
+  }
+
+  return selected;
 }
 
 function updateRecord(record: ChampionshipTeamRecord, pointsFor: number, pointsAgainst: number): ChampionshipTeamRecord {
@@ -97,15 +136,14 @@ export function sortStandings(standings: ChampionshipTeamRecord[]): Championship
 }
 
 export function createChampionshipState(divisionId: DivisionId, season: number, playerTeamName: string): ChampionshipState {
-  const division = getDivision(divisionId);
+  const selectedClubs = pickChampionshipOpponents(divisionId, OPPONENT_COUNT);
   const opponentIds: string[] = [];
   const standings: ChampionshipTeamRecord[] = [createRecord(PLAYER_TEAM_ID, playerTeamName)];
 
-  for (let index = 1; index <= OPPONENT_COUNT; index += 1) {
-    const opponent = generateOpponent(index, division);
-    opponentIds.push(opponent.id);
-    standings.push(createRecord(opponent.id, opponent.name));
-  }
+  selectedClubs.forEach((club) => {
+    opponentIds.push(club.id);
+    standings.push(createRecord(club.id, club.name));
+  });
 
   return {
     season,

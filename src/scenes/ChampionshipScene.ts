@@ -3,7 +3,7 @@ import { getCurrentOpponentId, getCurrentRoundLabel, getPlayerRank, sortStanding
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
-import { renderMenuBackdrop, renderMenuHeader, renderMenuPanel } from "../ui/MenuChrome";
+import { renderMenuPanel } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 import type { ChampionshipTeamRecord } from "../models/Championship";
@@ -26,24 +26,27 @@ export class ChampionshipScene extends Phaser.Scene {
     const playerRank = getPlayerRank(championship);
     const visibleStandings = this.buildVisibleStandings(standings, nextOpponentId);
 
-    renderMenuBackdrop(this);
-    renderMenuHeader(this, t("menu.championship"), {
-      subtitle: `${divisionLabel} - ${t("championship.season")} ${save.season}`
-    });
+    this.renderChampionshipBackground();
+    this.add.text(195, 160, `${t("championship.season")} ${save.season} - ${divisionLabel}`, {
+      font: UI.font.body,
+      color: UI.colors.text,
+      align: "center",
+      wordWrap: { width: 300 }
+    }).setOrigin(0.5);
     renderMenuPanel(this, {
       x: 195,
-      y: 438,
+      y: 456,
       width: 338,
       height: 396,
       accentColor: 0x35584a,
       fillColor: 0x07120d
     });
 
-    this.add.text(195, 190, `${t("championship.round")} ${getCurrentRoundLabel(championship)} - ${t("championship.rank")} ${playerRank}`, {
+    this.add.text(195, 202, `${t("championship.round")} ${getCurrentRoundLabel(championship)} - ${t("championship.rank")} ${playerRank}`, {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(0.5);
-    this.add.text(195, 222, `${t("championship.nextOpponent")} ${nextOpponentName}`, {
+    this.add.text(195, 234, `${t("championship.nextOpponent")} ${nextOpponentName}`, {
       font: UI.font.body,
       color: UI.colors.text,
       align: "center",
@@ -51,7 +54,7 @@ export class ChampionshipScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     visibleStandings.forEach((record, index) => {
-      const y = 286 + index * 40;
+      const y = 304 + index * 40;
       const isPlayerTeam = record.teamId === "player_team";
       const isNextOpponent = record.teamId === nextOpponentId;
       const rank = standings.findIndex((item) => item.teamId === record.teamId) + 1;
@@ -82,6 +85,15 @@ export class ChampionshipScene extends Phaser.Scene {
     new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
       variant: "secondary"
     });
+  }
+
+  private renderChampionshipBackground(): void {
+    const background = this.add.image(195, 422, "championship-menu-background");
+    const source = background.texture.getSourceImage() as { width: number; height: number; };
+    const scale = Math.max(390 / source.width, 844 / source.height);
+
+    background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
   }
 
   private buildVisibleStandings(standings: ChampionshipTeamRecord[], nextOpponentId: string | null): ChampionshipTeamRecord[] {

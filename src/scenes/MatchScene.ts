@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
 import { getDivision } from "../rules/DivisionRules";
 import { getCurrentOpponentId } from "../rules/ChampionshipRules";
-import { generateOpponent } from "../ai/OpponentGenerator";
+import { generateOpponentById } from "../ai/OpponentGenerator";
 import { generateMatchLineouts } from "../rules/MatchSimulator";
 import { countAssignedPlayers, getAvailableOffensiveCombinations, getCombinationDisplayName, normalizeCombinationSlots, normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { createEmptyUsage } from "../rules/PlayerProgression";
@@ -26,8 +26,7 @@ export class MatchScene extends Phaser.Scene {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);
     const scheduledOpponentId = getCurrentOpponentId(save.championship) ?? "opponent_1";
-    const opponentIndex = Number.parseInt(scheduledOpponentId.replace("opponent_", ""), 10) || 1;
-    const opponent = generateOpponent(opponentIndex, division);
+    const opponent = generateOpponentById(scheduledOpponentId, division);
     let match = GameStore.getMatch();
 
     if (!match) {

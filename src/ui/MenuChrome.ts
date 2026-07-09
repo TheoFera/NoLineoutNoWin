@@ -11,6 +11,7 @@ type MenuBackdropVariant = "hero" | "field";
 
 type MenuBackdropOptions = {
   overlayAlpha?: number;
+  showGuideLines?: boolean;
   variant?: MenuBackdropVariant;
 };
 
@@ -30,10 +31,11 @@ type MenuPanelOptions = {
 
 export function renderMenuBackdrop(scene: Phaser.Scene, options: MenuBackdropOptions = {}): boolean {
   const variant = options.variant ?? "field";
+  const showGuideLines = options.showGuideLines ?? true;
   const usedHeroBackground = variant === "hero" && renderMainMenuBackground(scene);
 
   if (!usedHeroBackground) {
-    renderFieldBackdrop(scene);
+    renderFieldBackdrop(scene, showGuideLines);
   }
 
   scene.add.rectangle(
@@ -45,10 +47,12 @@ export function renderMenuBackdrop(scene: Phaser.Scene, options: MenuBackdropOpt
     options.overlayAlpha ?? (variant === "hero" ? 0.42 : 0.28)
   );
 
-  scene.add.rectangle(SCREEN_CENTER_X, 146, 312, 3, 0xf8fafc, 0.18);
-  scene.add.rectangle(SCREEN_CENTER_X, 698, 312, 3, 0xf8fafc, 0.16);
-  scene.add.rectangle(60, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
-  scene.add.rectangle(330, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
+  if (showGuideLines) {
+    scene.add.rectangle(SCREEN_CENTER_X, 146, 312, 3, 0xf8fafc, 0.18);
+    scene.add.rectangle(SCREEN_CENTER_X, 698, 312, 3, 0xf8fafc, 0.16);
+    scene.add.rectangle(60, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
+    scene.add.rectangle(330, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
+  }
 
   return usedHeroBackground;
 }
@@ -79,7 +83,7 @@ export function renderMenuPanel(scene: Phaser.Scene, options: MenuPanelOptions):
   });
 }
 
-function renderFieldBackdrop(scene: Phaser.Scene): void {
+function renderFieldBackdrop(scene: Phaser.Scene, showGuideLines: boolean): void {
   scene.add.rectangle(SCREEN_CENTER_X, SCREEN_CENTER_Y, SCREEN_WIDTH, SCREEN_HEIGHT, 0x08140d);
 
   for (let index = 0; index < 10; index += 1) {
@@ -88,9 +92,11 @@ function renderFieldBackdrop(scene: Phaser.Scene): void {
     scene.add.rectangle(SCREEN_CENTER_X, y, SCREEN_WIDTH, 78, color, 1);
   }
 
-  scene.add.rectangle(SCREEN_CENTER_X, 214, 314, 3, 0xf8fafc, 0.18);
-  scene.add.rectangle(SCREEN_CENTER_X, 422, 314, 3, 0xf8fafc, 0.15);
-  scene.add.rectangle(SCREEN_CENTER_X, 630, 314, 3, 0xf8fafc, 0.18);
+  if (showGuideLines) {
+    scene.add.rectangle(SCREEN_CENTER_X, 214, 314, 3, 0xf8fafc, 0.18);
+    scene.add.rectangle(SCREEN_CENTER_X, 422, 314, 3, 0xf8fafc, 0.15);
+    scene.add.rectangle(SCREEN_CENTER_X, 630, 314, 3, 0xf8fafc, 0.18);
+  }
 }
 
 function createRoundedPanel(

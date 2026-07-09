@@ -29,8 +29,8 @@ export class ClubCreationScene extends Phaser.Scene {
   }
 
   create(): void {
-    const previewPlayerHeight = 166;
-    const previewPlayerWidth = 74;
+    const previewPlayerHeight = 224;
+    const previewPlayerWidth = 100;
 
     this.renderCreateClubBackground();
     renderMenuHeader(this, t("club.title"));
@@ -40,32 +40,32 @@ export class ClubCreationScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.createNameInput();
 
-    this.add.text(35, 272, t("club.primaryColor"), {
+    this.add.text(40, 272, t("club.primaryColor"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.primaryColorValueText = this.add.text(35, 304, this.formatColorValue(this.selectedPrimaryColor), {
+    this.primaryColorValueText = this.add.text(90, 304, this.formatColorValue(this.selectedPrimaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(0, 0.5);
     this.createPrimaryColorInput();
 
-    this.add.text(35, 430, t("club.secondaryColor"), {
+    this.add.text(40, 430, t("club.secondaryColor"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.secondaryColorValueText = this.add.text(35, 462, this.formatColorValue(this.selectedSecondaryColor), {
+    this.secondaryColorValueText = this.add.text(90, 462, this.formatColorValue(this.selectedSecondaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(0, 0.5);
     this.createSecondaryColorInput();
 
-    this.add.text(288, 272, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.previewBackdrop = this.add.rectangle(288, 326, 136, 40, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewNameplate = this.add.rectangle(288, 326, 124, 30, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.add.text(288, 350, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
+    this.previewBackdrop = this.add.rectangle(288, 284, 136, 40, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewNameplate = this.add.rectangle(288, 284, 124, 30, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
     this.previewPlayer = new RugbyPlayer(this, 288, 562, "stand_front", this.getPreviewKit(), "medium_standard")
       .setVisualSize(previewPlayerWidth, previewPlayerHeight);
-    this.previewText = this.add.text(288, 326, t("club.defaultName"), {
+    this.previewText = this.add.text(288, 284, t("club.defaultName"), {
       font: UI.font.body,
       color: UI.colors.text
     }).setOrigin(0.5);
@@ -131,11 +131,6 @@ export class ClubCreationScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
-    this.add.rectangle(195, 146, 312, 3, 0xf8fafc, 0.18);
-    this.add.rectangle(195, 698, 312, 3, 0xf8fafc, 0.16);
-    this.add.rectangle(60, 422, 2, 610, 0xf8fafc, 0.08);
-    this.add.rectangle(330, 422, 2, 610, 0xf8fafc, 0.08);
   }
 
   private createPrimaryColorInput(): void {
@@ -194,14 +189,14 @@ export class ClubCreationScene extends Phaser.Scene {
     this.nameInput.style.fontSize = `${18 * scale}px`;
 
     if (this.primaryColorInput) {
-      this.primaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
+      this.primaryColorInput.style.left = `${bounds.left + 90 * scale}px`;
       this.primaryColorInput.style.top = `${bounds.top + 330 * scale}px`;
       this.primaryColorInput.style.width = `${72 * scale}px`;
       this.primaryColorInput.style.height = `${72 * scale}px`;
     }
 
     if (this.secondaryColorInput) {
-      this.secondaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
+      this.secondaryColorInput.style.left = `${bounds.left + 90 * scale}px`;
       this.secondaryColorInput.style.top = `${bounds.top + 488 * scale}px`;
       this.secondaryColorInput.style.width = `${72 * scale}px`;
       this.secondaryColorInput.style.height = `${72 * scale}px`;
@@ -272,7 +267,8 @@ export class ClubCreationScene extends Phaser.Scene {
     return {
       jerseyPrimary: this.selectedPrimaryColor,
       shortsPrimary: this.selectedSecondaryColor,
-      socksPrimary: this.selectedSecondaryColor
+      socksPrimary: this.selectedPrimaryColor,
+      detailsSecondary: this.selectedSecondaryColor
     };
   }
 
