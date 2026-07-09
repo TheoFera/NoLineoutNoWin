@@ -5,6 +5,7 @@ import { getAvailableOffensiveCombinations, getCombinationDisplayName, normalize
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 
@@ -35,8 +36,8 @@ export class CombinationListScene extends Phaser.Scene {
     const fallbackCombinationId = combinations[0]?.id;
     this.selectedCombinationId ??= fallbackCombinationId;
 
-    this.add.rectangle(195, 422, 390, 844, UI.colors.background);
-    this.add.text(195, 84, t("lineout.combinationsTitle"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
+    renderMenuBackdrop(this);
+    renderMenuHeader(this, t("lineout.combinationsTitle"));
 
     combinations.forEach((combination, index) => {
       this.renderCombinationRow(combination, index);
@@ -44,6 +45,8 @@ export class CombinationListScene extends Phaser.Scene {
 
     new UIButton(this, 195, 792, 220, 42, t("button.back"), () => {
       navigateTo(this, "LineoutScene", { mode: "training", combinationId: this.selectedCombinationId ?? fallbackCombinationId });
+    }, {
+      variant: "secondary"
     });
 
     this.events.once("shutdown", () => this.destroyNameInput());
@@ -51,11 +54,13 @@ export class CombinationListScene extends Phaser.Scene {
   }
 
   private renderCombinationRow(combination: Combination, index: number): void {
-    const y = 184 + index * 104;
+    const y = 194 + index * 104;
     const isSelected = combination.id === this.selectedCombinationId;
 
-    this.add.rectangle(195, y, 334, 84, UI.colors.panelDark, 0.96)
-      .setStrokeStyle(2, isSelected ? UI.colors.accent : UI.colors.line);
+    this.add.rectangle(195, y + 48, 320, 2, 0xf8fafc, 0.12);
+    if (isSelected) {
+      this.add.rectangle(28, y, 6, 74, UI.colors.accent, 0.95);
+    }
 
     new UIButton(this, 145, y, 196, 42, getCombinationDisplayName(combination, t), () => {
       navigateTo(this, "LineoutScene", { mode: "training", combinationId: combination.id });
@@ -63,6 +68,8 @@ export class CombinationListScene extends Phaser.Scene {
 
     new UIButton(this, 292, y, 96, 42, t("button.rename"), () => {
       this.openRenameOverlay(combination);
+    }, {
+      variant: "secondary"
     });
   }
 
@@ -86,6 +93,8 @@ export class CombinationListScene extends Phaser.Scene {
     const closeButton = new UIButton(this, 254, 590, 126, 40, t("button.close"), () => {
       this.destroyNameInput();
       this.scene.restart({ combinationId: this.selectedCombinationId });
+    }, {
+      variant: "secondary"
     });
     closeButton.setDepth(22);
 

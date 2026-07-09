@@ -1,22 +1,34 @@
 import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
-import { buildDefensivePlan } from "../ai/DefenseAI";
+import { buildDefensivePlan, buildOffensivePlan } from "../ai/DefenseAI";
 import { getDivision } from "../rules/DivisionRules";
 import { resolveDefensiveLineout } from "../rules/DefensiveLineoutResolver";
 import { getDefensiveLineoutPlayers } from "../rules/DefenseSelection";
-import { getAvailableOffensiveCombinations, getPlayersAssignedToCombination, getUnassignedCombinationPlayers, normalizeOffensiveCombinations, orderPlayersForCombination, replaceCombinationLayout } from "../rules/CombinationRules";
+import { countAssignedPlayers, getAvailableOffensiveCombinations, getPlayersAssignedToCombination, getUnassignedCombinationPlayers, normalizeOffensiveCombinations, replaceCombinationLayout } from "../rules/CombinationRules";
 import { resolveLineout } from "../rules/LineoutResolver";
 import { updateMatchAfterLineout } from "../rules/MatchSimulator";
 import { addUsage } from "../rules/PlayerProgression";
 import type { Combination, LineoutPosition } from "../models/Combination";
-import type { MatchLineoutEvent, MatchPlayerUsage } from "../models/Match";
+import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
+import { isLikelyJumper, isLikelyLifter } from "../models/Player";
 import type { FieldPlayer } from "../models/Player";
 import { PlayerToken } from "../ui/PlayerToken";
+import { RugbyPlayer } from "../ui/RugbyPlayer";
+import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
+import type { Kit, PoseName } from "../ui/RugbyPlayerTypes";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 import { Modal } from "../ui/Modal";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+
+const SCREEN_WIDTH = 390;
+const SCREEN_HEIGHT = 844;
+const HEADER_HEIGHT = Math.round(SCREEN_HEIGHT * 0.2);
+const FIELD_TOP = HEADER_HEIGHT;
+const FIELD_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT;
+const PLAYER_FIELD_WIDTH_RATIO = 0.1;
+const PLAYER_FIELD_HEIGHT_RATIO = 0.13;
 
 export type LineoutSceneData = {
   mode: "training" | "match";
@@ -24,14 +36,23 @@ export type LineoutSceneData = {
 };
 
 type LineoutLayout = {
+  headerHeight: number;
+  fieldTop: number;
+  fieldBottom: number;
+  fieldWidth: number;
+  fieldHeight: number;
+  playerWidth: number;
+  playerHeight: number;
   attackX: number;
   defenseX?: number;
   hookerX: number;
   hookerY: number;
   fifteenLineY: number;
+  fiveMeterLineY: number;
   touchLineY: number;
   slotStartY: number;
   slotGap: number;
+  reserveX: number;
   reserveY: number;
   navigationY: number;
 };
@@ -58,13 +79,34 @@ export class LineoutScene extends Phaser.Scene {
   private selectedCombination!: Combination;
   private allCombinations: Combination[] = [];
   private selectedTargetId: string | null = null;
+  private selectedTargetPosition: LineoutPosition | null = null;
   private attackTokens: PlayerToken[] = [];
   private defenseTokens: PlayerToken[] = [];
+  private attackSlotPlayers: Array<FieldPlayer | null> = [];
+  private defenseSlotPlayers: Array<FieldPlayer | null> = [];
   private trainingAssignedPlayers: Array<FieldPlayer | null> = [];
   private isResolving = false;
-  private defensivePlan?: ReturnType<typeof buildDefensivePlan>;
   private currentMatchLineout?: MatchLineoutEvent;
+  private opponentDefensiveJumpPosition: LineoutPosition | null = null;
+  private opponentTargetId: string | null = null;
+  private opponentTargetPosition: LineoutPosition | null = null;
   private dragState: DragState | null = null;
+  private inspectedPlayer: FieldPlayer | null = null;
+  private inspectorNameText?: Phaser.GameObjects.Text;
+  private inspectorStatsText?: Phaser.GameObjects.Text;
+  private inspectorRoleText?: Phaser.GameObjects.Text;
+  private statusText?: Phaser.GameObjects.Text;
+  private statusClearTimer?: Phaser.Time.TimerEvent;
+  private hookerSprite?: RugbyPlayer;
+  private readonly activeSlotPatterns: Record<number, number[]> = {
+    1: [3],
+    2: [3, 4],
+    3: [2, 3, 4],
+    4: [1, 2, 3, 4],
+    5: [1, 2, 3, 4, 5],
+    6: [0, 1, 2, 3, 4, 5],
+    7: [0, 1, 2, 3, 4, 5, 6]
+  };
 
   constructor() {
     super("LineoutScene");
@@ -92,9 +134,11 @@ export class LineoutScene extends Phaser.Scene {
       ?? visibleCombinations[0]
       ?? this.allCombinations[0];
 
+    this.primeSlotOccupancy(save.playerTeam.lineoutPlayers);
     const layout = this.getLayout();
     this.renderBackground(layout);
     this.renderHeader(layout);
+    this.renderPlayerInspector(layout);
     this.renderPitch(layout);
     this.renderLineout(save.playerTeam.lineoutPlayers, layout);
     this.renderActions(layout);
@@ -114,19 +158,19 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderBackground(layout: LineoutLayout): void {
-    this.add.rectangle(195, 422, 390, 844, this.mode === "training" ? 0x09131c : 0x060d14);
+    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, this.mode === "training" ? 0x09131c : 0x060d14);
     this.renderPitchStripes(layout);
   }
 
   private renderPitchStripes(layout: LineoutLayout): void {
-    const top = layout.fifteenLineY - 86;
-    const bottom = layout.touchLineY + 118;
+    const top = layout.fieldTop;
+    const bottom = layout.fieldBottom;
     const stripeHeight = Math.floor((bottom - top) / 8);
 
     for (let index = 0; index < 8; index += 1) {
       const y = top + index * stripeHeight + stripeHeight / 2;
       const color = index % 2 === 0 ? 0x517f1f : 0x5f8b27;
-      this.add.rectangle(195, y, 390, stripeHeight + 2, color, 1);
+      this.add.rectangle(SCREEN_WIDTH / 2, y, layout.fieldWidth, stripeHeight + 2, color, 1);
     }
   }
 
@@ -146,17 +190,26 @@ export class LineoutScene extends Phaser.Scene {
     const minute = this.currentMatchLineout?.minute ?? match.minute;
     const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
 
-    this.add.rectangle(98, 74, 196, 148, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
-    this.add.rectangle(292, 74, 196, 148, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
-    this.add.rectangle(195, 74, 92, 148, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
+    this.add.rectangle(98, 42, 196, 76, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
+    this.add.rectangle(292, 42, 196, 76, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
+    this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
 
-    this.add.text(72, 34, match.home.name.toUpperCase(), { font: "bold 16px Arial", color: UI.colors.text }).setOrigin(0, 0.5);
-    this.add.text(72, 82, String(match.ourScore), { font: "bold 40px Arial", color: UI.colors.text }).setOrigin(0, 0.5);
-    this.add.text(318, 34, match.away.name.toUpperCase(), { font: "bold 16px Arial", color: UI.colors.text }).setOrigin(1, 0.5);
-    this.add.text(318, 82, String(match.opponentScore), { font: "bold 40px Arial", color: UI.colors.text }).setOrigin(1, 0.5);
+    this.add.text(72, 20, match.home.name.toUpperCase(), {
+      font: "bold 11px Arial",
+      color: UI.colors.text,
+      wordWrap: { width: 105 }
+    }).setOrigin(0, 0.5);
+    this.add.text(72, 55, String(match.ourScore), { font: "bold 28px Arial", color: UI.colors.text }).setOrigin(0, 0.5);
+    this.add.text(318, 20, match.away.name.toUpperCase(), {
+      font: "bold 11px Arial",
+      color: UI.colors.text,
+      align: "right",
+      wordWrap: { width: 105 }
+    }).setOrigin(1, 0.5);
+    this.add.text(318, 55, String(match.opponentScore), { font: "bold 28px Arial", color: UI.colors.text }).setOrigin(1, 0.5);
 
-    this.add.text(195, 58, this.formatMinute(minute), { font: "bold 28px Arial", color: "#fbbf24" }).setOrigin(0.5);
-    this.add.text(195, 96, t(periodKey), { font: "bold 14px Arial", color: "#84cc16" }).setOrigin(0.5);
+    this.add.text(195, 34, this.formatMinute(minute), { font: "bold 22px Arial", color: "#fbbf24" }).setOrigin(0.5);
+    this.add.text(195, 62, t(periodKey), { font: "bold 11px Arial", color: "#84cc16" }).setOrigin(0.5);
   }
 
   private renderMatchStats(layout: LineoutLayout): void {
@@ -165,61 +218,134 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    this.add.rectangle(101, 244, 142, 78, 0x07111a, 0.96).setStrokeStyle(2, 0x334155);
-    this.add.rectangle(195, 244, 142, 78, 0x07111a, 0.96).setStrokeStyle(2, 0x334155);
-    this.add.rectangle(289, 244, 142, 78, 0x07111a, 0.96).setStrokeStyle(2, 0x334155);
+    this.add.rectangle(78, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
+    this.add.rectangle(195, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
+    this.add.rectangle(312, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
 
-    this.add.text(101, 216, t("match.possession").toUpperCase(), { font: "bold 12px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(76, 246, `${match.possession}%`, { font: "bold 22px Arial", color: "#60a5fa" }).setOrigin(0.5);
-    this.add.text(126, 246, `${100 - match.possession}%`, { font: "bold 22px Arial", color: "#ef4444" }).setOrigin(0.5);
-    this.add.rectangle(101, 273, 92, 10, 0x1e293b);
-    this.add.rectangle(101 - 46 + (92 * match.possession) / 200, 273, (92 * match.possession) / 100, 10, 0x2563eb).setOrigin(0, 0.5);
-    this.add.rectangle(101 + (92 * match.possession) / 200, 273, (92 * (100 - match.possession)) / 100, 10, 0xdc2626).setOrigin(0, 0.5);
+    this.add.text(78, 96, t("match.possession").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
+    this.add.text(54, 114, `${match.possession}%`, { font: "bold 15px Arial", color: "#60a5fa" }).setOrigin(0.5);
+    this.add.text(102, 114, `${100 - match.possession}%`, { font: "bold 15px Arial", color: "#ef4444" }).setOrigin(0.5);
+    this.add.rectangle(78, 130, 82, 6, 0x1e293b);
+    this.add.rectangle(78 - 41 + (82 * match.possession) / 200, 130, (82 * match.possession) / 100, 5, 0x2563eb).setOrigin(0, 0.5);
+    this.add.rectangle(78 + (82 * match.possession) / 200, 130, (82 * (100 - match.possession)) / 100, 5, 0xdc2626).setOrigin(0, 0.5);
 
-    this.add.text(195, 216, t("match.occupation").toUpperCase(), { font: "bold 12px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 246, `${match.occupation}%`, { font: "bold 22px Arial", color: "#84cc16" }).setOrigin(0.5);
-    this.add.text(289, 216, t("match.zone").toUpperCase(), { font: "bold 12px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(289, 246, t(`match.zone.${this.currentMatchLineout?.pitchZone ?? "middle"}`), {
-      font: "bold 16px Arial",
+    this.add.text(195, 96, t("match.occupation").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
+    this.add.text(195, 118, `${match.occupation}%`, { font: "bold 18px Arial", color: "#84cc16" }).setOrigin(0.5);
+    this.add.text(312, 96, t("match.zone").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
+    this.add.text(312, 118, t(`match.zone.${this.currentMatchLineout?.pitchZone ?? "middle"}`), {
+      font: "bold 12px Arial",
       color: "#f8fafc",
       align: "center",
-      wordWrap: { width: 120 }
+      wordWrap: { width: 92 }
     }).setOrigin(0.5);
+  }
+
+  private renderPlayerInspector(layout: LineoutLayout): void {
+    const panelY = this.mode === "training" ? 92 : 153;
+    const panelHeight = this.mode === "training" ? 98 : 28;
+
+    this.add.rectangle(195, panelY, 344, panelHeight, 0x07111a, 0.94).setStrokeStyle(2, 0x334155);
+    this.inspectorNameText = this.add.text(28, panelY - (this.mode === "training" ? 26 : 7), t("lineout.playerPanel.empty"), {
+      font: this.mode === "training" ? "bold 18px Arial" : "bold 11px Arial",
+      color: UI.colors.text
+    }).setOrigin(0, 0.5);
+    this.inspectorRoleText = this.add.text(28, panelY + 2, "", {
+      font: this.mode === "training" ? "bold 12px Arial" : "bold 9px Arial",
+      color: "#fde68a"
+    }).setOrigin(0, 0.5);
+    this.inspectorStatsText = this.add.text(28, panelY + (this.mode === "training" ? 28 : 10), "", {
+      font: this.mode === "training" ? "12px Arial" : "9px Arial",
+      color: UI.colors.muted
+    }).setOrigin(0, 0.5);
+    this.statusText = this.add.text(195, this.mode === "training" ? panelY + 44 : layout.fieldTop + 18, "", {
+      font: "bold 11px Arial",
+      color: "#fca5a5",
+      align: "center",
+      wordWrap: { width: 300 }
+    }).setOrigin(0.5);
+
+    this.refreshPlayerInspector();
   }
 
   private renderPitch(layout: LineoutLayout): void {
     this.add.rectangle(195, layout.fifteenLineY, 344, 3, 0xffffff, 0.95);
+    this.add.rectangle(195, layout.fiveMeterLineY, 344, 2, 0xffffff, 0.72);
     this.add.rectangle(195, layout.touchLineY, 344, 3, 0xffffff, 0.95);
 
-    this.renderSlots(layout.attackX, 7, layout);
+    this.renderSlots(layout.attackX, 7, layout, this.attackSlotPlayers);
     if (layout.defenseX) {
-      this.renderSlots(layout.defenseX, 7, layout);
-    }
-
-    for (let index = 1; index <= 7; index += 1) {
-      this.add.text(layout.attackX - 44, this.positionY(index as LineoutPosition, layout), String(index), {
-        font: "11px Arial",
-        color: "#e5e7eb"
-      }).setOrigin(0.5);
+      this.renderSlots(layout.defenseX, 7, layout, this.defenseSlotPlayers);
     }
 
     this.renderHooker(layout);
   }
 
-  private renderSlots(x: number, count: number, layout: LineoutLayout): void {
+  private renderSlots(x: number, count: number, layout: LineoutLayout, occupiedSlots: Array<FieldPlayer | null> = []): void {
+    const slotWidth = layout.playerWidth + 18;
+    const slotHeight = Math.round(slotWidth * 0.72);
+    const slotBottomOffset = 5;
+
     for (let index = 1; index <= count; index += 1) {
-      this.add.rectangle(x, this.positionY(index as LineoutPosition, layout), 42, 42, 0xffffff, 0.04)
+      if (occupiedSlots[index - 1]) {
+        continue;
+      }
+
+      this.add.rectangle(
+        x,
+        this.positionY(index as LineoutPosition, layout) + slotBottomOffset - slotHeight / 2,
+        slotWidth,
+        slotHeight,
+        0xffffff,
+        0.04
+      )
         .setStrokeStyle(2, 0xffffff, 0.5);
     }
   }
 
   private renderHooker(layout: LineoutLayout): void {
     const save = GameStore.getSave();
-    this.add.ellipse(layout.hookerX, layout.hookerY, 40, 50, save.playerTeam.colors.primary, 1).setStrokeStyle(2, 0xffffff);
-    this.add.text(layout.hookerX, layout.hookerY, String(save.playerTeam.hooker.number), {
+    const match = GameStore.getMatch();
+    const isOpponentThrow = this.isDefensiveMatch();
+    const hookerSide = isOpponentThrow ? "opponent" : "us";
+    const hookerX = this.getHookerX(hookerSide, layout);
+    const hookerNumber = isOpponentThrow
+      ? (match?.away.hooker.number ?? 2)
+      : save.playerTeam.hooker.number;
+    const hookerFeetY = layout.hookerY + 34;
+    const hookerKit = this.getLineoutKit(hookerSide);
+
+    this.hookerSprite = new RugbyPlayer(
+      this,
+      hookerX,
+      hookerFeetY,
+      "hooker_ready_back",
+      hookerKit,
+      getBodyShapeForPlayer(isOpponentThrow ? match?.away.hooker ?? save.playerTeam.hooker : save.playerTeam.hooker)
+    ).setVisualSize(layout.playerWidth, layout.playerHeight);
+    this.hookerSprite.setKit(hookerKit);
+
+    const hookerText = this.add.text(hookerX, hookerFeetY - 28, String(hookerNumber), {
       font: "bold 18px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
+
+    if (this.mode !== "training") {
+      return;
+    }
+
+    const hitbox = this.add.zone(
+      hookerX - layout.playerWidth / 2 - 6,
+      hookerFeetY - layout.playerHeight,
+      layout.playerWidth + 12,
+      layout.playerHeight + 8
+    ).setOrigin(0);
+    hitbox.setInteractive({ useHandCursor: true });
+    hitbox.on("pointerdown", () => {
+      this.showHookerInspector();
+    });
+    this.hookerSprite.setDepth(1);
+    hookerText.setDepth(2);
+    hitbox.setDepth(3);
   }
 
   private renderLineout(players: FieldPlayer[], layout: LineoutLayout): void {
@@ -238,6 +364,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private renderTrainingLineout(players: FieldPlayer[], layout: LineoutLayout): void {
     this.trainingAssignedPlayers = getPlayersAssignedToCombination(players, this.selectedCombination);
+    this.attackSlotPlayers = this.trainingAssignedPlayers.slice();
 
     this.trainingAssignedPlayers.forEach((player, index) => {
       if (!player) {
@@ -245,68 +372,172 @@ export class LineoutScene extends Phaser.Scene {
       }
 
       const position = (index + 1) as LineoutPosition;
-      const token = new PlayerToken(this, layout.attackX, this.positionY(position, layout), player, GameStore.getSave().playerTeam.colors.primary);
+      const token = new PlayerToken(
+        this,
+        layout.attackX,
+        this.positionY(position, layout),
+        player,
+        GameStore.getSave().playerTeam.colors.primary,
+        {
+          pose: this.getLineoutPose("us"),
+          kit: this.getLineoutKit("us"),
+          bodyShape: getBodyShapeForPlayer(player),
+          displayWidth: layout.playerWidth,
+          displayHeight: layout.playerHeight
+        }
+      );
+      token.setData("lineoutPosition", position);
       this.bindTrainingSlotToken(token, index);
     });
 
     const reservePlayers = getUnassignedCombinationPlayers(players, this.selectedCombination);
     reservePlayers.forEach((player, index) => {
-      const token = new PlayerToken(this, this.reserveX(index, reservePlayers.length), layout.reserveY, player, GameStore.getSave().playerTeam.colors.primary);
+      const token = new PlayerToken(
+        this,
+        layout.reserveX,
+        this.reservePositionY(index, layout),
+        player,
+        GameStore.getSave().playerTeam.colors.primary,
+        {
+          pose: "receiver_front",
+          kit: this.getLineoutKit("us"),
+          bodyShape: getBodyShapeForPlayer(player),
+          displayWidth: layout.playerWidth,
+          displayHeight: layout.playerHeight
+        }
+      );
       this.bindTrainingReserveToken(token);
     });
+
+    this.setInspectedPlayer(
+      this.trainingAssignedPlayers.find((player): player is FieldPlayer => player !== null)
+      ?? reservePlayers[0]
+      ?? null
+    );
   }
 
   private renderOffensiveMatchLineout(players: FieldPlayer[], layout: LineoutLayout): void {
     const save = GameStore.getSave();
-    const division = getDivision(save.currentDivisionId);
-    const orderedPlayers = orderPlayersForCombination(players, this.selectedCombination);
+    const match = GameStore.getMatch();
+    const opponentPlayers = match?.away.lineoutPlayers ?? [];
+    this.attackSlotPlayers = getPlayersAssignedToCombination(players, this.selectedCombination);
 
-    orderedPlayers.forEach((player, index) => {
+    this.attackSlotPlayers.forEach((player, index) => {
+      if (!player) {
+        return;
+      }
+
       const position = (index + 1) as LineoutPosition;
-      const token = new PlayerToken(this, layout.attackX, this.positionY(position, layout), player, save.playerTeam.colors.primary);
+      const token = new PlayerToken(
+        this,
+        layout.attackX,
+        this.positionY(position, layout),
+        player,
+        save.playerTeam.colors.primary,
+        {
+          pose: this.getLineoutPose("us"),
+          kit: this.getLineoutKit("us"),
+          bodyShape: getBodyShapeForPlayer(player),
+          displayWidth: layout.playerWidth,
+          displayHeight: layout.playerHeight
+        }
+      );
+      token.setData("lineoutPosition", position);
       this.bindMatchAttackToken(token);
       this.attackTokens.push(token);
     });
 
-    const defense = buildDefensivePlan(orderedPlayers, 7, division.opponentSkill);
-    const match = GameStore.getMatch();
+    const attackCount = Math.max(2, countAssignedPlayers(this.selectedCombination));
+    const defense = buildDefensivePlan(opponentPlayers, attackCount);
+    const activeSlots = this.getActiveSlotIndices(attackCount);
+    this.opponentDefensiveJumpPosition = (activeSlots[Math.max(0, defense.likelyJumpPosition - 1)] + 1) as LineoutPosition;
+    this.defenseSlotPlayers = this.createSpreadSlots(defense.selectedPlayers, attackCount);
     const defenseColor = match?.away.colors.primary ?? UI.colors.defense;
 
-    defense.selectedPlayers.forEach((player, index) => {
+    this.defenseSlotPlayers.forEach((player, index) => {
+      if (!player) {
+        return;
+      }
+
       const position = (index + 1) as LineoutPosition;
-      const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, defenseColor);
+      const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, defenseColor, {
+        pose: this.getLineoutPose("opponent"),
+        kit: this.getLineoutKit("opponent"),
+        bodyShape: getBodyShapeForPlayer(player),
+        displayWidth: layout.playerWidth,
+        displayHeight: layout.playerHeight
+      });
       token.disableInteractive();
+      token.setData("lineoutPosition", position);
       this.defenseTokens.push(token);
     });
+
+    this.setInspectedPlayer(this.attackSlotPlayers.find((player): player is FieldPlayer => player !== null) ?? null);
   }
 
   private renderDefensiveLineout(layout: LineoutLayout): void {
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
-    const division = getDivision(save.currentDivisionId);
     const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
     const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
     const opponentPlayers = (match?.away.lineoutPlayers ?? []).slice(0, numberOfPlayers);
-    this.defensivePlan = buildDefensivePlan(opponentPlayers, numberOfPlayers, division.opponentSkill);
+    const rawPlan = buildOffensivePlan(opponentPlayers, numberOfPlayers);
+    const activeSlots = this.getActiveSlotIndices(numberOfPlayers);
+    this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
+    this.defenseSlotPlayers = this.createSpreadSlots(rawPlan.selectedPlayers, numberOfPlayers);
+    this.opponentTargetPosition = (activeSlots[Math.max(0, rawPlan.targetPosition - 1)] + 1) as LineoutPosition;
+    this.opponentTargetId = this.defenseSlotPlayers[this.opponentTargetPosition - 1]?.id ?? null;
 
-    selectedDefenders.forEach((player, index) => {
+    this.attackSlotPlayers.forEach((player, index) => {
+      if (!player) {
+        return;
+      }
+
       const position = (index + 1) as LineoutPosition;
-      const token = new PlayerToken(this, layout.attackX, this.positionY(position, layout), player, save.playerTeam.colors.primary);
+      const token = new PlayerToken(
+        this,
+        layout.attackX,
+        this.positionY(position, layout),
+        player,
+        save.playerTeam.colors.primary,
+        {
+          pose: this.getLineoutPose("us"),
+          kit: this.getLineoutKit("us"),
+          bodyShape: getBodyShapeForPlayer(player),
+          displayWidth: layout.playerWidth,
+          displayHeight: layout.playerHeight
+        }
+      );
+      token.setData("lineoutPosition", position);
       this.bindMatchDefenseToken(token);
       this.attackTokens.push(token);
     });
 
     const opponentColor = match?.away.colors.primary ?? UI.colors.defense;
-    opponentPlayers.forEach((player, index) => {
+    this.defenseSlotPlayers.forEach((player, index) => {
+      if (!player) {
+        return;
+      }
+
       const position = (index + 1) as LineoutPosition;
-      const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, opponentColor);
+      const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, opponentColor, {
+        pose: this.getLineoutPose("opponent"),
+        kit: this.getLineoutKit("opponent"),
+        bodyShape: getBodyShapeForPlayer(player),
+        displayWidth: layout.playerWidth,
+        displayHeight: layout.playerHeight
+      });
       token.disableInteractive();
+      token.setData("lineoutPosition", position);
       this.defenseTokens.push(token);
     });
+
+    this.setInspectedPlayer(this.attackSlotPlayers.find((player): player is FieldPlayer => player !== null) ?? null);
   }
 
   private bindTrainingSlotToken(token: PlayerToken, slotIndex: number): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "training-slot", slotIndex },
         pointer,
@@ -321,6 +552,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindTrainingReserveToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "training-reserve" },
         pointer,
@@ -335,6 +567,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchAttackToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "match-attack" },
         pointer,
@@ -349,6 +582,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchDefenseToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "match-defense" },
         pointer,
@@ -363,13 +597,16 @@ export class LineoutScene extends Phaser.Scene {
 
   private renderActions(layout: LineoutLayout): void {
     if (this.mode === "match") {
-      new UIButton(this, 195, layout.navigationY, 180, 40, t("button.back"), () => navigateTo(this, "MatchScene"));
+      new UIButton(this, 195, layout.navigationY, 180, 40, t("button.back"), () => navigateTo(this, "MatchScene"), {
+        variant: "secondary"
+      });
       return;
     }
 
-    new UIButton(this, 73, layout.navigationY, 110, 38, t("menu.team"), () => navigateTo(this, "TeamScene"));
-    new UIButton(this, 195, layout.navigationY, 110, 38, t("button.combinations"), () => navigateTo(this, "CombinationListScene", { combinationId: this.selectedCombination.id }));
-    new UIButton(this, 317, layout.navigationY, 110, 38, t("menu.championship"), () => navigateTo(this, "ChampionshipScene"));
+    new UIButton(this, 103, layout.navigationY, 164, 44, t("button.combinations"), () => navigateTo(this, "CombinationListScene", { combinationId: this.selectedCombination.id }));
+    new UIButton(this, 287, layout.navigationY, 164, 44, t("menu.championship"), () => navigateTo(this, "ChampionshipScene"), {
+      variant: "secondary"
+    });
   }
 
   private trackDrag(): void {
@@ -382,7 +619,12 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.dragState.moved && Math.abs(pointer.y - this.dragState.startY) < 8) {
+    if (origin.kind === "match-attack") {
+      return;
+    }
+
+    const movement = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y);
+    if (!this.dragState.moved && movement < 10) {
       return;
     }
 
@@ -391,13 +633,14 @@ export class LineoutScene extends Phaser.Scene {
 
     if (origin.kind === "training-slot" || origin.kind === "training-reserve") {
       token.x = Phaser.Math.Clamp(pointer.x, 28, 362);
-      token.y = Phaser.Math.Clamp(pointer.y, 190, layout.navigationY - 24);
+      token.y = Phaser.Math.Clamp(pointer.y, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
       return;
     }
 
     if (origin.kind === "match-defense") {
-      const maxPosition = this.getCurrentLineoutSize();
-      token.y = Phaser.Math.Clamp(pointer.y, this.positionY(1, layout), this.positionY(maxPosition as LineoutPosition, layout));
+      const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
+      const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
+      token.y = Phaser.Math.Clamp(pointer.y, minY, maxY);
     }
   }
 
@@ -474,18 +717,23 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private finishMatchDefenseReorder(token: PlayerToken): void {
-    const previousOrder = this.attackTokens.map((item) => item.player.id).join("|");
+    const previousOrder = this.getDefenseMemoryPlayerIds().join("|");
     const layout = this.getLayout();
-    const nearest = this.nearestPosition(token.y, layout);
-    token.y = this.positionY(nearest, layout);
-    this.attackTokens.sort((left, right) => left.y - right.y);
-    this.attackTokens.forEach((item, index) => {
-      item.y = this.positionY((index + 1) as LineoutPosition, layout);
-    });
+    const sourceIndex = ((token.getData("lineoutPosition") as number | undefined) ?? 1) - 1;
+    const targetIndex = this.findDefenseTargetSlot(token.y, layout);
+    const nextAssignments = this.attackSlotPlayers.slice();
+    const targetPlayer = nextAssignments[targetIndex] ?? null;
 
-    const nextOrder = this.attackTokens.map((item) => item.player.id).join("|");
+    nextAssignments[targetIndex] = token.player;
+    if (sourceIndex !== targetIndex) {
+      nextAssignments[sourceIndex] = targetPlayer;
+    }
+
+    this.attackSlotPlayers = nextAssignments;
+    this.syncDefenseTokenPositions(layout);
+    const nextOrder = this.getDefenseMemoryPlayerIds().join("|");
     if (previousOrder !== nextOrder && this.currentMatchLineout) {
-      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.attackTokens.map((item) => item.player.id));
+      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
     }
   }
 
@@ -507,6 +755,12 @@ export class LineoutScene extends Phaser.Scene {
       }
     }
 
+    const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
+    if (!targetToken) {
+      this.flashStatus(t("lineout.status.selectTarget"));
+      return;
+    }
+
     this.isResolving = true;
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
@@ -515,34 +769,37 @@ export class LineoutScene extends Phaser.Scene {
       {
         throwingSide: "us",
         pitchZone,
-        numberOfPlayers: 7,
+        numberOfPlayers: Math.max(2, countAssignedPlayers(this.selectedCombination)),
         hooker: save.playerTeam.hooker,
-        attackingPlayers: this.attackTokens.map((token) => token.player),
-        defendingPlayers: this.defenseTokens.map((token) => token.player),
+        attackingPlayers: this.attackSlotPlayers,
+        defendingPlayers: this.defenseSlotPlayers,
         combination: this.selectedCombination,
-        targetPlayerId: this.selectedTargetId ?? undefined
-      },
-      45
+        targetPlayerId: this.selectedTargetId ?? undefined,
+        targetPosition: this.selectedTargetPosition ?? undefined,
+        defensiveJumpPosition: this.opponentDefensiveJumpPosition ?? undefined
+      }
     );
 
     if (this.mode === "match" && match) {
       const updated = updateMatchAfterLineout(match, result.possessionDelta, result.occupationDelta);
       updated.lineouts[updated.currentLineoutIndex].resolved = true;
+      updated.minute = this.currentMatchLineout?.minute ?? updated.minute;
       updated.currentLineoutIndex += 1;
       updated.playerUsage = this.recordOffensiveUsage(updated.playerUsage, save.playerTeam.hooker.id);
+      this.recordOffensiveSummary(updated, result);
       GameStore.setMatch(updated);
     }
 
-    this.playThrowAnimation(() => {
+    this.playThrowAnimation("us", this.selectedTargetPosition ?? 4, this.attackTokens, () => {
       this.isResolving = false;
-      new Modal(this, t(`lineout.result.${result.displayedResult}`), t(result.explanationKey), () => {
+      new Modal(this, t(`lineout.result.${result.displayedResult}`), this.buildResultBody(result), () => {
         this.scene.start("MatchScene");
       });
     });
   }
 
   private defendLineout(targetPlayerId?: string): void {
-    if (this.isResolving || !this.defensivePlan) {
+    if (this.isResolving) {
       return;
     }
 
@@ -555,43 +812,75 @@ export class LineoutScene extends Phaser.Scene {
 
     this.isResolving = true;
     const match = GameStore.getMatch();
-    const result = resolveDefensiveLineout(
-      this.attackTokens.map((token) => token.player),
-      this.selectedTargetId ?? undefined,
-      this.defensivePlan.likelyJumpPosition,
-      this.defensivePlan.pressure
-    );
-
-    if (match) {
-      const updated = updateMatchAfterLineout(match, result.possessionDelta, result.occupationDelta);
-      updated.lineouts[updated.currentLineoutIndex].resolved = true;
-      updated.currentLineoutIndex += 1;
-      updated.playerUsage = this.recordDefensiveUsage(updated.playerUsage);
-      GameStore.setMatch(updated);
+    if (!match) {
+      this.isResolving = false;
+      return;
     }
+    const result = resolveDefensiveLineout({
+      throwingSide: "opponent",
+      pitchZone: this.currentMatchLineout?.pitchZone ?? "middle",
+      numberOfPlayers: this.currentMatchLineout?.numberOfPlayers ?? 7,
+      hooker: match.away.hooker,
+      attackingPlayers: this.defenseSlotPlayers,
+      defendingPlayers: this.attackSlotPlayers,
+      targetPlayerId: this.opponentTargetId ?? undefined,
+      targetPosition: this.opponentTargetPosition ?? undefined,
+      defensiveJumpPosition: this.selectedTargetPosition ?? undefined
+    }, this.selectedTargetId ?? undefined);
+
+    const updated = updateMatchAfterLineout(match, result.possessionDelta, result.occupationDelta);
+    updated.lineouts[updated.currentLineoutIndex].resolved = true;
+    updated.minute = this.currentMatchLineout?.minute ?? updated.minute;
+    updated.currentLineoutIndex += 1;
+    updated.playerUsage = this.recordDefensiveUsage(updated.playerUsage);
+    updated.lineoutHistory.push({
+      minute: this.currentMatchLineout?.minute ?? updated.minute,
+      throwingSide: "opponent",
+      displayedResult: result.displayedResult,
+      success: result.displayedResult !== "lost"
+    });
+    GameStore.setMatch(updated);
 
     if (this.currentMatchLineout) {
-      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.attackTokens.map((token) => token.player.id));
+      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
     }
 
-    this.playThrowAnimation(() => {
+    this.playThrowAnimation("opponent", this.opponentTargetPosition ?? 4, this.defenseTokens, () => {
       this.isResolving = false;
-      new Modal(this, t(`lineout.result.${result.displayedResult}`), t(result.explanationKey), () => {
+      new Modal(this, t(`lineout.result.${result.displayedResult}`), this.buildResultBody(result), () => {
         this.scene.start("MatchScene");
       });
     });
   }
 
-  private playThrowAnimation(onComplete: () => void): void {
+  private playThrowAnimation(
+    throwingSide: "us" | "opponent",
+    targetPosition: LineoutPosition,
+    lineTokens: PlayerToken[],
+    onComplete: () => void
+  ): void {
     const layout = this.getLayout();
-    const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId) ?? this.attackTokens[3];
-    const targetIndex = this.attackTokens.indexOf(targetToken);
-    const supportTokens = this.attackTokens.filter((_token, index) => index === targetIndex - 1 || index === targetIndex + 1);
-    const startX = layout.hookerX;
+    const targetToken = lineTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === targetPosition)
+      ?? lineTokens[0];
+    const supportTokens = lineTokens.filter((token) => {
+      const position = token.getData("lineoutPosition") as LineoutPosition | undefined;
+      return position === targetPosition - 1 || position === targetPosition + 1;
+    });
+    const startX = this.getHookerX(throwingSide, layout);
     const startY = layout.hookerY - 24;
     const targetX = targetToken?.x ?? layout.attackX;
     const targetY = (targetToken?.y ?? this.positionY(4, layout)) - 18;
-    const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, 0x1d4ed8).setDepth(10);
+    const strokeColor = throwingSide === "us" ? 0x1d4ed8 : UI.colors.defense;
+    const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor).setDepth(10);
+    const supportPose = throwingSide === "us" ? "lifter_front" : "lifter_back";
+    const targetPose = throwingSide === "us" ? "jumper_catch_front" : this.getLineoutPose("opponent");
+
+    // On change juste quelques poses le temps du lancer pour garder l'animation tres simple.
+    this.hookerSprite?.setPose("hooker_throw_back");
+    supportTokens.forEach((token) => {
+      token.setPose(supportPose);
+    });
+    targetToken?.setPose(targetPose);
 
     supportTokens.forEach((token) => {
       this.tweens.add({
@@ -622,9 +911,43 @@ export class LineoutScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       onComplete: () => {
         ball.destroy();
+        this.hookerSprite?.setPose("hooker_ready_back");
+        supportTokens.forEach((token) => {
+          token.resetPose();
+        });
+        targetToken?.resetPose();
         this.time.delayedCall(120, onComplete);
       }
     });
+  }
+
+  private getHookerX(throwingSide: "us" | "opponent", layout: LineoutLayout): number {
+    if (this.mode === "training") {
+      return layout.hookerX;
+    }
+
+    return layout.hookerX;
+  }
+
+  private getLineoutPose(side: "us" | "opponent"): PoseName {
+    return side === "us" ? "stand_front" : "stand_back";
+  }
+
+  private getLineoutKit(side: "us" | "opponent"): Kit {
+    const save = GameStore.getSave();
+    const match = GameStore.getMatch();
+    const jerseyPrimary = side === "us"
+      ? save.playerTeam.colors.primary
+      : (match?.away.colors.primary ?? UI.colors.defense);
+    const secondaryColor = side === "us"
+      ? save.playerTeam.colors.secondary
+      : (match?.away.colors.secondary ?? jerseyPrimary);
+
+    return {
+      jerseyPrimary,
+      shortsPrimary: secondaryColor,
+      socksPrimary: secondaryColor
+    };
   }
 
   private recordOffensiveUsage(usageMap: Record<string, MatchPlayerUsage>, hookerId: string): Record<string, MatchPlayerUsage> {
@@ -635,10 +958,8 @@ export class LineoutScene extends Phaser.Scene {
       updated = addUsage(updated, targetToken.player.id, "hands", 1);
     }
 
-    const targetIndex = this.attackTokens.findIndex((token) => token.player.id === this.selectedTargetId);
-    const supportTokens = this.attackTokens.filter((_token, index) => index === targetIndex - 1 || index === targetIndex + 1);
-    for (const token of supportTokens) {
-      updated = addUsage(updated, token.player.id, "lift", 1);
+    for (const player of this.getSupportPlayersAroundTarget()) {
+      updated = addUsage(updated, player.id, "lift", 1);
     }
 
     return updated;
@@ -646,15 +967,13 @@ export class LineoutScene extends Phaser.Scene {
 
   private recordDefensiveUsage(usageMap: Record<string, MatchPlayerUsage>): Record<string, MatchPlayerUsage> {
     let updated = usageMap;
-    const targetIndex = this.attackTokens.findIndex((token) => token.player.id === this.selectedTargetId);
-    const targetToken = this.attackTokens[targetIndex];
+    const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
     if (targetToken) {
       updated = addUsage(updated, targetToken.player.id, "jump", 1);
     }
 
-    const supportTokens = this.attackTokens.filter((_token, index) => index === targetIndex - 1 || index === targetIndex + 1);
-    for (const token of supportTokens) {
-      updated = addUsage(updated, token.player.id, "lift", 1);
+    for (const player of this.getSupportPlayersAroundTarget()) {
+      updated = addUsage(updated, player.id, "lift", 1);
     }
 
     return updated;
@@ -662,7 +981,187 @@ export class LineoutScene extends Phaser.Scene {
 
   private selectTarget(token: PlayerToken): void {
     this.selectedTargetId = token.player.id;
+    this.selectedTargetPosition = (token.getData("lineoutPosition") as LineoutPosition | undefined) ?? null;
+    this.setInspectedPlayer(token.player);
     this.attackTokens.forEach((item) => item.setSelected(item === token));
+  }
+
+  private setInspectedPlayer(player: FieldPlayer | null): void {
+    this.inspectedPlayer = player;
+    this.refreshPlayerInspector();
+  }
+
+  private showHookerInspector(): void {
+    const hooker = GameStore.getSave().playerTeam.hooker;
+
+    this.inspectedPlayer = null;
+    this.inspectorNameText?.setText(`${t("team.numberPrefix")}${hooker.number} - ${hooker.nickname}`);
+    this.inspectorRoleText?.setText(t("lineout.hookerLabel"));
+    this.inspectorStatsText?.setText(`${t("team.throwing")} ${hooker.throwing}`);
+  }
+
+  private refreshPlayerInspector(): void {
+    if (!this.inspectorNameText || !this.inspectorStatsText || !this.inspectorRoleText) {
+      return;
+    }
+
+    if (!this.inspectedPlayer) {
+      this.inspectorNameText.setText(t("lineout.playerPanel.empty"));
+      this.inspectorRoleText.setText("");
+      this.inspectorStatsText.setText("");
+      return;
+    }
+
+    const roles: string[] = [];
+    if (isLikelyJumper(this.inspectedPlayer)) {
+      roles.push(t("lineout.role.jumper"));
+    }
+    if (isLikelyLifter(this.inspectedPlayer)) {
+      roles.push(t("lineout.role.lifter"));
+    }
+
+    this.inspectorNameText.setText(`${t("team.numberPrefix")}${this.inspectedPlayer.number} - ${this.inspectedPlayer.nickname}`);
+    this.inspectorRoleText.setText(roles.join(" · "));
+    this.inspectorStatsText.setText(
+      `${t("team.stat.jump")} ${this.inspectedPlayer.jump} · `
+      + `${t("team.stat.lift")} ${this.inspectedPlayer.lift} · `
+      + `${t("team.stat.hands")} ${this.inspectedPlayer.hands}`
+    );
+  }
+
+  private flashStatus(message: string): void {
+    if (!this.statusText) {
+      return;
+    }
+
+    this.statusText.setText(message);
+    this.statusClearTimer?.remove(false);
+    this.statusClearTimer = this.time.delayedCall(1800, () => {
+      this.statusText?.setText("");
+    });
+  }
+
+  private createSpreadSlots(players: FieldPlayer[], count: number): Array<FieldPlayer | null> {
+    const slots: Array<FieldPlayer | null> = Array(7).fill(null);
+    const positions = this.getActiveSlotIndices(count);
+
+    players.slice(0, positions.length).forEach((player, index) => {
+      slots[positions[index]] = player;
+    });
+
+    return slots;
+  }
+
+  private syncDefenseTokenPositions(layout: LineoutLayout): void {
+    for (const token of this.attackTokens) {
+      const slotIndex = this.attackSlotPlayers.findIndex((player) => player?.id === token.player.id);
+      if (slotIndex === -1) {
+        continue;
+      }
+
+      const position = (slotIndex + 1) as LineoutPosition;
+      token.x = layout.attackX;
+      token.y = this.positionY(position, layout);
+      token.setData("lineoutPosition", position);
+    }
+
+    if (this.selectedTargetId) {
+      const selectedToken = this.attackTokens.find((item) => item.player.id === this.selectedTargetId);
+      this.selectedTargetPosition = (selectedToken?.getData("lineoutPosition") as LineoutPosition | undefined) ?? null;
+    }
+  }
+
+  private getDefenseMemoryPlayerIds(): string[] {
+    return this.attackSlotPlayers
+      .filter((player): player is FieldPlayer => player !== null)
+      .map((player) => player.id);
+  }
+
+  private primeSlotOccupancy(players: FieldPlayer[]): void {
+    if (this.mode === "training") {
+      this.trainingAssignedPlayers = getPlayersAssignedToCombination(players, this.selectedCombination);
+      this.attackSlotPlayers = this.trainingAssignedPlayers.slice();
+      this.defenseSlotPlayers = [];
+      return;
+    }
+
+    if (this.isDefensiveMatch()) {
+      const save = GameStore.getSave();
+      const match = GameStore.getMatch();
+      const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
+      const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
+      const opponentPlayers = (match?.away.lineoutPlayers ?? []).slice(0, numberOfPlayers);
+      const rawPlan = buildOffensivePlan(opponentPlayers, numberOfPlayers);
+      this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
+      this.defenseSlotPlayers = this.createSpreadSlots(rawPlan.selectedPlayers, numberOfPlayers);
+      return;
+    }
+
+    const match = GameStore.getMatch();
+    const opponentPlayers = match?.away.lineoutPlayers ?? [];
+    const attackCount = Math.max(2, countAssignedPlayers(this.selectedCombination));
+    const defense = buildDefensivePlan(opponentPlayers, attackCount);
+    this.attackSlotPlayers = getPlayersAssignedToCombination(players, this.selectedCombination);
+    this.defenseSlotPlayers = this.createSpreadSlots(defense.selectedPlayers, attackCount);
+  }
+
+  private getActiveSlotIndices(count: number): number[] {
+    return this.activeSlotPatterns[Math.max(1, Math.min(7, count))] ?? this.activeSlotPatterns[7];
+  }
+
+  private findDefenseTargetSlot(y: number, layout: LineoutLayout): number {
+    const rawIndex = Math.round((layout.slotStartY - y) / layout.slotGap);
+    return Phaser.Math.Clamp(rawIndex, 0, 6);
+  }
+
+  private nearestActivePosition(y: number, activeSlots: number[], layout: LineoutLayout): number {
+    let bestSlot = activeSlots[0];
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const slotIndex of activeSlots) {
+      const distance = Math.abs(y - this.positionY((slotIndex + 1) as LineoutPosition, layout));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestSlot = slotIndex;
+      }
+    }
+
+    return bestSlot;
+  }
+
+  private getSupportPlayersAroundTarget(): FieldPlayer[] {
+    if (!this.selectedTargetPosition) {
+      return [];
+    }
+
+    const left = this.attackSlotPlayers[this.selectedTargetPosition - 2] ?? null;
+    const right = this.attackSlotPlayers[this.selectedTargetPosition] ?? null;
+    return [left, right].filter((player): player is FieldPlayer => player !== null);
+  }
+
+  private recordOffensiveSummary(match: MatchStateData, result: { displayedResult: "won" | "won_dirty" | "lost" | "fault" }): void {
+    const combinationId = this.selectedCombination.id;
+    const existing = match.combinationStats[combinationId];
+    const success = result.displayedResult === "won" || result.displayedResult === "won_dirty";
+    const combinationName = this.selectedCombination.customName?.trim() || t(this.selectedCombination.nameKey);
+
+    match.combinationStats[combinationId] = {
+      combinationId,
+      combinationName,
+      playerCount: countAssignedPlayers(this.selectedCombination),
+      played: (existing?.played ?? 0) + 1,
+      won: (existing?.won ?? 0) + (success ? 1 : 0),
+      lost: (existing?.lost ?? 0) + (success ? 0 : 1)
+    };
+
+    match.lineoutHistory.push({
+      minute: this.currentMatchLineout?.minute ?? match.minute,
+      throwingSide: "us",
+      displayedResult: result.displayedResult,
+      success,
+      combinationId,
+      combinationName
+    });
   }
 
   private findTrainingTargetSlot(x: number, y: number, layout: LineoutLayout): number | null {
@@ -672,7 +1171,7 @@ export class LineoutScene extends Phaser.Scene {
 
     for (let index = 0; index < 7; index += 1) {
       const slotY = this.positionY((index + 1) as LineoutPosition, layout);
-      if (Math.abs(y - slotY) <= 28) {
+      if (Math.abs(y - slotY) <= Math.min(34, layout.slotGap / 2)) {
         return index;
       }
     }
@@ -680,20 +1179,32 @@ export class LineoutScene extends Phaser.Scene {
     return null;
   }
 
-  private isInTrainingReserveZone(_x: number, y: number, layout: LineoutLayout): boolean {
-    return Math.abs(y - layout.reserveY) <= 34;
+  private isInTrainingReserveZone(x: number, y: number, layout: LineoutLayout): boolean {
+    const reserveTop = this.reservePositionY(0, layout) - layout.playerHeight / 2;
+    const reserveBottom = this.reservePositionY(6, layout) + layout.playerHeight / 2;
+
+    return Math.abs(x - layout.reserveX) <= layout.playerWidth
+      && y >= reserveTop
+      && y <= reserveBottom;
   }
 
-  private reserveX(index: number, count: number): number {
-    const spacing = 46;
-    const startX = 195 - ((count - 1) * spacing) / 2;
-    return startX + index * spacing;
+  private reservePositionY(index: number, layout: LineoutLayout): number {
+    return layout.reserveY + index * layout.slotGap;
   }
 
   private nearestPosition(y: number, layout: LineoutLayout): LineoutPosition {
-    const rawPosition = Math.round((y - layout.slotStartY) / layout.slotGap) + 1;
+    const rawPosition = Math.round((layout.slotStartY - y) / layout.slotGap) + 1;
     const maxPosition = this.getCurrentLineoutSize();
     return Phaser.Math.Clamp(rawPosition, 1, maxPosition) as LineoutPosition;
+  }
+
+  private buildResultBody(result: {
+    explanationKey: string;
+    calculationScore: number;
+    calculationDetails: Array<{ labelKey: string; value: number }>;
+  }): string {
+    const detailLines = result.calculationDetails.map((detail) => `${t(detail.labelKey)} : ${Math.round(detail.value)}%`);
+    return [t(result.explanationKey), "", `${t("lineout.calc.summary")} : ${Math.round(result.calculationScore)}%`, ...detailLines].join("\n");
   }
 
   private getCurrentLineoutSize(): number {
@@ -705,47 +1216,89 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private getLayout(): LineoutLayout {
+    const common = {
+      headerHeight: HEADER_HEIGHT,
+      fieldTop: FIELD_TOP,
+      fieldBottom: SCREEN_HEIGHT,
+      fieldWidth: SCREEN_WIDTH,
+      fieldHeight: FIELD_HEIGHT,
+      playerWidth: Math.round(SCREEN_WIDTH * PLAYER_FIELD_WIDTH_RATIO),
+      playerHeight: Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
+    };
+    const slotRectHalfHeight = (common.playerHeight + 8) / 2;
+    const slotBottomOffset = 4;
+    const topSlotLift = 10;
+
     if (this.mode === "training") {
+      const fifteenLineY = FIELD_TOP + 56;
+      const fiveMeterLineY = SCREEN_HEIGHT - 196;
+      const slotStartY = SCREEN_HEIGHT - 202 - slotBottomOffset;
+      const topSlotTargetY = fifteenLineY - topSlotLift + slotRectHalfHeight;
+      const slotGap = Math.round((slotStartY - topSlotTargetY) / 6);
+      const reserveY = slotStartY - slotGap * 6;
+
       return {
+        ...common,
         attackX: 195,
+        reserveX: 292,
         hookerX: 195,
-        hookerY: 680,
-        fifteenLineY: 238,
-        touchLineY: 640,
-        slotStartY: 280,
-        slotGap: 48,
-        reserveY: 762,
-        navigationY: 804
+        hookerY: 744,
+        fifteenLineY,
+        fiveMeterLineY,
+        touchLineY: SCREEN_HEIGHT - 82,
+        slotStartY,
+        slotGap,
+        reserveY,
+        navigationY: SCREEN_HEIGHT - 36
       };
     }
 
+    const fifteenLineY = FIELD_TOP + 70;
+    const fiveMeterLineY = SCREEN_HEIGHT - 196;
+    const slotStartY = SCREEN_HEIGHT - 202 - slotBottomOffset;
+    const topSlotTargetY = fifteenLineY - topSlotLift + slotRectHalfHeight;
+    const slotGap = Math.round((slotStartY - topSlotTargetY) / 6);
+
     return {
+      ...common,
       attackX: 140,
       defenseX: 250,
+      reserveX: 0,
       hookerX: 195,
-      hookerY: 754,
-      fifteenLineY: 346,
-      touchLineY: 702,
-      slotStartY: 398,
-      slotGap: 46,
+      hookerY: 744,
+      fifteenLineY,
+      fiveMeterLineY,
+      touchLineY: SCREEN_HEIGHT - 82,
+      slotStartY,
+      slotGap,
       reserveY: 0,
-      navigationY: 808
+      navigationY: SCREEN_HEIGHT - 36
     };
   }
 
   private positionY(position: LineoutPosition, layout: LineoutLayout): number {
-    return layout.slotStartY + (position - 1) * layout.slotGap;
+    // Position 1 stays nearest to the hooker and the 5 m line.
+    return layout.slotStartY - (position - 1) * layout.slotGap;
   }
 
   private resetSceneState(): void {
     this.selectedTargetId = null;
+    this.selectedTargetPosition = null;
     this.isResolving = false;
-    this.defensivePlan = undefined;
     this.currentMatchLineout = undefined;
+    this.opponentDefensiveJumpPosition = null;
+    this.opponentTargetId = null;
+    this.opponentTargetPosition = null;
     this.attackTokens = [];
     this.defenseTokens = [];
+    this.attackSlotPlayers = [];
+    this.defenseSlotPlayers = [];
     this.trainingAssignedPlayers = [];
     this.dragState = null;
+    this.inspectedPlayer = null;
+    this.hookerSprite = undefined;
+    this.statusClearTimer?.remove(false);
+    this.statusClearTimer = undefined;
   }
 
   private isDefensiveMatch(): boolean {

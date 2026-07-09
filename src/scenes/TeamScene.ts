@@ -6,6 +6,7 @@ import { GameStore } from "../state/GameStore";
 import { assignPlayerToLineoutPosition, getLineoutBenchPlayers, isSelectedForLineout } from "../rules/TeamSelection";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { PlayerCard } from "../ui/PlayerCard";
 import { UI } from "../ui/UITheme";
@@ -31,14 +32,14 @@ export class TeamScene extends Phaser.Scene {
     const inspectedPlayer = this.getInspectedPlayer();
     const benchCount = getLineoutBenchPlayers(this.team).length;
 
-    this.add.rectangle(195, 422, 390, 844, UI.colors.background);
-    this.add.text(195, 40, t("menu.team"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 72, this.team.name, { font: UI.font.body, color: UI.colors.muted }).setOrigin(0.5);
+    renderMenuBackdrop(this);
+    this.add.text(195, 42, t("menu.team"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
+    this.add.text(195, 66, this.team.name, { font: UI.font.body, color: UI.colors.muted }).setOrigin(0.5);
 
     this.renderHookerPanel();
 
     this.add.text(195, 156, t("team.lineoutTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 178, `${t("team.activePosition")} ${this.selectedLineoutPosition} · ${t("team.reserveCount")} ${benchCount}`, {
+    this.add.text(195, 178, `${t("team.activePosition")} ${this.selectedLineoutPosition} - ${t("team.reserveCount")} ${benchCount}`, {
       font: UI.font.small,
       color: UI.colors.muted
     }).setOrigin(0.5);
@@ -64,12 +65,14 @@ export class TeamScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    new UIButton(this, 309, 792, 122, 40, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }));
+    new UIButton(this, 309, 792, 122, 40, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
+      variant: "secondary"
+    });
   }
 
   private renderHookerPanel(): void {
     const selected = this.inspectedPlayerId === "hooker";
-    const panel = this.add.rectangle(195, 114, 338, 52, selected ? UI.colors.panel : UI.colors.panelDark, 0.96).setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line);
+    const panel = this.add.rectangle(195, 114, 338, 52, selected ? 0x173b27 : 0x0d1b14, 0.96).setStrokeStyle(2, selected ? UI.colors.accent : 0x40604b);
     panel.setInteractive();
     panel.on("pointerup", () => {
       this.inspectedPlayerId = "hooker";
@@ -97,7 +100,7 @@ export class TeamScene extends Phaser.Scene {
     slotLayout.forEach(({ position, x, y }) => {
       const player = this.team.lineoutPlayers[position - 1];
       const selected = this.selectedLineoutPosition === position;
-      const slot = this.add.rectangle(x, y, 74, 36, selected ? UI.colors.panel : UI.colors.panelDark, 1).setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line);
+      const slot = this.add.rectangle(x, y, 74, 36, selected ? 0x173b27 : 0x0d1b14, 1).setStrokeStyle(2, selected ? UI.colors.accent : 0x40604b);
       slot.setInteractive();
       slot.on("pointerup", () => {
         this.selectedLineoutPosition = position;
@@ -114,7 +117,7 @@ export class TeamScene extends Phaser.Scene {
       const y = 348 + index * 32;
       const selectedForLineout = isSelectedForLineout(this.team, player.id);
       const inspected = this.inspectedPlayerId === player.id;
-      const row = this.add.rectangle(195, y, 338, 28, inspected ? UI.colors.panel : UI.colors.panelDark, 0.96).setStrokeStyle(1, selectedForLineout ? UI.colors.accent : UI.colors.line);
+      const row = this.add.rectangle(195, y, 338, 28, inspected ? 0x173b27 : 0x0d1b14, 0.96).setStrokeStyle(1, selectedForLineout ? UI.colors.accent : 0x40604b);
       row.setInteractive();
       row.on("pointerup", () => {
         this.inspectedPlayerId = player.id;
@@ -123,7 +126,7 @@ export class TeamScene extends Phaser.Scene {
 
       this.add.text(28, y, `${t("team.numberPrefix")}${player.number}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
       this.add.text(84, y, player.nickname, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(166, y, `${t("team.stat.jumpAbbr")} ${player.jump} · ${t("team.stat.liftAbbr")} ${player.lift} · ${t("team.stat.handsAbbr")} ${player.hands}`, {
+      this.add.text(166, y, `${t("team.stat.jumpAbbr")} ${player.jump} - ${t("team.stat.liftAbbr")} ${player.lift} - ${t("team.stat.handsAbbr")} ${player.hands}`, {
         font: UI.font.small,
         color: UI.colors.muted
       }).setOrigin(0, 0.5);

@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { getLanguage, setLanguage, t } from "../systems/I18n";
-import { renderMainMenuBackground } from "../ui/MainMenuBackground";
 import { MainMenuButton } from "../ui/MainMenuButton";
+import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
 import { UI } from "../ui/UITheme";
 
 export class SettingsScene extends Phaser.Scene {
@@ -14,9 +14,8 @@ export class SettingsScene extends Phaser.Scene {
   create(): void {
     const currentLanguage = getLanguage();
 
-    renderMainMenuBackground(this);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.52);
-    this.add.text(195, 92, t("menu.options"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
+    renderMenuBackdrop(this, { variant: "hero" });
+    renderMenuHeader(this, t("menu.options"));
     this.add.text(195, 170, t("settings.languageTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
 
     new MainMenuButton(this, 195, 248, 260, 58, t("options.language.fr"), () => {

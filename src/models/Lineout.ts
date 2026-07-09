@@ -18,8 +18,8 @@ export type LineoutSetup = {
   pitchZone: PitchZone;
   numberOfPlayers: number;
   hooker: Hooker;
-  attackingPlayers: FieldPlayer[];
-  defendingPlayers: FieldPlayer[];
+  attackingPlayers: Array<FieldPlayer | null>;
+  defendingPlayers: Array<FieldPlayer | null>;
   combination?: Combination;
   targetPlayerId?: string;
   targetPosition?: LineoutPosition;
@@ -32,4 +32,9 @@ export type LineoutResult = {
   possessionDelta: number;
   occupationDelta: number;
   explanationKey: string;
+  calculationScore: number;
+  calculationDetails: Array<{
+    labelKey: string;
+    value: number;
+  }>;
 };

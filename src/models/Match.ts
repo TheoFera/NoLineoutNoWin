@@ -18,6 +18,24 @@ export type MatchLineoutEvent = {
   resolved: boolean;
 };
 
+export type MatchCombinationStat = {
+  combinationId: string;
+  combinationName: string;
+  playerCount: number;
+  played: number;
+  won: number;
+  lost: number;
+};
+
+export type MatchLineoutSummary = {
+  minute: number;
+  throwingSide: ThrowingSide;
+  displayedResult: "won" | "won_dirty" | "lost" | "fault";
+  success: boolean;
+  combinationId?: string;
+  combinationName?: string;
+};
+
 export type MatchStateData = {
   id: string;
   divisionId: DivisionId;
@@ -27,9 +45,11 @@ export type MatchStateData = {
   maxMinute: number;
   ourScore: number;
   opponentScore: number;
-  possession: number; // 0 à 100
-  occupation: number; // 0 à 100
+  possession: number; // 0 to 100
+  occupation: number; // 0 to 100
   lineouts: MatchLineoutEvent[];
   currentLineoutIndex: number;
   playerUsage: Record<string, MatchPlayerUsage>;
+  combinationStats: Record<string, MatchCombinationStat>;
+  lineoutHistory: MatchLineoutSummary[];
 };

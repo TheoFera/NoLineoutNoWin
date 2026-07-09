@@ -3,8 +3,8 @@ import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from "../rules/TeamFac
 import { GameStore } from "../state/GameStore";
 import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
-import { renderMainMenuBackground } from "../ui/MainMenuBackground";
 import { MainMenuButton } from "../ui/MainMenuButton";
+import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
 import { UI } from "../ui/UITheme";
 
 export class ClubCreationScene extends Phaser.Scene {
@@ -26,61 +26,53 @@ export class ClubCreationScene extends Phaser.Scene {
   }
 
   create(): void {
-    renderMainMenuBackground(this);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.52);
-    this.add.text(195, 84, t("club.title"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 146, t("club.intro"), {
-      font: UI.font.body,
-      color: UI.colors.muted,
-      align: "center",
-      wordWrap: { width: 320 }
-    }).setOrigin(0.5);
-
-    this.add.text(35, 220, t("club.nameLabel"), {
+    renderMenuBackdrop(this, { variant: "hero" });
+    renderMenuHeader(this, t("club.title"));
+    this.add.text(35, 148, t("club.nameLabel"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
     this.createNameInput();
 
-    this.add.text(35, 344, t("club.primaryColor"), {
+    this.add.text(35, 272, t("club.primaryColor"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.primaryColorValueText = this.add.text(355, 344, this.formatColorValue(this.selectedPrimaryColor), {
+    this.primaryColorValueText = this.add.text(355, 272, this.formatColorValue(this.selectedPrimaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(1, 0.5);
     this.createPrimaryColorInput();
 
-    this.add.text(35, 474, t("club.secondaryColor"), {
+    this.add.text(35, 402, t("club.secondaryColor"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.secondaryColorValueText = this.add.text(355, 474, this.formatColorValue(this.selectedSecondaryColor), {
+    this.secondaryColorValueText = this.add.text(355, 402, this.formatColorValue(this.selectedSecondaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(1, 0.5);
     this.createSecondaryColorInput();
 
-    this.add.text(195, 618, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.previewSecondary = this.add.rectangle(195, 676, 198, 82, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewPrimary = this.add.rectangle(195, 676, 176, 58, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewText = this.add.text(195, 676, t("club.defaultName"), {
+    this.add.text(195, 546, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
+    this.previewSecondary = this.add.rectangle(195, 604, 198, 82, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewPrimary = this.add.rectangle(195, 604, 176, 58, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewText = this.add.text(195, 604, t("club.defaultName"), {
       font: "bold 20px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
 
-    this.errorText = this.add.text(195, 742, "", {
+    this.errorText = this.add.text(195, 670, "", {
       font: UI.font.body,
       color: "#fecaca",
       align: "center",
       wordWrap: { width: 320 }
     }).setOrigin(0.5);
 
-    new MainMenuButton(this, 195, 790, 286, 58, t("club.startGame"), () => this.handleCreateClub(), {
+    new MainMenuButton(this, 195, 700, 236, 58, t("club.startGame"), () => this.handleCreateClub(), {
       variant: "primary"
     });
-    new MainMenuButton(this, 195, 838, 236, 44, t("club.backMenu"), () => navigateTo(this, "MainMenuScene"), {
+    new MainMenuButton(this, 195, 766, 186, 44, t("club.backMenu"), () => navigateTo(this, "MainMenuScene"), {
       variant: "secondary"
     });
 
@@ -175,21 +167,21 @@ export class ClubCreationScene extends Phaser.Scene {
     const scale = bounds.width / 390;
 
     this.nameInput.style.left = `${bounds.left + 35 * scale}px`;
-    this.nameInput.style.top = `${bounds.top + 244 * scale}px`;
+    this.nameInput.style.top = `${bounds.top + 172 * scale}px`;
     this.nameInput.style.width = `${320 * scale}px`;
     this.nameInput.style.height = `${50 * scale}px`;
     this.nameInput.style.fontSize = `${18 * scale}px`;
 
     if (this.primaryColorInput) {
       this.primaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
-      this.primaryColorInput.style.top = `${bounds.top + 372 * scale}px`;
+      this.primaryColorInput.style.top = `${bounds.top + 300 * scale}px`;
       this.primaryColorInput.style.width = `${320 * scale}px`;
       this.primaryColorInput.style.height = `${54 * scale}px`;
     }
 
     if (this.secondaryColorInput) {
       this.secondaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
-      this.secondaryColorInput.style.top = `${bounds.top + 502 * scale}px`;
+      this.secondaryColorInput.style.top = `${bounds.top + 430 * scale}px`;
       this.secondaryColorInput.style.width = `${320 * scale}px`;
       this.secondaryColorInput.style.height = `${54 * scale}px`;
     }

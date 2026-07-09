@@ -1,10 +1,11 @@
 import type { FieldPlayer, Hooker } from "../models/Player";
+import { isJumperNumber, isLifterNumber } from "../models/Player";
 import type { JerseyColors, Team } from "../models/Team";
 import { PLAYER_NICKNAMES } from "../data/defaultNames";
 import { randomInt } from "../utils/Random";
 import { clamp } from "../utils/Clamp";
 
-const DEFAULT_FIELD_PLAYER_NUMBERS = [1, 3, 4, 5, 6, 7, 8, 16, 17, 18];
+const DEFAULT_FIELD_PLAYER_NUMBERS = [1, 3, 4, 5, 6, 7, 8];
 const DEFAULT_TEAM_SIZE = DEFAULT_FIELD_PLAYER_NUMBERS.length;
 const DEFAULT_LINEOUT_SIZE = 7;
 
@@ -20,6 +21,14 @@ function statAround(base: number): number {
   return clamp(randomInt(base - 12, base + 12), 10, 95);
 }
 
+function roleHighStat(base: number): number {
+  return clamp(randomInt(Math.max(61, base + 12), Math.max(69, base + 28)), 61, 95);
+}
+
+function roleLowStat(base: number): number {
+  return clamp(randomInt(12, Math.max(24, Math.min(39, base - 6))), 10, 39);
+}
+
 function normalizeJerseyColors(colors?: Partial<JerseyColors>): JerseyColors {
   return {
     primary: colors?.primary ?? DEFAULT_PRIMARY_COLOR,
@@ -28,6 +37,9 @@ function normalizeJerseyColors(colors?: Partial<JerseyColors>): JerseyColors {
 }
 
 function buildFieldPlayer(number: number, index: number, prefix: string, base: number): FieldPlayer {
+  const jump = isJumperNumber(number) ? roleHighStat(base) : roleLowStat(base);
+  const lift = isLifterNumber(number) ? roleHighStat(base) : roleLowStat(base);
+
   return {
     id: `${prefix}${index + 1}`,
     role: "field",
@@ -35,8 +47,8 @@ function buildFieldPlayer(number: number, index: number, prefix: string, base: n
     nickname: PLAYER_NICKNAMES[index] ?? `J${number}`,
     height: randomInt(number <= 3 ? 176 : 184, number <= 3 ? 190 : 202),
     width: randomInt(number <= 3 ? 92 : 82, number <= 3 ? 110 : 102),
-    jump: statAround(base + (number === 4 || number === 5 ? 8 : 0)),
-    lift: statAround(base + (number === 1 || number === 3 ? 8 : 0)),
+    jump,
+    lift,
     hands: statAround(base)
   };
 }

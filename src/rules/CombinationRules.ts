@@ -56,6 +56,10 @@ export function getAvailableOffensiveCombinations(combinations: Combination[], m
   return normalized.slice(0, Math.max(1, maxAvailable));
 }
 
+export function countAssignedPlayers(combination?: Combination): number {
+  return normalizeCombinationSlots(combination?.slots).filter((slot) => slot.playerId !== null).length;
+}
+
 export function getCombinationDisplayName(combination: Combination, translate: (key: string) => string): string {
   const customName = combination.customName?.trim();
   return customName && customName.length > 0 ? customName : translate(combination.nameKey);

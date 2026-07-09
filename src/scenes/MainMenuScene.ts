@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
-import { renderMainMenuBackground } from "../ui/MainMenuBackground";
 import { MainMenuButton } from "../ui/MainMenuButton";
+import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -31,16 +31,9 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   private renderBackground(): void {
-    if (renderMainMenuBackground(this)) {
-      return;
+    const usedHeroBackground = renderMenuBackdrop(this, { variant: "hero", overlayAlpha: 0.24 });
+    if (!usedHeroBackground) {
+      renderMenuHeader(this, t("app.title"), { y: 136 });
     }
-
-    this.add.text(195, 136, t("app.title"), {
-      font: "bold 40px Arial",
-      color: "#f8fafc",
-      align: "center",
-      stroke: "#05070d",
-      strokeThickness: 8
-    }).setOrigin(0.5);
   }
 }

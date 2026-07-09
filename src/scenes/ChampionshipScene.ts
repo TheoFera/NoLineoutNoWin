@@ -1,12 +1,12 @@
 import Phaser from "phaser";
-import { generateOpponent } from "../ai/OpponentGenerator";
 import { getCurrentOpponentId, getCurrentRoundLabel, getPlayerRank, sortStandings } from "../rules/ChampionshipRules";
-import { getDivision } from "../rules/DivisionRules";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { renderMenuBackdrop, renderMenuHeader, renderMenuPanel } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import type { ChampionshipTeamRecord } from "../models/Championship";
 
 export class ChampionshipScene extends Phaser.Scene {
   constructor() {
@@ -15,40 +15,100 @@ export class ChampionshipScene extends Phaser.Scene {
 
   create(): void {
     const save = GameStore.getSave();
-    const division = getDivision(save.currentDivisionId);
     const divisionLabel = t(`division.${save.currentDivisionId}`);
     const championship = save.championship;
     const standings = sortStandings(championship.standings);
     const nextOpponentId = getCurrentOpponentId(championship);
-    const nextOpponentIndex = nextOpponentId ? Number.parseInt(nextOpponentId.replace("opponent_", ""), 10) : 1;
-    const nextOpponentName = nextOpponentId ? generateOpponent(nextOpponentIndex, division).name : t("championship.finished");
+    const nextOpponentRecord = nextOpponentId
+      ? championship.standings.find((record) => record.teamId === nextOpponentId) ?? null
+      : null;
+    const nextOpponentName = nextOpponentRecord?.name ?? t("championship.finished");
     const playerRank = getPlayerRank(championship);
+    const visibleStandings = this.buildVisibleStandings(standings, nextOpponentId);
 
-    this.add.rectangle(195, 422, 390, 844, UI.colors.background);
-    this.add.text(195, 70, t("menu.championship"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 120, `${divisionLabel} · ${t("championship.season")} ${save.season}`, { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 158, `${t("championship.round")} ${getCurrentRoundLabel(championship)} · ${t("championship.rank")} ${playerRank}`, {
+    renderMenuBackdrop(this);
+    renderMenuHeader(this, t("menu.championship"), {
+      subtitle: `${divisionLabel} - ${t("championship.season")} ${save.season}`
+    });
+    renderMenuPanel(this, {
+      x: 195,
+      y: 438,
+      width: 338,
+      height: 396,
+      accentColor: 0x35584a,
+      fillColor: 0x07120d
+    });
+
+    this.add.text(195, 190, `${t("championship.round")} ${getCurrentRoundLabel(championship)} - ${t("championship.rank")} ${playerRank}`, {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(0.5);
-    this.add.text(195, 188, `${t("championship.nextOpponent")} ${nextOpponentName}`, {
+    this.add.text(195, 222, `${t("championship.nextOpponent")} ${nextOpponentName}`, {
       font: UI.font.body,
       color: UI.colors.text,
       align: "center",
-      wordWrap: { width: 340 }
+      wordWrap: { width: 300 }
     }).setOrigin(0.5);
 
-    standings.slice(0, 8).forEach((record, index) => {
-      const y = 248 + index * 48;
-      const highlighted = record.teamId === "player_team";
-      this.add.rectangle(195, y, 338, 38, highlighted ? UI.colors.panel : UI.colors.panelDark, 0.96).setStrokeStyle(1, highlighted ? UI.colors.accent : UI.colors.line);
-      this.add.text(32, y, `${index + 1}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(62, y, record.name, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
+    visibleStandings.forEach((record, index) => {
+      const y = 286 + index * 40;
+      const isPlayerTeam = record.teamId === "player_team";
+      const isNextOpponent = record.teamId === nextOpponentId;
+      const rank = standings.findIndex((item) => item.teamId === record.teamId) + 1;
+      const nameColor = isPlayerTeam ? "#fde68a" : UI.colors.text;
+      const pointsColor = isNextOpponent ? "#bfdbfe" : UI.colors.text;
+
+      this.add.rectangle(195, y + 16, 322, 2, 0xf8fafc, 0.1);
+      if (isPlayerTeam) {
+        this.add.rectangle(28, y, 6, 24, UI.colors.accent, 0.95);
+      } else if (isNextOpponent) {
+        this.add.rectangle(28, y, 6, 24, 0x60a5fa, 0.95);
+      }
+      this.add.text(32, y, `${rank}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
+      this.add.text(62, y, record.name, { font: UI.font.body, color: nameColor }).setOrigin(0, 0.5);
       this.add.text(260, y, `${record.played}J`, { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
-      this.add.text(302, y, `${record.leaguePoints} pts`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0.5);
+      this.add.text(302, y, `${record.leaguePoints} pts`, { font: UI.font.small, color: pointsColor }).setOrigin(0.5);
+
+      if (isNextOpponent) {
+        this.add.rectangle(324, y, 42, 16, 0x1d4ed8, 1).setStrokeStyle(1, 0xbfdbfe, 0.9);
+        this.add.text(324, y, t("championship.nextMatchShort"), {
+          font: "bold 9px Arial",
+          color: UI.colors.text
+        }).setOrigin(0.5);
+      }
     });
 
     new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"));
-    new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }));
+    new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
+      variant: "secondary"
+    });
+  }
+
+  private buildVisibleStandings(standings: ChampionshipTeamRecord[], nextOpponentId: string | null): ChampionshipTeamRecord[] {
+    const requiredIds = ["player_team", nextOpponentId].filter((value): value is string => Boolean(value));
+    const visible: ChampionshipTeamRecord[] = [];
+    const seen = new Set<string>();
+
+    for (const record of standings) {
+      if (requiredIds.includes(record.teamId) && !seen.has(record.teamId)) {
+        visible.push(record);
+        seen.add(record.teamId);
+      }
+    }
+
+    for (const record of standings) {
+      if (visible.length >= 8) {
+        break;
+      }
+
+      if (seen.has(record.teamId)) {
+        continue;
+      }
+
+      visible.push(record);
+      seen.add(record.teamId);
+    }
+
+    return visible.sort((left, right) => standings.findIndex((record) => record.teamId === left.teamId) - standings.findIndex((record) => record.teamId === right.teamId));
   }
 }
