@@ -70,8 +70,6 @@ export function renderMenuHeader(scene: Phaser.Scene, title: string, options: Me
       wordWrap: { width: 280 }
     }).setOrigin(0.5);
   }
-
-  renderLineoutMarkers(scene, y + (options.subtitle ? 54 : 30), UI.colors.accent);
 }
 
 export function renderMenuPanel(scene: Phaser.Scene, options: MenuPanelOptions): Phaser.GameObjects.Graphics {
@@ -118,15 +116,4 @@ function createRoundedPanel(
   graphics.fillRoundedRect(left + 14, top + 12, width - 28, 8, 6);
 
   return graphics;
-}
-
-function renderLineoutMarkers(scene: Phaser.Scene, y: number, color: number): void {
-  const startX = 117;
-
-  for (let index = 0; index < 7; index += 1) {
-    const x = startX + index * 26;
-    const fill = index === 3 ? color : 0xf8fafc;
-    const alpha = index === 3 ? 1 : 0.28;
-    scene.add.rectangle(x, y, 16, 10, fill, alpha).setStrokeStyle(1, color, 0.4);
-  }
 }

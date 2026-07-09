@@ -46,7 +46,7 @@ export class PlayerToken extends Phaser.GameObjects.Container {
       font: "bold 12px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
-    const roleIcons = this.createRoleIcons(scene, player);
+    const roleIcons = this.createRoleIcons(scene, player, visualConfig);
     this.add([this.selectionRing, this.hitTarget, this.tokenBody, this.numberText, ...roleIcons]);
     this.hitTarget.setInteractive({ useHandCursor: true });
     this.hitTarget.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -104,18 +104,27 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     return scene.add.ellipse(0, 0, 34, 44, color, 1).setStrokeStyle(2, UI.colors.line);
   }
 
-  private createRoleIcons(scene: Phaser.Scene, player: FieldPlayer): Phaser.GameObjects.GameObject[] {
+  private createRoleIcons(
+    scene: Phaser.Scene,
+    player: FieldPlayer,
+    visualConfig?: PlayerTokenVisualConfig
+  ): Phaser.GameObjects.GameObject[] {
     const icons: Phaser.GameObjects.GameObject[] = [];
+    const bodyWidth = visualConfig?.displayWidth ?? 34;
+    const bodyHeight = visualConfig?.displayHeight ?? 44;
+    const iconY = visualConfig ? Math.round(4 - bodyHeight / 2) : 0;
+    const jumperX = Math.round(bodyWidth / 2) + 10;
+    const lifterX = -jumperX;
 
     if (isLikelyJumper(player)) {
-      const bg = scene.add.circle(14, -16, 8, UI.colors.accent, 1).setStrokeStyle(1, 0x3f2d00);
-      const text = scene.add.text(14, -16, "S", { font: "bold 10px Arial", color: "#1f2937" }).setOrigin(0.5);
+      const bg = scene.add.circle(jumperX, iconY, 8, UI.colors.accent, 1).setStrokeStyle(1, 0x3f2d00);
+      const text = scene.add.text(jumperX, iconY, "S", { font: "bold 10px Arial", color: "#1f2937" }).setOrigin(0.5);
       icons.push(bg, text);
     }
 
     if (isLikelyLifter(player)) {
-      const bg = scene.add.circle(-14, 16, 8, 0x0f3d2b, 1).setStrokeStyle(1, UI.colors.line);
-      const text = scene.add.text(-14, 16, "L", { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
+      const bg = scene.add.circle(lifterX, iconY, 8, 0x0f3d2b, 1).setStrokeStyle(1, UI.colors.line);
+      const text = scene.add.text(lifterX, iconY, "L", { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
       icons.push(bg, text);
     }
 

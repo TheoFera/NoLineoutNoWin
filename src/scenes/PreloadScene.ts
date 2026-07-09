@@ -12,6 +12,9 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     this.add.text(195, 390, t("loading.message"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
     this.load.image("main-menu-background", "assets/images/main-menu-background.png");
+    this.load.image("create-club-background", "assets/images/create-club-background.png");
+    this.load.image("option-menu-background", "assets/images/option-menu-background.png");
+    this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
     preloadRugbyPlayerAssets(this.load);
   }
 

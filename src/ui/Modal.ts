@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { t } from "../systems/I18n";
+import { UI_DEPTH } from "./UIDepth";
 import { UIButton } from "./UIButton";
 import { UI } from "./UITheme";
 
@@ -43,5 +44,6 @@ export class Modal extends Phaser.GameObjects.Container {
     });
     this.add([bg, titleText, bodyText, close]);
     scene.add.existing(this);
+    this.setDepth(UI_DEPTH.overlayPanel);
   }
 }

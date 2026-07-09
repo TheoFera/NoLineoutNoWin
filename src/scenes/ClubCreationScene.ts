@@ -4,7 +4,9 @@ import { GameStore } from "../state/GameStore";
 import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
 import { MainMenuButton } from "../ui/MainMenuButton";
-import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
+import { renderMenuHeader } from "../ui/MenuChrome";
+import { RugbyPlayer } from "../ui/RugbyPlayer";
+import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UI } from "../ui/UITheme";
 
 export class ClubCreationScene extends Phaser.Scene {
@@ -14,8 +16,9 @@ export class ClubCreationScene extends Phaser.Scene {
   private positionInputHandler: (() => void) | null = null;
   private selectedPrimaryColor = DEFAULT_PRIMARY_COLOR;
   private selectedSecondaryColor = DEFAULT_SECONDARY_COLOR;
-  private previewPrimary!: Phaser.GameObjects.Rectangle;
-  private previewSecondary!: Phaser.GameObjects.Rectangle;
+  private previewNameplate!: Phaser.GameObjects.Rectangle;
+  private previewBackdrop!: Phaser.GameObjects.Rectangle;
+  private previewPlayer!: RugbyPlayer;
   private previewText!: Phaser.GameObjects.Text;
   private errorText!: Phaser.GameObjects.Text;
   private primaryColorValueText!: Phaser.GameObjects.Text;
@@ -26,7 +29,10 @@ export class ClubCreationScene extends Phaser.Scene {
   }
 
   create(): void {
-    renderMenuBackdrop(this, { variant: "hero" });
+    const previewPlayerHeight = 166;
+    const previewPlayerWidth = 74;
+
+    this.renderCreateClubBackground();
     renderMenuHeader(this, t("club.title"));
     this.add.text(35, 148, t("club.nameLabel"), {
       font: UI.font.subtitle,
@@ -38,27 +44,29 @@ export class ClubCreationScene extends Phaser.Scene {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.primaryColorValueText = this.add.text(355, 272, this.formatColorValue(this.selectedPrimaryColor), {
+    this.primaryColorValueText = this.add.text(35, 304, this.formatColorValue(this.selectedPrimaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
-    }).setOrigin(1, 0.5);
+    }).setOrigin(0, 0.5);
     this.createPrimaryColorInput();
 
-    this.add.text(35, 402, t("club.secondaryColor"), {
+    this.add.text(35, 430, t("club.secondaryColor"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.secondaryColorValueText = this.add.text(355, 402, this.formatColorValue(this.selectedSecondaryColor), {
+    this.secondaryColorValueText = this.add.text(35, 462, this.formatColorValue(this.selectedSecondaryColor), {
       font: UI.font.body,
       color: UI.colors.muted
-    }).setOrigin(1, 0.5);
+    }).setOrigin(0, 0.5);
     this.createSecondaryColorInput();
 
-    this.add.text(195, 546, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.previewSecondary = this.add.rectangle(195, 604, 198, 82, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewPrimary = this.add.rectangle(195, 604, 176, 58, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewText = this.add.text(195, 604, t("club.defaultName"), {
-      font: "bold 20px Arial",
+    this.add.text(288, 272, t("club.preview"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
+    this.previewBackdrop = this.add.rectangle(288, 326, 136, 40, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewNameplate = this.add.rectangle(288, 326, 124, 30, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewPlayer = new RugbyPlayer(this, 288, 562, "stand_front", this.getPreviewKit(), "medium_standard")
+      .setVisualSize(previewPlayerWidth, previewPlayerHeight);
+    this.previewText = this.add.text(288, 326, t("club.defaultName"), {
+      font: UI.font.body,
       color: UI.colors.text
     }).setOrigin(0.5);
 
@@ -115,6 +123,19 @@ export class ClubCreationScene extends Phaser.Scene {
     window.addEventListener("resize", this.positionInputHandler);
     this.scale.on("resize", this.positionInputHandler);
     this.positionDomInputs();
+  }
+
+  private renderCreateClubBackground(): void {
+    const background = this.add.image(195, 422, "create-club-background");
+    const source = background.texture.getSourceImage() as { width: number; height: number; };
+    const scale = Math.max(390 / source.width, 844 / source.height);
+
+    background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
+    this.add.rectangle(195, 146, 312, 3, 0xf8fafc, 0.18);
+    this.add.rectangle(195, 698, 312, 3, 0xf8fafc, 0.16);
+    this.add.rectangle(60, 422, 2, 610, 0xf8fafc, 0.08);
+    this.add.rectangle(330, 422, 2, 610, 0xf8fafc, 0.08);
   }
 
   private createPrimaryColorInput(): void {
@@ -174,16 +195,16 @@ export class ClubCreationScene extends Phaser.Scene {
 
     if (this.primaryColorInput) {
       this.primaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
-      this.primaryColorInput.style.top = `${bounds.top + 300 * scale}px`;
-      this.primaryColorInput.style.width = `${320 * scale}px`;
-      this.primaryColorInput.style.height = `${54 * scale}px`;
+      this.primaryColorInput.style.top = `${bounds.top + 330 * scale}px`;
+      this.primaryColorInput.style.width = `${72 * scale}px`;
+      this.primaryColorInput.style.height = `${72 * scale}px`;
     }
 
     if (this.secondaryColorInput) {
       this.secondaryColorInput.style.left = `${bounds.left + 35 * scale}px`;
-      this.secondaryColorInput.style.top = `${bounds.top + 430 * scale}px`;
-      this.secondaryColorInput.style.width = `${320 * scale}px`;
-      this.secondaryColorInput.style.height = `${54 * scale}px`;
+      this.secondaryColorInput.style.top = `${bounds.top + 488 * scale}px`;
+      this.secondaryColorInput.style.width = `${72 * scale}px`;
+      this.secondaryColorInput.style.height = `${72 * scale}px`;
     }
   }
 
@@ -212,10 +233,11 @@ export class ClubCreationScene extends Phaser.Scene {
 
   private refreshPreview(): void {
     const clubName = this.nameInput?.value.trim() || t("club.defaultName");
-    const textColor = this.selectedPrimaryColor === 0xffffff ? "#111827" : UI.colors.text;
+    const textColor = this.getReadableTextColor(this.selectedPrimaryColor);
 
-    this.previewSecondary.setFillStyle(this.selectedSecondaryColor, 1);
-    this.previewPrimary.setFillStyle(this.selectedPrimaryColor, 1);
+    this.previewBackdrop.setFillStyle(this.selectedSecondaryColor, 1);
+    this.previewNameplate.setFillStyle(this.selectedPrimaryColor, 1);
+    this.previewPlayer.setKit(this.getPreviewKit());
     this.previewText.setText(clubName);
     this.previewText.setColor(textColor);
     this.primaryColorValueText.setText(this.formatColorValue(this.selectedPrimaryColor));
@@ -244,5 +266,22 @@ export class ClubCreationScene extends Phaser.Scene {
 
   private fromColorHex(value: string): number {
     return Number.parseInt(value.slice(1), 16);
+  }
+
+  private getPreviewKit(): Kit {
+    return {
+      jerseyPrimary: this.selectedPrimaryColor,
+      shortsPrimary: this.selectedSecondaryColor,
+      socksPrimary: this.selectedSecondaryColor
+    };
+  }
+
+  private getReadableTextColor(backgroundColor: number): string {
+    const red = (backgroundColor >> 16) & 0xff;
+    const green = (backgroundColor >> 8) & 0xff;
+    const blue = backgroundColor & 0xff;
+    const luminance = (red * 0.299) + (green * 0.587) + (blue * 0.114);
+
+    return luminance > 160 ? "#10271b" : UI.colors.text;
   }
 }

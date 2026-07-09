@@ -29,6 +29,11 @@ const FIELD_TOP = HEADER_HEIGHT;
 const FIELD_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT;
 const PLAYER_FIELD_WIDTH_RATIO = 0.1;
 const PLAYER_FIELD_HEIGHT_RATIO = 0.13;
+const PLAYER_DEPTH_BASE = 100;
+const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
+const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
+const RUGBY_DASH_WIDTH = 18;
+const RUGBY_DASH_GAP = 12;
 
 export type LineoutSceneData = {
   mode: "training" | "match";
@@ -158,20 +163,9 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderBackground(layout: LineoutLayout): void {
-    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, this.mode === "training" ? 0x09131c : 0x060d14);
-    this.renderPitchStripes(layout);
-  }
-
-  private renderPitchStripes(layout: LineoutLayout): void {
-    const top = layout.fieldTop;
-    const bottom = layout.fieldBottom;
-    const stripeHeight = Math.floor((bottom - top) / 8);
-
-    for (let index = 0; index < 8; index += 1) {
-      const y = top + index * stripeHeight + stripeHeight / 2;
-      const color = index % 2 === 0 ? 0x517f1f : 0x5f8b27;
-      this.add.rectangle(SCREEN_WIDTH / 2, y, layout.fieldWidth, stripeHeight + 2, color, 1);
-    }
+    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, 0x09131c);
+    this.add.image(SCREEN_WIDTH / 2, layout.fieldTop + layout.fieldHeight / 2, "lineout-pitch-background")
+      .setDisplaySize(layout.fieldWidth, layout.fieldHeight);
   }
 
   private renderHeader(layout: LineoutLayout): void {
@@ -268,9 +262,9 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderPitch(layout: LineoutLayout): void {
-    this.add.rectangle(195, layout.fifteenLineY, 344, 3, 0xffffff, 0.95);
-    this.add.rectangle(195, layout.fiveMeterLineY, 344, 2, 0xffffff, 0.72);
-    this.add.rectangle(195, layout.touchLineY, 344, 3, 0xffffff, 0.95);
+    this.renderDashedPitchLine(SCREEN_WIDTH / 2, layout.fifteenLineY, layout.fieldWidth, 3, 0.95);
+    this.renderDashedPitchLine(SCREEN_WIDTH / 2, layout.fiveMeterLineY, layout.fieldWidth, 2, 0.72);
+    this.add.rectangle(SCREEN_WIDTH / 2, layout.touchLineY, layout.fieldWidth, 3, 0xffffff, 0.95);
 
     this.renderSlots(layout.attackX, 7, layout, this.attackSlotPlayers);
     if (layout.defenseX) {
@@ -278,6 +272,18 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     this.renderHooker(layout);
+  }
+
+  private renderDashedPitchLine(centerX: number, y: number, width: number, height: number, alpha: number): void {
+    const startX = centerX - width / 2;
+    const endX = startX + width;
+    let currentX = startX;
+
+    while (currentX < endX) {
+      const dashWidth = Math.min(RUGBY_DASH_WIDTH, endX - currentX);
+      this.add.rectangle(currentX + dashWidth / 2, y, dashWidth, height, 0xffffff, alpha);
+      currentX += RUGBY_DASH_WIDTH + RUGBY_DASH_GAP;
+    }
   }
 
   private renderSlots(x: number, count: number, layout: LineoutLayout, occupiedSlots: Array<FieldPlayer | null> = []): void {
@@ -328,6 +334,9 @@ export class LineoutScene extends Phaser.Scene {
       font: "bold 18px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
+    const hookerDepth = this.getPlayerDepth(hookerFeetY);
+    this.hookerSprite.setDepth(hookerDepth);
+    hookerText.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
 
     if (this.mode !== "training") {
       return;
@@ -343,9 +352,7 @@ export class LineoutScene extends Phaser.Scene {
     hitbox.on("pointerdown", () => {
       this.showHookerInspector();
     });
-    this.hookerSprite.setDepth(1);
-    hookerText.setDepth(2);
-    hitbox.setDepth(3);
+    hitbox.setDepth(hookerDepth + PLAYER_HITBOX_DEPTH_OFFSET);
   }
 
   private renderLineout(players: FieldPlayer[], layout: LineoutLayout): void {
@@ -387,6 +394,7 @@ export class LineoutScene extends Phaser.Scene {
         }
       );
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
       this.bindTrainingSlotToken(token, index);
     });
 
@@ -406,6 +414,7 @@ export class LineoutScene extends Phaser.Scene {
           displayHeight: layout.playerHeight
         }
       );
+      this.syncPlayerTokenDepth(token);
       this.bindTrainingReserveToken(token);
     });
 
@@ -443,6 +452,7 @@ export class LineoutScene extends Phaser.Scene {
         }
       );
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
       this.bindMatchAttackToken(token);
       this.attackTokens.push(token);
     });
@@ -469,6 +479,7 @@ export class LineoutScene extends Phaser.Scene {
       });
       token.disableInteractive();
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
       this.defenseTokens.push(token);
     });
 
@@ -509,6 +520,7 @@ export class LineoutScene extends Phaser.Scene {
         }
       );
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
       this.bindMatchDefenseToken(token);
       this.attackTokens.push(token);
     });
@@ -529,6 +541,7 @@ export class LineoutScene extends Phaser.Scene {
       });
       token.disableInteractive();
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
       this.defenseTokens.push(token);
     });
 
@@ -634,6 +647,7 @@ export class LineoutScene extends Phaser.Scene {
     if (origin.kind === "training-slot" || origin.kind === "training-reserve") {
       token.x = Phaser.Math.Clamp(pointer.x, 28, 362);
       token.y = Phaser.Math.Clamp(pointer.y, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
+      this.syncPlayerTokenDepth(token);
       return;
     }
 
@@ -641,6 +655,7 @@ export class LineoutScene extends Phaser.Scene {
       const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
       const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
       token.y = Phaser.Math.Clamp(pointer.y, minY, maxY);
+      this.syncPlayerTokenDepth(token);
     }
   }
 
@@ -669,6 +684,7 @@ export class LineoutScene extends Phaser.Scene {
 
     drag.token.x = drag.homeX;
     drag.token.y = drag.homeY;
+    this.syncPlayerTokenDepth(drag.token);
   }
 
   private handleTap(drag: DragState): void {
@@ -684,6 +700,7 @@ export class LineoutScene extends Phaser.Scene {
 
     drag.token.x = drag.homeX;
     drag.token.y = drag.homeY;
+    this.syncPlayerTokenDepth(drag.token);
   }
 
   private handleTrainingDrop(drag: DragState): void {
@@ -871,7 +888,8 @@ export class LineoutScene extends Phaser.Scene {
     const targetX = targetToken?.x ?? layout.attackX;
     const targetY = (targetToken?.y ?? this.positionY(4, layout)) - 18;
     const strokeColor = throwingSide === "us" ? 0x1d4ed8 : UI.colors.defense;
-    const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor).setDepth(10);
+    const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor);
+    ball.setDepth(this.getPlayerDepth(startY) + PLAYER_LABEL_DEPTH_OFFSET);
     const supportPose = throwingSide === "us" ? "lifter_front" : "lifter_back";
     const targetPose = throwingSide === "us" ? "jumper_catch_front" : this.getLineoutPose("opponent");
 
@@ -888,7 +906,10 @@ export class LineoutScene extends Phaser.Scene {
         y: token.y - 10,
         duration: 180,
         yoyo: true,
-        ease: "Sine.easeInOut"
+        ease: "Sine.easeInOut",
+        onUpdate: () => {
+          this.syncPlayerTokenDepth(token);
+        }
       });
     });
 
@@ -898,7 +919,10 @@ export class LineoutScene extends Phaser.Scene {
         y: targetToken.y - 28,
         duration: 220,
         yoyo: true,
-        ease: "Sine.easeOut"
+        ease: "Sine.easeOut",
+        onUpdate: () => {
+          this.syncPlayerTokenDepth(targetToken);
+        }
       });
     }
 
@@ -909,6 +933,9 @@ export class LineoutScene extends Phaser.Scene {
       angle: 18,
       duration: 320,
       ease: "Sine.easeOut",
+      onUpdate: () => {
+        ball.setDepth(this.getPlayerDepth(ball.y) + PLAYER_LABEL_DEPTH_OFFSET);
+      },
       onComplete: () => {
         ball.destroy();
         this.hookerSprite?.setPose("hooker_ready_back");
@@ -1063,6 +1090,7 @@ export class LineoutScene extends Phaser.Scene {
       token.x = layout.attackX;
       token.y = this.positionY(position, layout);
       token.setData("lineoutPosition", position);
+      this.syncPlayerTokenDepth(token);
     }
 
     if (this.selectedTargetId) {
@@ -1279,6 +1307,14 @@ export class LineoutScene extends Phaser.Scene {
   private positionY(position: LineoutPosition, layout: LineoutLayout): number {
     // Position 1 stays nearest to the hooker and the 5 m line.
     return layout.slotStartY - (position - 1) * layout.slotGap;
+  }
+
+  private getPlayerDepth(feetY: number): number {
+    return PLAYER_DEPTH_BASE + feetY;
+  }
+
+  private syncPlayerTokenDepth(token: PlayerToken): void {
+    token.setDepth(this.getPlayerDepth(token.y));
   }
 
   private resetSceneState(): void {

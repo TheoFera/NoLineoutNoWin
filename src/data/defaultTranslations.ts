@@ -79,7 +79,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "lineout.calc.throwing": { fr: "Qualité du lancer", en: "Throw quality" },
   "lineout.calc.jump": { fr: "Qualité du saut", en: "Jump quality" },
   "lineout.calc.lift": { fr: "Lift de soutien", en: "Lift support" },
-  "lineout.calc.hands": { fr: "Qualité des mains", en: "Hands quality" },
+  "lineout.calc.hands": { fr: "Jeu de mains", en: "Hands quality" },
   "lineout.calc.distance": { fr: "Difficulté de distance", en: "Distance factor" },
   "lineout.calc.pressure": { fr: "Contre adverse", en: "Opponent contest" },
   "lineout.calc.timing": { fr: "Timing / lecture", en: "Timing / read" },

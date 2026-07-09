@@ -6,6 +6,7 @@ import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
 import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
+import { UI_DEPTH } from "../ui/UIDepth";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 
@@ -76,19 +77,21 @@ export class CombinationListScene extends Phaser.Scene {
   private openRenameOverlay(combination: Combination): void {
     this.destroyNameInput();
 
-    const overlay = this.add.rectangle(195, 422, 390, 844, 0x020617, 0.55).setDepth(20);
-    const panel = this.add.rectangle(195, 520, 320, 210, 0x07111a, 0.98).setStrokeStyle(2, UI.colors.accent).setDepth(21);
+    const overlay = this.add.rectangle(195, 422, 390, 844, 0x020617, 0.55).setDepth(UI_DEPTH.overlayBackdrop);
+    const panel = this.add.rectangle(195, 520, 320, 210, 0x07111a, 0.98)
+      .setStrokeStyle(2, UI.colors.accent)
+      .setDepth(UI_DEPTH.overlayPanel);
     const title = this.add.text(195, 452, t("lineout.renameTitle"), {
       font: UI.font.subtitle,
       color: UI.colors.text,
       align: "center",
       wordWrap: { width: 260 }
-    }).setOrigin(0.5).setDepth(22);
+    }).setOrigin(0.5).setDepth(UI_DEPTH.overlayContent);
 
     const saveButton = new UIButton(this, 136, 590, 126, 40, t("button.rename"), () => {
       this.applyRename(combination.id);
     });
-    saveButton.setDepth(22);
+    saveButton.setDepth(UI_DEPTH.overlayContent);
 
     const closeButton = new UIButton(this, 254, 590, 126, 40, t("button.close"), () => {
       this.destroyNameInput();
@@ -96,7 +99,7 @@ export class CombinationListScene extends Phaser.Scene {
     }, {
       variant: "secondary"
     });
-    closeButton.setDepth(22);
+    closeButton.setDepth(UI_DEPTH.overlayContent);
 
     overlay.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
       this.destroyNameInput();

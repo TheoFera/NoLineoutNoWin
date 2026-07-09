@@ -3,7 +3,7 @@ import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { getLanguage, setLanguage, t } from "../systems/I18n";
 import { MainMenuButton } from "../ui/MainMenuButton";
-import { renderMenuBackdrop, renderMenuHeader } from "../ui/MenuChrome";
+import { renderMenuHeader } from "../ui/MenuChrome";
 import { UI } from "../ui/UITheme";
 
 export class SettingsScene extends Phaser.Scene {
@@ -14,7 +14,7 @@ export class SettingsScene extends Phaser.Scene {
   create(): void {
     const currentLanguage = getLanguage();
 
-    renderMenuBackdrop(this, { variant: "hero" });
+    this.renderOptionsBackground();
     renderMenuHeader(this, t("menu.options"));
     this.add.text(195, 170, t("settings.languageTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
 
@@ -49,5 +49,18 @@ export class SettingsScene extends Phaser.Scene {
     new MainMenuButton(this, 195, 724, 236, 54, t("button.back"), () => navigateTo(this, "MainMenuScene"), {
       variant: "secondary"
     });
+  }
+
+  private renderOptionsBackground(): void {
+    const background = this.add.image(195, 422, "option-menu-background");
+    const source = background.texture.getSourceImage() as { width: number; height: number; };
+    const scale = Math.max(390 / source.width, 844 / source.height);
+
+    background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
+    this.add.rectangle(195, 146, 312, 3, 0xf8fafc, 0.18);
+    this.add.rectangle(195, 698, 312, 3, 0xf8fafc, 0.16);
+    this.add.rectangle(60, 422, 2, 610, 0xf8fafc, 0.08);
+    this.add.rectangle(330, 422, 2, 610, 0xf8fafc, 0.08);
   }
 }
