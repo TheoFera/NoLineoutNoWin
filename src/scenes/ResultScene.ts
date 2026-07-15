@@ -96,11 +96,12 @@ export class ResultScene extends Phaser.Scene {
   }
 
   private renderGauge(x: number, y: number, width: number, value: number, label: string, fillColor: string): void {
+    const roundedValue = Math.round(value);
     this.add.text(x - width / 2, y - 18, label, {
       font: "bold 13px Arial",
       color: UI.colors.text
     }).setOrigin(0, 0.5);
-    this.add.text(x + width / 2, y - 18, `${value}%`, {
+    this.add.text(x + width / 2, y - 18, `${roundedValue}%`, {
       font: "bold 13px Arial",
       color: UI.colors.text
     }).setOrigin(1, 0.5);

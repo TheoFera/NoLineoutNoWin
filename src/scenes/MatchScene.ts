@@ -110,6 +110,8 @@ export class MatchScene extends Phaser.Scene {
   private renderScoreboard(match: MatchStateData, next?: MatchLineoutEvent): void {
     const minute = next?.minute ?? match.minute;
     const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
+    const roundedPossession = Math.round(match.possession);
+    const roundedOccupation = Math.round(match.occupation);
 
     this.add.rectangle(98, 42, 196, 76, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
     this.add.rectangle(292, 42, 196, 76, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
@@ -146,11 +148,11 @@ export class MatchScene extends Phaser.Scene {
       font: "bold 9px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
-    this.add.text(54, 114, `${match.possession}%`, {
+    this.add.text(54, 114, `${roundedPossession}%`, {
       font: "bold 15px Arial",
       color: "#60a5fa"
     }).setOrigin(0.5);
-    this.add.text(102, 114, `${100 - match.possession}%`, {
+    this.add.text(102, 114, `${100 - roundedPossession}%`, {
       font: "bold 15px Arial",
       color: "#ef4444"
     }).setOrigin(0.5);
@@ -162,7 +164,7 @@ export class MatchScene extends Phaser.Scene {
       font: "bold 9px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
-    this.add.text(195, 118, `${match.occupation}%`, {
+    this.add.text(195, 118, `${roundedOccupation}%`, {
       font: "bold 18px Arial",
       color: "#84cc16"
     }).setOrigin(0.5);

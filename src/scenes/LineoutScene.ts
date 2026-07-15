@@ -232,20 +232,22 @@ export class LineoutScene extends Phaser.Scene {
     if (!match) {
       return;
     }
+    const roundedPossession = Math.round(match.possession);
+    const roundedOccupation = Math.round(match.occupation);
 
     this.add.rectangle(78, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
     this.add.rectangle(195, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
     this.add.rectangle(312, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
 
     this.add.text(78, 96, t("match.possession").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(54, 114, `${match.possession}%`, { font: "bold 15px Arial", color: "#60a5fa" }).setOrigin(0.5);
-    this.add.text(102, 114, `${100 - match.possession}%`, { font: "bold 15px Arial", color: "#ef4444" }).setOrigin(0.5);
+    this.add.text(54, 114, `${roundedPossession}%`, { font: "bold 15px Arial", color: "#60a5fa" }).setOrigin(0.5);
+    this.add.text(102, 114, `${100 - roundedPossession}%`, { font: "bold 15px Arial", color: "#ef4444" }).setOrigin(0.5);
     this.add.rectangle(78, 130, 82, 6, 0x1e293b);
     this.add.rectangle(78 - 41 + (82 * match.possession) / 200, 130, (82 * match.possession) / 100, 5, 0x2563eb).setOrigin(0, 0.5);
     this.add.rectangle(78 + (82 * match.possession) / 200, 130, (82 * (100 - match.possession)) / 100, 5, 0xdc2626).setOrigin(0, 0.5);
 
     this.add.text(195, 96, t("match.occupation").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 118, `${match.occupation}%`, { font: "bold 18px Arial", color: "#84cc16" }).setOrigin(0.5);
+    this.add.text(195, 118, `${roundedOccupation}%`, { font: "bold 18px Arial", color: "#84cc16" }).setOrigin(0.5);
     this.add.text(312, 96, t("match.zone").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
     this.add.text(312, 118, t(`match.zone.${this.currentMatchLineout?.pitchZone ?? "middle"}`), {
       font: "bold 12px Arial",
