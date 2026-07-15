@@ -197,15 +197,20 @@ function generateProfileStats(
   );
 
   if (divisionId === "regionale_3") {
-    const hands = general();
+    const hands = generateGeneralStat(
+      GENERATION.regionale3Hands.minimum,
+      GENERATION.regionale3Hands.maximum,
+      clubModifier,
+      rng
+    );
     if (profile === "lifter") {
-      return { jump: randomInt(44, 58, rng), lift: randomInt(63, 72, rng), hands };
+      return { jump: randomInt(5, 25, rng), lift: randomInt(67, 78, rng), hands };
     }
     if (profile === "jumper") {
-      return { jump: randomInt(63, 72, rng), lift: randomInt(44, 58, rng), hands };
+      return { jump: randomInt(65, 78, rng), lift: randomInt(44, 58, rng), hands };
     }
     if (profile === "weakHybrid") {
-      return { jump: randomInt(60, 63, rng), lift: randomInt(64, 70, rng), hands };
+      return { jump: randomInt(60, 68, rng), lift: randomInt(61, 70, rng), hands };
     }
     return { jump: randomInt(64, 71, rng), lift: randomInt(64, 71, rng), hands };
   }

@@ -69,6 +69,13 @@ test("number-based archetypes are visible in Regionale 3", () => {
   assert.equal(deduceAerialRole(getPlayerByNumber(generated, 8)), "jumperLifter");
 });
 
+test("Regionale 3 hands stay between 26 and 78 for every field player", () => {
+  for (let seed = 1; seed <= 100; seed += 1) {
+    const generated = roster("regionale_3", seed).fieldPlayers;
+    assert.ok(generated.every((player) => player.hands >= 26 && player.hands <= 78));
+  }
+});
+
 test("from Federale 1 every lineout player can jump and lift", () => {
   for (const divisionId of ["federale_1", "nationale_2", "nationale", "pro_d2", "top_14"] as const) {
     const generated = roster(divisionId, 20);

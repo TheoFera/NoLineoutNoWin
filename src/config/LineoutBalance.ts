@@ -106,6 +106,10 @@ export const LINEOUT_BALANCE = {
   generation: {
     roleThreshold: 60,
     clubModifiers: [-3, 0, 3],
+    regionale3Hands: {
+      minimum: 26,
+      maximum: 78
+    },
     divisionStats: {
       regionale_3: { mean: 65, minimum: 60, maximum: 70 },
       regionale_2: { mean: 68, minimum: 61, maximum: 74 },
