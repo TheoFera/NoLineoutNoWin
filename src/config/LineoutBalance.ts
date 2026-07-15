@@ -210,8 +210,21 @@ export const LINEOUT_BALANCE = {
       stagnation: { probability: 0.25, minimumMeters: -1, maximumMeters: 1 },
       retreat: { probability: 0.15, minimumMeters: 1, maximumMeters: 4 }
     },
+    breakthrough: {
+      probabilityPerMinute: 0.05,
+      minimumMeters: 10,
+      maximumMeters: 40
+    },
+    clearanceKick: {
+      probabilityPerMinuteFromOwn22: 0.15,
+      playerLandingMinimumMeters: 35,
+      playerLandingMaximumMeters: 70,
+      opponentLandingMinimumMeters: 30,
+      opponentLandingMaximumMeters: 65
+    },
     maximumSkillProbabilityAdjustment: 0.05,
-    turnoverProbabilityPerMinute: 0.08,
+    turnoverProbabilityPerMinute: 0.025,
+    minimumPossessionMinutesBeforeTurnover: 2.5,
     minimumMinutesBetweenLineouts: 3,
     lineoutPositionVariationMeters: 3,
     attackingPressureThreshold: 30,
@@ -237,6 +250,14 @@ export const LINEOUT_BALANCE = {
       convertedTry: 7
     },
     restartPositionMeters: 50,
+    restartKickDistanceMeters: 20,
+    visualSimulation: {
+      ballFlightDurationRatio: 0.88,
+      passVerticalDistancePixels: 50,
+      passLateralLaneRatios: [-0.35, 0.1, 0.7, 0.4, -0.15, -0.75, -0.3, 0, 0.5, 0.2],
+      kickArcHeightPixels: 42,
+      restartArcHeightPixels: 52
+    },
     minimumEndMinute: 80,
     maximumEndMinute: 82
   }

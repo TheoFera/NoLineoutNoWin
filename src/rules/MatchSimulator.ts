@@ -4,6 +4,8 @@ import type { LineoutResolution } from "../models/Lineout.ts";
 import type {
   MatchBallOwner,
   MatchLineoutEvent,
+  MatchSimulationAction,
+  MatchSimulationActionKind,
   MatchStateData,
   TouchCause
 } from "../models/Match.ts";
@@ -18,6 +20,17 @@ import {
 } from "../utils/Random.ts";
 
 const BALANCE = LINEOUT_BALANCE.match;
+
+export type MatchSimulationTrace = {
+  match: MatchStateData;
+  frames: MatchStateData[];
+  actions: MatchSimulationAction[];
+};
+
+type MovementResolution = {
+  meters: number;
+  kind: "handPlay" | "ruck" | "clearanceKick" | "breakthrough";
+};
 
 const PLAYER_THROW_CAUSES: TouchCause[] = [
   "carrierIntoTouch",
@@ -99,25 +112,46 @@ export function advanceMatchSimulation(
   targetMinute: number,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): MatchStateData {
+  return advanceMatchSimulationWithTrace(match, targetMinute, randomSource).match;
+}
+
+export function advanceMatchSimulationWithTrace(
+  match: MatchStateData,
+  targetMinute: number,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): MatchSimulationTrace {
   let current = { ...match };
+  const frames: MatchStateData[] = [];
+  const actions: MatchSimulationAction[] = [];
   const endMinute = Math.min(targetMinute, match.maxMinute);
   while (current.minute < endMinute) {
     const stepMinutes = Math.min(
       BALANCE.simulationStepMinutes,
       endMinute - current.minute
     );
-    current = simulateStep(current, stepMinutes, randomSource);
+    const step = simulateStep(current, stepMinutes, randomSource);
+    current = step.state;
+    frames.push(current);
+    actions.push(step.action);
   }
-  return current;
+  return { match: current, frames, actions };
 }
 
 export function advanceToNextScheduledLineout(
   match: MatchStateData,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): MatchStateData {
+  return advanceToNextScheduledLineoutWithTrace(match, randomSource).match;
+}
+
+export function advanceToNextScheduledLineoutWithTrace(
+  match: MatchStateData,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): MatchSimulationTrace {
   const event = match.lineouts[match.currentLineoutIndex];
-  if (!event) return advanceMatchSimulation(match, match.maxMinute, randomSource);
-  const advanced = advanceMatchSimulation(match, event.minute, randomSource);
+  if (!event) return advanceMatchSimulationWithTrace(match, match.maxMinute, randomSource);
+  const trace = advanceMatchSimulationWithTrace(match, event.minute, randomSource);
+  const advanced = trace.match;
   const ballPositionMeters = clamp(
     advanced.ballPositionMeters + randomFloat(
       -BALANCE.lineoutPositionVariationMeters,
@@ -136,7 +170,20 @@ export function advanceToNextScheduledLineout(
       }
       : item
   ));
-  return { ...advanced, ballPositionMeters, lineouts };
+  const ballLateralPosition = advanced.currentLineoutIndex % 2 === 0 ? -0.92 : 0.92;
+  const finalMatch = { ...advanced, ballPositionMeters, ballLateralPosition, lineouts };
+  return {
+    match: finalMatch,
+    frames: [...trace.frames, finalMatch],
+    actions: [
+      ...trace.actions,
+      {
+        kind: "lineout",
+        state: finalMatch,
+        distanceMeters: Math.abs(finalMatch.ballPositionMeters - advanced.ballPositionMeters)
+      }
+    ]
+  };
 }
 
 export function generateMatchMaximumFatigue(
@@ -164,7 +211,10 @@ export function applyLineoutResolutionToMatch(
   const throwingOwner: MatchBallOwner = throwingSide === "us" ? "player" : "opponent";
   const defendingOwner = oppositeOwner(throwingOwner);
   const nextOwner = resolution.ballTeam === "throwingTeam" ? throwingOwner : defendingOwner;
-  let next = changePossession(match, nextOwner);
+  let next: MatchStateData = {
+    ...changePossession(match, nextOwner),
+    possessionDurationMinutes: 0
+  };
   const throwingLost = nextOwner !== throwingOwner;
 
   if (throwingLost || resolution.outcome === "knockOn" || resolution.outcome === "notStraight") {
@@ -228,32 +278,57 @@ function simulateStep(
   match: MatchStateData,
   stepMinutes: number,
   randomSource: RandomSource
-): MatchStateData {
+): { state: MatchStateData; action: MatchSimulationAction } {
   let next = accumulateTimes(match, stepMinutes);
   const ownerBeforeMovement = next.ballOwner;
-  const movement = resolveMovement(next, randomSource);
+  const scoreBefore = next.ourScore + next.opponentScore;
+  const movement = resolveMovement(next, stepMinutes, randomSource);
   next = {
     ...next,
     minute: next.minute + stepMinutes,
     ballPositionMeters: clamp(
-      next.ballPositionMeters + movement,
+      next.ballPositionMeters + movement.meters,
       0,
       BALANCE.pitchLengthMeters
     )
   };
 
-  if (isProgressTowardLine(ownerBeforeMovement, movement)) {
+  if (isProgressTowardLine(ownerBeforeMovement, movement.meters)) {
     next = addPressureIfAttacking22(next, ownerBeforeMovement, BALANCE.pressure.progressTowardLine);
   } else {
     next = addPressureIfAttacking22(next, ownerBeforeMovement, BALANCE.pressure.normalRetention);
   }
 
-  if (randomFloat(0, 1, randomSource) < getTurnoverProbability(stepMinutes)) {
+  if (movement.kind === "clearanceKick") {
+    next = changePossession(next, oppositeOwner(ownerBeforeMovement));
+  } else if (
+    (next.possessionDurationMinutes ?? 0) >= BALANCE.minimumPossessionMinutesBeforeTurnover
+    && randomFloat(0, 1, randomSource) < getTurnoverProbability(stepMinutes)
+  ) {
     next = changePossession(next, oppositeOwner(next.ballOwner));
   }
 
   next = attemptPressureScore(next, stepMinutes, randomSource);
-  return updateDerivedPercentages(next);
+  next = updateDerivedPercentages(next);
+
+  let kind: MatchSimulationActionKind = movement.kind;
+  if (next.ourScore + next.opponentScore > scoreBefore) {
+    kind = "score";
+  } else if (
+    next.ballOwner !== ownerBeforeMovement
+    && movement.kind !== "clearanceKick"
+    && movement.kind !== "breakthrough"
+  ) {
+    kind = "turnover";
+  }
+  return {
+    state: next,
+    action: {
+      kind,
+      state: next,
+      distanceMeters: Math.abs(movement.meters)
+    }
+  };
 }
 
 function accumulateTimes(match: MatchStateData, stepMinutes: number): MatchStateData {
@@ -266,11 +341,16 @@ function accumulateTimes(match: MatchStateData, stepMinutes: number): MatchState
     playerOccupationTimeMinutes: match.playerOccupationTimeMinutes
       + (match.ballPositionMeters > 50 ? stepMinutes : 0),
     opponentOccupationTimeMinutes: match.opponentOccupationTimeMinutes
-      + (match.ballPositionMeters < 50 ? stepMinutes : 0)
+      + (match.ballPositionMeters < 50 ? stepMinutes : 0),
+    possessionDurationMinutes: (match.possessionDurationMinutes ?? 0) + stepMinutes
   };
 }
 
-function resolveMovement(match: MatchStateData, randomSource: RandomSource): number {
+function resolveMovement(
+  match: MatchStateData,
+  stepMinutes: number,
+  randomSource: RandomSource
+): MovementResolution {
   const owner = match.ballOwner;
   const ownerTeam = owner === "player" ? match.home : match.away;
   const opponentTeam = owner === "player" ? match.away : match.home;
@@ -279,6 +359,39 @@ function resolveMovement(match: MatchStateData, randomSource: RandomSource): num
     -BALANCE.maximumSkillProbabilityAdjustment,
     BALANCE.maximumSkillProbabilityAdjustment
   );
+  if (
+    isInOwn22(match, owner)
+    && randomFloat(0, 1, randomSource) < getClearanceKickProbability(stepMinutes)
+  ) {
+    const landingPosition = owner === "player"
+      ? randomFloat(
+        BALANCE.clearanceKick.playerLandingMinimumMeters,
+        BALANCE.clearanceKick.playerLandingMaximumMeters,
+        randomSource
+      )
+      : randomFloat(
+        BALANCE.clearanceKick.opponentLandingMinimumMeters,
+        BALANCE.clearanceKick.opponentLandingMaximumMeters,
+        randomSource
+      );
+    return { meters: landingPosition - match.ballPositionMeters, kind: "clearanceKick" };
+  }
+
+  const breakthroughProbability = 1 - Math.pow(
+    1 - BALANCE.breakthrough.probabilityPerMinute,
+    stepMinutes
+  );
+  if (randomFloat(0, 1, randomSource) < breakthroughProbability) {
+    return {
+      meters: (owner === "player" ? 1 : -1) * randomFloat(
+        BALANCE.breakthrough.minimumMeters,
+        BALANCE.breakthrough.maximumMeters,
+        randomSource
+      ),
+      kind: "breakthrough"
+    };
+  }
+
   const strongProbability = BALANCE.movement.strongProgress.probability + skillAdjustment;
   const normalLimit = strongProbability + BALANCE.movement.normalProgress.probability;
   const stagnationLimit = normalLimit + BALANCE.movement.stagnation.probability;
@@ -286,31 +399,56 @@ function resolveMovement(match: MatchStateData, randomSource: RandomSource): num
   const ownerDirection = owner === "player" ? 1 : -1;
 
   if (roll < strongProbability) {
-    return ownerDirection * randomFloat(
-      BALANCE.movement.strongProgress.minimumMeters,
-      BALANCE.movement.strongProgress.maximumMeters,
-      randomSource
-    );
+    return {
+      meters: ownerDirection * randomFloat(
+        BALANCE.movement.strongProgress.minimumMeters,
+        BALANCE.movement.strongProgress.maximumMeters,
+        randomSource
+      ),
+      kind: "handPlay"
+    };
   }
   if (roll < normalLimit) {
-    return ownerDirection * randomFloat(
-      BALANCE.movement.normalProgress.minimumMeters,
-      BALANCE.movement.normalProgress.maximumMeters,
-      randomSource
-    );
+    return {
+      meters: ownerDirection * randomFloat(
+        BALANCE.movement.normalProgress.minimumMeters,
+        BALANCE.movement.normalProgress.maximumMeters,
+        randomSource
+      ),
+      kind: "handPlay"
+    };
   }
   if (roll < stagnationLimit) {
-    return randomFloat(
-      BALANCE.movement.stagnation.minimumMeters,
-      BALANCE.movement.stagnation.maximumMeters,
-      randomSource
-    );
+    return {
+      meters: randomFloat(
+        BALANCE.movement.stagnation.minimumMeters,
+        BALANCE.movement.stagnation.maximumMeters,
+        randomSource
+      ),
+      kind: "ruck"
+    };
   }
-  return -ownerDirection * randomFloat(
-    BALANCE.movement.retreat.minimumMeters,
-    BALANCE.movement.retreat.maximumMeters,
-    randomSource
+  return {
+    meters: -ownerDirection * randomFloat(
+      BALANCE.movement.retreat.minimumMeters,
+      BALANCE.movement.retreat.maximumMeters,
+      randomSource
+    ),
+    kind: "ruck"
+  };
+}
+
+function getClearanceKickProbability(stepMinutes: number): number {
+  return 1 - Math.pow(
+    1 - BALANCE.clearanceKick.probabilityPerMinuteFromOwn22,
+    stepMinutes
   );
+}
+
+function isInOwn22(match: MatchStateData, owner: MatchBallOwner): boolean {
+  return owner === "player"
+    ? match.ballPositionMeters <= 22
+    : match.ballPositionMeters >= 78;
 }
 
 function attemptPressureScore(
@@ -370,12 +508,19 @@ function applyScore(
   scoringOwner: MatchBallOwner,
   points: number
 ): MatchStateData {
+  const receivingOwner = scoringOwner;
+  const kickoffDirection = scoringOwner === "player" ? -1 : 1;
   return {
     ...match,
     ourScore: match.ourScore + (scoringOwner === "player" ? points : 0),
     opponentScore: match.opponentScore + (scoringOwner === "opponent" ? points : 0),
-    ballPositionMeters: BALANCE.restartPositionMeters,
-    ballOwner: oppositeOwner(scoringOwner),
+    ballPositionMeters: clamp(
+      BALANCE.restartPositionMeters + kickoffDirection * BALANCE.restartKickDistanceMeters,
+      0,
+      BALANCE.pitchLengthMeters
+    ),
+    ballOwner: receivingOwner,
+    possessionDurationMinutes: 0,
     playerAttackingPressure: 0,
     opponentAttackingPressure: 0
   };
@@ -383,7 +528,7 @@ function applyScore(
 
 function changePossession(match: MatchStateData, owner: MatchBallOwner): MatchStateData {
   if (owner === match.ballOwner) return match;
-  return setPressure({ ...match, ballOwner: owner }, match.ballOwner, 0);
+  return setPressure({ ...match, ballOwner: owner, possessionDurationMinutes: 0 }, match.ballOwner, 0);
 }
 
 function moveTowardAttackingLine(

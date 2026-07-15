@@ -15,6 +15,21 @@ export type MatchMaximumFatigue = Record<string, number>;
 
 export type MatchBallOwner = "player" | "opponent";
 
+export type MatchSimulationActionKind =
+  | "handPlay"
+  | "ruck"
+  | "clearanceKick"
+  | "breakthrough"
+  | "turnover"
+  | "score"
+  | "lineout";
+
+export type MatchSimulationAction = {
+  kind: MatchSimulationActionKind;
+  state: MatchStateData;
+  distanceMeters: number;
+};
+
 export type TouchCause =
   | "carrierIntoTouch"
   | "openPlayKick"
@@ -68,6 +83,8 @@ export type MatchStateData = {
   occupation: number; // 0 to 100
   ballOwner: MatchBallOwner;
   ballPositionMeters: number;
+  ballLateralPosition?: number; // -1 = touche haute, 0 = centre, 1 = touche basse
+  possessionDurationMinutes?: number;
   playerPossessionTimeMinutes: number;
   opponentPossessionTimeMinutes: number;
   playerOccupationTimeMinutes: number;

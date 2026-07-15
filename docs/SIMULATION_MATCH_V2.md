@@ -94,6 +94,18 @@ Si le joueur possède le ballon, une progression augmente la position. Si l’ad
 
 L’écart de niveau entre les équipes ne peut modifier ces probabilités que faiblement, avec un correctif maximal de ±5 points de pourcentage.
 
+### 6.1 Jeu à la main
+
+Hors de ses propres 22 mètres, l'équipe en possession joue principalement à la main. Le ballon circule entre plusieurs couloirs latéraux et revient fréquemment dans la zone centrale située entre les deux lignes des 15 mètres. Les couloirs proches des touches restent possibles, mais le ballon ne doit pas alterner mécaniquement entre les deux extrêmes. Une phase peut avancer, stagner ou reculer et peut être suivie d'un point de fixation ramenant progressivement le jeu vers le centre.
+
+### 6.2 Dégagement depuis les 22 mètres
+
+Dans ses propres 22 mètres, l'équipe en possession a initialement 15 % de chances par minute simulée de se dégager au pied. Cette probabilité est recalculée à l'échelle de chaque pas de simulation : un pas de 30 secondes ne reprend donc pas directement les 15 %. Le ballon suit une trajectoire en cloche et retombe entre les 35 mètres du camp du botteur et une zone située dans le camp adverse. La réception rend normalement la possession à l'autre équipe. Une touche programmée peut conclure ce dégagement.
+
+### 6.3 Percées
+
+Une phase à la main peut produire une percée de 10 à 40 mètres. La probabilité initiale est de 5 % par minute simulée. Une perte de balle peut survenir à l'issue de la percée sans supprimer l'événement visuel de percée.
+
 ## 7. Changement de possession
 
 Risque de base : 8 % par minute simulée.
@@ -105,6 +117,8 @@ pTurnoverStep = 1 - Math.pow(1 - 0.08, stepMinutes);
 ```
 
 Une perte de balle change `ballOwner` sans téléportation du ballon.
+
+Une perte aléatoire ne peut pas intervenir pendant les 2,5 premières minutes simulées d'une nouvelle séquence de possession. Après ce délai, le risque de base est de 2,5 % par minute. Cette protection ne concerne pas les dégagements, les scores ni les résultats de touche, qui peuvent changer immédiatement la possession.
 
 ## 8. Nombre de touches
 
@@ -130,6 +144,8 @@ Contraintes :
 ## 9. Déclenchement et cause d’une touche
 
 La position du ballon fixe l’endroit de la touche. Une variation de −3 à +3 m peut être appliquée puis bornée entre 0 et 100.
+
+Le côté latéral de la sortie est également mémorisé. Après la résolution de la touche, la simulation reprend près de la même ligne de touche avant que le jeu ne revienne progressivement vers le centre.
 
 Causes internes possibles :
 
@@ -214,8 +230,9 @@ Les pénalités peuvent être marquées hors des 22 mètres, mais elles ne doive
 
 Après un score :
 
-- ballon à 50 m ;
-- possession à l’équipe qui vient d’encaisser ;
+- ballon replacé visuellement à 50 m pour la remise au centre ;
+- coup d’envoi donné par l’équipe qui vient d’encaisser vers le camp adverse ;
+- réception et possession à l’équipe qui vient de marquer, dans son propre camp ;
 - pression offensive remise à zéro.
 
 ## 14. Fin du match
@@ -229,11 +246,15 @@ Pendant la simulation :
 - score ;
 - chronomètre ;
 - mini-terrain de 0 à 100 m ;
-- ballon coloré de la couleur de l’équipe qui le possède ;
+- ballon coloré de la couleur de l’équipe lorsqu’il est tenu ;
+- ballon blanc pendant une passe, un coup de pied ou toute autre phase libre ;
 - possession cumulée ;
 - occupation cumulée.
+- bandeau court indiquant les phases importantes : jeu à la main, point de fixation, dégagement, percée, score, remise en jeu et sortie en touche.
 
-Mouvement du ballon : fluide.
+Mouvement du ballon : fluide, avec déplacements latéraux sur les passes et trajectoires en cloche sur les coups de pied. La vitesse du ballon est indépendante de celle du chronomètre.
+
+Une perte de balle n'ajoute ni texte ni animation dédiée : elle est indiquée uniquement par la couleur du ballon lors de sa nouvelle prise de possession. Il n'y a aucun choix tactique demandé au joueur pendant la simulation entre les touches.
 
 Lors d’une touche :
 
@@ -244,4 +265,3 @@ Dans les 22 m adverses — à 8 m de la ligne
 ```
 
 Après la touche : une phrase courte. Un clic ouvre les détails du lancer, saut, mains et contre.
-

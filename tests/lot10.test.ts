@@ -6,6 +6,8 @@ import type { MatchStateData } from "../src/models/Match.ts";
 import type { Team } from "../src/models/Team.ts";
 import {
   advanceMatchSimulation,
+  advanceMatchSimulationWithTrace,
+  advanceToNextScheduledLineoutWithTrace,
   applyLineoutResolutionToMatch,
   generateMatchSchedule,
   getPitchZoneFromPosition,
@@ -13,6 +15,7 @@ import {
   getTurnoverProbability
 } from "../src/rules/MatchSimulator.ts";
 import type { RandomSource } from "../src/utils/Random.ts";
+import { LINEOUT_BALANCE } from "../src/config/LineoutBalance.ts";
 
 const constant = (value: number): RandomSource => ({ next: () => value });
 
@@ -126,11 +129,49 @@ test("simulation accumulates real possession and occupation times", () => {
 });
 
 test("turnover probability scales exactly to the simulation step", () => {
-  assert.ok(Math.abs(getTurnoverProbability(1) - 0.08) < 1e-12);
-  assert.ok(Math.abs(getTurnoverProbability(0.5) - (1 - Math.sqrt(0.92))) < 1e-12);
+  assert.ok(Math.abs(getTurnoverProbability(1) - 0.025) < 1e-12);
+  assert.ok(Math.abs(getTurnoverProbability(0.5) - (1 - Math.sqrt(0.975))) < 1e-12);
 });
 
-test("clean lineout at ten meters can immediately score a converted try", () => {
+test("random turnovers wait for a possession sequence to build", () => {
+  const protectedPhase = advanceMatchSimulationWithTrace(
+    match({ possessionDurationMinutes: 0 }),
+    0.5,
+    constant(0)
+  );
+  const exposedPhase = advanceMatchSimulationWithTrace(
+    match({ possessionDurationMinutes: 2 }),
+    0.5,
+    constant(0)
+  );
+  assert.equal(protectedPhase.match.ballOwner, "player");
+  assert.equal(exposedPhase.match.ballOwner, "opponent");
+});
+
+test("a lineout preserves its lateral side through the stoppage", () => {
+  const scheduled = match({
+    lineouts: [{
+      id: "lineout-1",
+      minute: 1,
+      pitchZone: "middle",
+      throwingSide: "us",
+      numberOfPlayers: 7,
+      cause: "carrierIntoTouch",
+      resolved: false
+    }]
+  });
+  const trace = advanceToNextScheduledLineoutWithTrace(scheduled, constant(0.5));
+  const resumed = applyLineoutResolutionToMatch(
+    trace.match,
+    resolution("cleanWin", "throwingTeam"),
+    "us",
+    constant(0.5)
+  );
+  assert.equal(trace.match.ballLateralPosition, -0.92);
+  assert.equal(resumed.ballLateralPosition, -0.92);
+});
+
+test("a score is followed by a kickoff into the scoring team's half", () => {
   const updated = applyLineoutResolutionToMatch(
     match({ ballPositionMeters: 90, ballOwner: "opponent" }),
     resolution("cleanWin", "throwingTeam"),
@@ -138,9 +179,45 @@ test("clean lineout at ten meters can immediately score a converted try", () => 
     constant(0)
   );
   assert.equal(updated.ourScore, 7);
-  assert.equal(updated.ballPositionMeters, 50);
-  assert.equal(updated.ballOwner, "opponent");
+  assert.equal(updated.ballPositionMeters, 30);
+  assert.equal(updated.ballOwner, "player");
   assert.equal(updated.playerAttackingPressure, 0);
+});
+
+test("simulation exposes every intermediate half-minute frame for animation", () => {
+  const trace = advanceMatchSimulationWithTrace(match(), 1.5, constant(0.5));
+  assert.equal(trace.frames.length, 3);
+  assert.equal(trace.actions.length, 3);
+  assert.deepEqual(trace.frames.map((frame) => frame.minute), [0.5, 1, 1.5]);
+  assert.equal(trace.match, trace.frames[2]);
+});
+
+test("a low clearance roll from the 22 gives the ball to the receiver", () => {
+  const trace = advanceMatchSimulationWithTrace(
+    match({ ballPositionMeters: 10, ballOwner: "player" }),
+    0.5,
+    constant(0)
+  );
+  assert.equal(trace.actions[0].kind, "clearanceKick");
+  assert.equal(trace.match.ballPositionMeters, 35);
+  assert.equal(trace.match.ballOwner, "opponent");
+});
+
+test("clearance kicks from the 22 are occasional rather than automatic", () => {
+  const trace = advanceMatchSimulationWithTrace(
+    match({ ballPositionMeters: 10, ballOwner: "player" }),
+    0.5,
+    constant(0.2)
+  );
+  assert.notEqual(trace.actions[0].kind, "clearanceKick");
+  assert.equal(trace.match.ballOwner, "player");
+});
+
+test("open play can create a breakthrough between 10 and 40 metres", () => {
+  const trace = advanceMatchSimulationWithTrace(match(), 0.5, constant(0));
+  assert.equal(trace.actions[0].kind, "breakthrough");
+  assert.equal(trace.actions[0].distanceMeters, 10);
+  assert.equal(trace.match.ballPositionMeters, 60);
 });
 
 test("missed immediate chance preserves possession and lineout pressure", () => {
@@ -162,4 +239,13 @@ test("pitch zones and accelerated real duration use the exact field model", () =
   assert.equal(getPitchZoneFromPosition(78), "their_22");
   assert.equal(getPitchZoneFromPosition(100), "their_22");
   assert.ok(Math.abs(getRealSecondsForSimulatedMinutes(80) - 80 / 3) < 1e-12);
+});
+
+test("open-play lateral lanes favor the central area instead of alternating touchlines", () => {
+  const lanes = LINEOUT_BALANCE.match.visualSimulation.passLateralLaneRatios;
+  const centralLanes = lanes.filter((lane) => Math.abs(lane) <= 0.57);
+  assert.ok(centralLanes.length / lanes.length >= 0.7);
+  assert.ok(lanes.some((lane) => lane === 0));
+  assert.ok(lanes.some((lane) => lane > 0.57));
+  assert.ok(lanes.some((lane) => lane < -0.57));
 });
