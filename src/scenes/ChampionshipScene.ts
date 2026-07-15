@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getCurrentOpponentId, getCurrentRoundLabel, getPlayerRank, sortStandings } from "../rules/ChampionshipRules";
+import { getCurrentOpponentId, getCurrentRoundLabel, getGoalAverage, sortStandings } from "../rules/ChampionshipRules";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
@@ -23,7 +23,6 @@ export class ChampionshipScene extends Phaser.Scene {
       ? championship.standings.find((record) => record.teamId === nextOpponentId) ?? null
       : null;
     const nextOpponentName = nextOpponentRecord?.name ?? t("championship.finished");
-    const playerRank = getPlayerRank(championship);
     const visibleStandings = this.buildVisibleStandings(standings, nextOpponentId);
 
     this.renderChampionshipBackground();
@@ -38,11 +37,11 @@ export class ChampionshipScene extends Phaser.Scene {
       y: 456,
       width: 338,
       height: 396,
-      accentColor: 0x35584a,
-      fillColor: 0x07120d
+      accentColor: 0x2f73d1,
+      fillColor: 0x071326
     });
 
-    this.add.text(195, 202, `${t("championship.round")} ${getCurrentRoundLabel(championship)} - ${t("championship.rank")} ${playerRank}`, {
+    this.add.text(195, 202, `${t("championship.round")} ${getCurrentRoundLabel(championship)}`, {
       font: UI.font.body,
       color: UI.colors.muted
     }).setOrigin(0.5);
@@ -60,6 +59,8 @@ export class ChampionshipScene extends Phaser.Scene {
       const rank = standings.findIndex((item) => item.teamId === record.teamId) + 1;
       const nameColor = isPlayerTeam ? "#fde68a" : UI.colors.text;
       const pointsColor = isNextOpponent ? "#bfdbfe" : UI.colors.text;
+      const goalAverage = getGoalAverage(record);
+      const formattedGoalAverage = goalAverage > 0 ? `+${goalAverage}` : String(goalAverage);
 
       this.add.rectangle(195, y + 16, 322, 2, 0xf8fafc, 0.1);
       if (isPlayerTeam) {
@@ -69,7 +70,7 @@ export class ChampionshipScene extends Phaser.Scene {
       }
       this.add.text(32, y, `${rank}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
       this.add.text(62, y, record.name, { font: UI.font.body, color: nameColor }).setOrigin(0, 0.5);
-      this.add.text(260, y, `${record.played}J`, { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
+      this.add.text(260, y, `${t("championship.goalAverageShort")} ${formattedGoalAverage}`, { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
       this.add.text(302, y, `${record.leaguePoints} pts`, { font: UI.font.small, color: pointsColor }).setOrigin(0.5);
 
       if (isNextOpponent) {

@@ -16,6 +16,7 @@ import { getLanguage, t } from "../systems/I18n";
 import { clearSave, loadGame, saveGame } from "../systems/SaveSystem";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
+import type { SeasonSummary } from "../models/Championship";
 import {
   createEmptyOpponentAiMemory,
   normalizeOpponentAiMemory,
@@ -227,9 +228,9 @@ export class GameStore {
     return this.match;
   }
 
-  static completeCurrentMatch(): void {
+  static completeCurrentMatch(): SeasonSummary | null {
     if (!this.save || !this.match) {
-      return;
+      return null;
     }
 
     const outcome = applyMatchToChampionship(
@@ -301,6 +302,7 @@ export class GameStore {
     });
     this.match = null;
     saveGame(this.save);
+    return outcome.completedSeason ?? null;
   }
 
   private static normalizeSave(save: StoredSaveGame): SaveGame {

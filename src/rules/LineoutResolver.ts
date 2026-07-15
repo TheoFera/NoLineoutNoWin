@@ -109,12 +109,17 @@ export function adaptResolutionForPerspective(
   }
 
   if (resolution.outcome === "looseBall") {
+    const highBallLoose = resolution.primaryReason === "lineout.reason.highBallLoose";
     return legacyResult(
       weHaveBall ? "won_dirty" : "lost",
       weHaveBall ? "dirty_catch" : "stolen",
-      weHaveBall
-        ? "lineout.explanation.looseBallWon"
-        : "lineout.explanation.looseBallLost",
+      highBallLoose
+        ? (weHaveBall
+          ? "lineout.explanation.highBallLooseWon"
+          : "lineout.explanation.highBallLooseLost")
+        : (weHaveBall
+          ? "lineout.explanation.looseBallWon"
+          : "lineout.explanation.looseBallLost"),
       calculationScore,
       calculationDetails,
       resolution

@@ -837,10 +837,17 @@ export class LineoutScene extends Phaser.Scene {
       }
     }
 
-    this.playThrowAnimation("us", this.selectedTargetPosition ?? 4, this.attackTokens, () => {
+    this.playThrowAnimation(
+      "us",
+      this.selectedTargetPosition ?? 4,
+      this.attackTokens,
+      this.defenseTokens,
+      this.opponentDefensiveJumpPosition ?? undefined,
+      () => {
       this.isResolving = false;
       this.showResult(result);
-    });
+      }
+    );
   }
 
   private defendLineout(targetPlayerId?: string): void {
@@ -909,16 +916,25 @@ export class LineoutScene extends Phaser.Scene {
       GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
     }
 
-    this.playThrowAnimation("opponent", this.opponentTargetPosition ?? 4, this.defenseTokens, () => {
+    this.playThrowAnimation(
+      "opponent",
+      this.opponentTargetPosition ?? 4,
+      this.defenseTokens,
+      this.attackTokens,
+      this.selectedTargetPosition ?? undefined,
+      () => {
       this.isResolving = false;
       this.showResult(result);
-    });
+      }
+    );
   }
 
   private playThrowAnimation(
     throwingSide: "us" | "opponent",
     targetPosition: LineoutPosition,
     lineTokens: PlayerToken[],
+    defendingTokens: PlayerToken[],
+    defendingJumpPosition: LineoutPosition | undefined,
     onComplete: () => void
   ): void {
     const layout = this.getLayout();
@@ -935,41 +951,21 @@ export class LineoutScene extends Phaser.Scene {
     const strokeColor = throwingSide === "us" ? 0x1d4ed8 : UI.colors.defense;
     const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor);
     ball.setDepth(this.getPlayerDepth(startY) + PLAYER_LABEL_DEPTH_OFFSET);
-    const supportPose = throwingSide === "us" ? "lifter_front" : "lifter_back";
-    const targetPose = throwingSide === "us" ? "jumper_catch_front" : this.getLineoutPose("opponent");
+    const defendingSide = throwingSide === "us" ? "opponent" : "us";
+    const defendingTargetToken = defendingJumpPosition
+      ? defendingTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === defendingJumpPosition)
+      : undefined;
+    const defendingSupportTokens = defendingJumpPosition
+      ? defendingTokens.filter((token) => {
+        const position = token.getData("lineoutPosition") as LineoutPosition | undefined;
+        return position === defendingJumpPosition - 1 || position === defendingJumpPosition + 1;
+      })
+      : [];
 
     // On change juste quelques poses le temps du lancer pour garder l'animation tres simple.
     this.hookerSprite?.setPose("hooker_throw_back");
-    supportTokens.forEach((token) => {
-      token.setPose(supportPose);
-    });
-    targetToken?.setPose(targetPose);
-
-    supportTokens.forEach((token) => {
-      this.tweens.add({
-        targets: token,
-        y: token.y - 10,
-        duration: 180,
-        yoyo: true,
-        ease: "Sine.easeInOut",
-        onUpdate: () => {
-          this.syncPlayerTokenDepth(token);
-        }
-      });
-    });
-
-    if (targetToken) {
-      this.tweens.add({
-        targets: targetToken,
-        y: targetToken.y - 28,
-        duration: 220,
-        yoyo: true,
-        ease: "Sine.easeOut",
-        onUpdate: () => {
-          this.syncPlayerTokenDepth(targetToken);
-        }
-      });
-    }
+    this.animateJumpGroup(throwingSide, supportTokens, targetToken);
+    this.animateJumpGroup(defendingSide, defendingSupportTokens, defendingTargetToken);
 
     this.tweens.add({
       targets: ball,
@@ -987,8 +983,50 @@ export class LineoutScene extends Phaser.Scene {
         supportTokens.forEach((token) => {
           token.resetPose();
         });
+        defendingSupportTokens.forEach((token) => {
+          token.resetPose();
+        });
         targetToken?.resetPose();
+        defendingTargetToken?.resetPose();
         this.time.delayedCall(120, onComplete);
+      }
+    });
+  }
+
+  private animateJumpGroup(
+    side: "us" | "opponent",
+    supportTokens: PlayerToken[],
+    targetToken?: PlayerToken
+  ): void {
+    const supportPose = side === "us" ? "lifter_front" : "lifter_back";
+
+    supportTokens.forEach((token) => {
+      token.setPose(supportPose);
+      this.tweens.add({
+        targets: token,
+        y: token.y - 10,
+        duration: 180,
+        yoyo: true,
+        ease: "Sine.easeInOut",
+        onUpdate: () => {
+          this.syncPlayerTokenDepth(token);
+        }
+      });
+    });
+
+    if (!targetToken) {
+      return;
+    }
+
+    targetToken.setPose("jumper_catch_front");
+    this.tweens.add({
+      targets: targetToken,
+      y: targetToken.y - 28,
+      duration: 220,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onUpdate: () => {
+        this.syncPlayerTokenDepth(targetToken);
       }
     });
   }
@@ -1360,8 +1398,8 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private isInTrainingReserveZone(x: number, y: number, layout: LineoutLayout): boolean {
-    const reserveTop = this.reservePositionY(0, layout) - layout.playerHeight / 2;
-    const reserveBottom = this.reservePositionY(6, layout) + layout.playerHeight / 2;
+    const reserveTop = this.reservePositionY(6, layout) - layout.playerHeight / 2;
+    const reserveBottom = this.reservePositionY(0, layout) + layout.playerHeight / 2;
 
     return Math.abs(x - layout.reserveX) <= layout.playerWidth
       && y >= reserveTop
@@ -1369,7 +1407,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private reservePositionY(index: number, layout: LineoutLayout): number {
-    return layout.reserveY + index * layout.slotGap;
+    return layout.reserveY + (6 - index) * layout.slotGap;
   }
 
   private nearestPosition(y: number, layout: LineoutLayout): LineoutPosition {

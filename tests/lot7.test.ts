@@ -21,7 +21,32 @@ function roster(divisionId: DivisionId, seed: number, clubModifier: -3 | 0 | 3 =
   });
 }
 
-test("Régionale 3 has exactly two lifters, three hybrids and two jumpers", () => {
+function getPlayerByNumber(
+  players: ReturnType<typeof roster>["fieldPlayers"],
+  number: number
+) {
+  const player = players.find((candidate) => candidate.number === number);
+  assert.ok(player, `missing player ${number}`);
+  return player;
+}
+
+function averageProfile(divisionId: DivisionId, number: number, samples = 40) {
+  let jump = 0;
+  let lift = 0;
+
+  for (let seed = 1; seed <= samples; seed += 1) {
+    const player = getPlayerByNumber(roster(divisionId, seed).fieldPlayers, number);
+    jump += player.jump;
+    lift += player.lift;
+  }
+
+  return {
+    jump: jump / samples,
+    lift: lift / samples
+  };
+}
+
+test("Regionale 3 has exactly two lifters, three hybrids and two jumpers", () => {
   const generated = roster("regionale_3", 10);
   const roles = generated.fieldPlayers.map(deduceAerialRole);
 
@@ -32,12 +57,44 @@ test("Régionale 3 has exactly two lifters, three hybrids and two jumpers", () =
   assert.equal(generated.report.valid, true);
 });
 
-test("from Fédérale 1 every lineout player can jump and lift", () => {
+test("number-based archetypes are visible in Regionale 3", () => {
+  const generated = roster("regionale_3", 10).fieldPlayers;
+
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 1)), "lifter");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 3)), "lifter");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 4)), "jumperLifter");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 5)), "jumperLifter");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 6)), "jumper");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 7)), "jumper");
+  assert.equal(deduceAerialRole(getPlayerByNumber(generated, 8)), "jumperLifter");
+});
+
+test("from Federale 1 every lineout player can jump and lift", () => {
   for (const divisionId of ["federale_1", "nationale_2", "nationale", "pro_d2", "top_14"] as const) {
     const generated = roster(divisionId, 20);
     assert.ok(generated.fieldPlayers.every((player) => player.jump >= 60 && player.lift >= 60));
     assert.equal(generated.report.valid, true);
   }
+});
+
+test("specialization by number remains visible across divisions", () => {
+  const regionale2Five = averageProfile("regionale_2", 5);
+  const top14Five = averageProfile("top_14", 5);
+  const federale2Four = averageProfile("federale_2", 4);
+  const federale2Eight = averageProfile("federale_2", 8);
+  const proD2Six = averageProfile("pro_d2", 6);
+  const proD2Seven = averageProfile("pro_d2", 7);
+  const proD2One = averageProfile("pro_d2", 1);
+  const proD2Three = averageProfile("pro_d2", 3);
+
+  assert.ok(proD2One.lift > proD2One.jump);
+  assert.ok(proD2Three.lift > proD2Three.jump);
+  assert.ok(proD2Six.jump > proD2Six.lift);
+  assert.ok(proD2Seven.jump > proD2Seven.lift);
+  assert.ok(Math.abs(federale2Four.jump - federale2Four.lift) <= 4);
+  assert.ok(Math.abs(federale2Eight.jump - federale2Eight.lift) <= 4);
+  assert.ok(regionale2Five.lift > regionale2Five.jump);
+  assert.ok(Math.abs(top14Five.jump - top14Five.lift) <= 6);
 });
 
 test("club modifier is fixed by id and creates only a small intra-division gap", () => {

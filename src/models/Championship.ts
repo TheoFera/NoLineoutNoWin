@@ -20,3 +20,13 @@ export type ChampionshipState = {
   schedule: string[];
   standings: ChampionshipTeamRecord[];
 };
+
+export type SeasonSummary = {
+  season: number;
+  previousDivisionId: DivisionId;
+  nextDivisionId: DivisionId;
+  promoted: boolean;
+  rank: number;
+  teamCount: number;
+  playerRecord: ChampionshipTeamRecord;
+};

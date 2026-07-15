@@ -11,7 +11,8 @@ import {
 } from "../src/ai/LineoutMemory.ts";
 import { createOpponentAiIdentity } from "../src/ai/LineoutAiIdentity.ts";
 import { predictDefensiveTarget } from "../src/ai/LineoutAiSelection.ts";
-import { createChampionshipState } from "../src/rules/ChampionshipRules.ts";
+import { applyMatchToChampionship, createChampionshipState } from "../src/rules/ChampionshipRules.ts";
+import type { ChampionshipState } from "../src/models/Championship.ts";
 
 const combination: Combination = {
   id: "known-combination",
@@ -126,4 +127,67 @@ test("championship schedules one first leg and one return leg against every oppo
   });
   assert.equal(championship.totalRounds, 10);
   assert.ok([...counts.values()].every((count) => count === 2));
+});
+
+test("last match returns a season summary before creating the promoted season", () => {
+  const championship: ChampionshipState = {
+    season: 1,
+    divisionId: "regionale_3",
+    nextRound: 10,
+    totalRounds: 10,
+    schedule: Array.from({ length: 10 }, (_, index) => `opponent-${(index % 5) + 1}`),
+    standings: [
+      { teamId: "player_team", name: "Club joueur", played: 9, wins: 8, draws: 0, losses: 1, pointsFor: 180, pointsAgainst: 90, leaguePoints: 32 },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        teamId: `opponent-${index + 1}`,
+        name: `Adversaire ${index + 1}`,
+        played: 9,
+        wins: 3,
+        draws: 0,
+        losses: 6,
+        pointsFor: 100,
+        pointsAgainst: 140,
+        leaguePoints: 12
+      }))
+    ]
+  };
+
+  const outcome = applyMatchToChampionship(championship, 24, 12, "Club joueur");
+
+  assert.equal(outcome.divisionId, "regionale_2");
+  assert.equal(outcome.season, 2);
+  assert.equal(outcome.completedSeason?.promoted, true);
+  assert.equal(outcome.completedSeason?.rank, 1);
+  assert.equal(outcome.completedSeason?.playerRecord.played, 10);
+  assert.equal(outcome.completedSeason?.playerRecord.pointsFor, 204);
+});
+
+test("season summary reports maintenance outside the top two", () => {
+  const championship: ChampionshipState = {
+    season: 3,
+    divisionId: "regionale_2",
+    nextRound: 10,
+    totalRounds: 10,
+    schedule: Array.from({ length: 10 }, (_, index) => `opponent-${(index % 5) + 1}`),
+    standings: [
+      { teamId: "player_team", name: "Club joueur", played: 9, wins: 1, draws: 0, losses: 8, pointsFor: 60, pointsAgainst: 180, leaguePoints: 4 },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        teamId: `opponent-${index + 1}`,
+        name: `Adversaire ${index + 1}`,
+        played: 9,
+        wins: 7,
+        draws: 0,
+        losses: 2,
+        pointsFor: 170,
+        pointsAgainst: 90,
+        leaguePoints: 28
+      }))
+    ]
+  };
+
+  const outcome = applyMatchToChampionship(championship, 8, 20, "Club joueur");
+
+  assert.equal(outcome.divisionId, "regionale_2");
+  assert.equal(outcome.completedSeason?.promoted, false);
+  assert.equal(outcome.completedSeason?.nextDivisionId, "regionale_2");
 });

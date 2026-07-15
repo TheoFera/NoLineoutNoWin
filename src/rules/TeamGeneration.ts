@@ -40,16 +40,6 @@ export type GeneratedRoster = {
 
 type GenerationProfile = "lifter" | "reliableHybrid" | "weakHybrid" | "jumper";
 
-const REGIONALE_3_PROFILES: GenerationProfile[] = [
-  "lifter",
-  "lifter",
-  "reliableHybrid",
-  "reliableHybrid",
-  "weakHybrid",
-  "jumper",
-  "jumper"
-];
-
 export function deduceAerialRole(player: Pick<FieldPlayer, "jump" | "lift">): AerialRole {
   const canJump = player.jump >= GENERATION.roleThreshold;
   const canLift = player.lift >= GENERATION.roleThreshold;
@@ -167,7 +157,7 @@ function createFieldPlayer(
   corrections: string[],
   rng: RandomSource
 ): FieldPlayer {
-  const profile = REGIONALE_3_PROFILES[index];
+  const profile = getGenerationProfileForNumber(number);
   const stats = generateProfileStats(divisionId, profile, clubModifier, rng);
   const player: FieldPlayer = {
     id: `${prefix}${index + 1}`,
@@ -199,20 +189,25 @@ function generateProfileStats(
   rng: RandomSource
 ): Pick<FieldPlayer, "jump" | "lift" | "hands"> {
   const range = GENERATION.divisionStats[divisionId];
-  const general = () => generateGeneralStat(range.minimum, range.maximum, clubModifier, rng);
+  const general = (minimumBonus = 0) => generateGeneralStat(
+    Math.min(range.maximum, range.minimum + minimumBonus),
+    range.maximum,
+    clubModifier,
+    rng
+  );
 
   if (divisionId === "regionale_3") {
     const hands = general();
     if (profile === "lifter") {
-      return { jump: randomInt(45, 59, rng), lift: randomInt(60, 70, rng), hands };
+      return { jump: randomInt(44, 58, rng), lift: randomInt(63, 72, rng), hands };
     }
     if (profile === "jumper") {
-      return { jump: randomInt(60, 70, rng), lift: randomInt(45, 59, rng), hands };
+      return { jump: randomInt(63, 72, rng), lift: randomInt(44, 58, rng), hands };
     }
     if (profile === "weakHybrid") {
-      return { jump: randomInt(60, 64, rng), lift: randomInt(60, 64, rng), hands };
+      return { jump: randomInt(60, 63, rng), lift: randomInt(64, 70, rng), hands };
     }
-    return { jump: randomInt(64, 70, rng), lift: randomInt(64, 70, rng), hands };
+    return { jump: randomInt(64, 71, rng), lift: randomInt(64, 71, rng), hands };
   }
 
   const divisionIndex = DIVISION_ORDER.indexOf(divisionId);
@@ -224,12 +219,24 @@ function generateProfileStats(
     rng
   );
   const hands = general();
-  if (profile === "lifter") return { jump: secondary(), lift: general(), hands };
-  if (profile === "jumper") return { jump: general(), lift: secondary(), hands };
+  if (profile === "lifter") return { jump: secondary(), lift: general(2), hands };
+  if (profile === "jumper") return { jump: general(2), lift: secondary(), hands };
   if (profile === "weakHybrid") {
-    return { jump: Math.max(60, general() - 5), lift: Math.max(60, general() - 5), hands };
+    const hybridGap = Math.max(1, 9 - divisionIndex);
+    return {
+      jump: clamp(general() - hybridGap, 0, 100),
+      lift: general(1),
+      hands
+    };
   }
   return { jump: general(), lift: general(), hands };
+}
+
+function getGenerationProfileForNumber(number: number): GenerationProfile {
+  if (number === 1 || number === 3) return "lifter";
+  if (number === 6 || number === 7) return "jumper";
+  if (number === 5) return "weakHybrid";
+  return "reliableHybrid";
 }
 
 function generateGeneralStat(

@@ -78,17 +78,17 @@ export function renderMenuHeader(scene: Phaser.Scene, title: string, options: Me
 
 export function renderMenuPanel(scene: Phaser.Scene, options: MenuPanelOptions): Phaser.GameObjects.Graphics {
   return createRoundedPanel(scene, options.x, options.y, options.width, options.height, {
-    accentColor: options.accentColor ?? 0x35584a,
-    fillColor: options.fillColor ?? 0x07120d
+    accentColor: options.accentColor ?? 0x2f73d1,
+    fillColor: options.fillColor ?? 0x071326
   });
 }
 
 function renderFieldBackdrop(scene: Phaser.Scene, showGuideLines: boolean): void {
-  scene.add.rectangle(SCREEN_CENTER_X, SCREEN_CENTER_Y, SCREEN_WIDTH, SCREEN_HEIGHT, 0x08140d);
+  scene.add.rectangle(SCREEN_CENTER_X, SCREEN_CENTER_Y, SCREEN_WIDTH, SCREEN_HEIGHT, 0x08142c);
 
   for (let index = 0; index < 10; index += 1) {
     const y = 84 + index * 76;
-    const color = index % 2 === 0 ? 0x163b27 : 0x1d482f;
+    const color = index % 2 === 0 ? 0x0d2348 : 0x12305f;
     scene.add.rectangle(SCREEN_CENTER_X, y, SCREEN_WIDTH, 78, color, 1);
   }
 

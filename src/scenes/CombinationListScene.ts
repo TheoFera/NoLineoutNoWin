@@ -57,17 +57,19 @@ export class CombinationListScene extends Phaser.Scene {
 
     this.add.rectangle(195, y + 48, 320, 2, 0xf8fafc, 0.12);
     if (isSelected) {
-      this.add.rectangle(28, y, 6, 74, UI.colors.accent, 0.95);
+      this.add.rectangle(28, y, 5, 74, UI.colors.accent, 0.95);
     }
 
-    new UIButton(this, 145, y, 196, 40, getCombinationDisplayName(combination, t), () => {
+    new UIButton(this, 165, y, 256, 40, getCombinationDisplayName(combination, t), () => {
       navigateTo(this, "LineoutScene", { mode: "training", combinationId: combination.id });
     });
 
-    new UIButton(this, 292, y, 115, 40, t("button.rename"), () => {
+    new UIButton(this, 327, y, 44, 40, t("button.editSymbol"), () => {
       this.openRenameOverlay(combination);
     }, {
-      variant: "secondary"
+      variant: "secondary",
+      fontSize: 26,
+      flipX: true
     });
   }
 
@@ -85,16 +87,17 @@ export class CombinationListScene extends Phaser.Scene {
       wordWrap: { width: 260 }
     }).setOrigin(0.5).setDepth(UI_DEPTH.overlayContent);
 
-    const saveButton = new UIButton(this, 136, 590, 126, 40, t("button.rename"), () => {
+    const saveButton = new UIButton(this, 195, 590, 150, 40, t("button.save"), () => {
       this.applyRename(combination.id);
     });
     saveButton.setDepth(UI_DEPTH.overlayContent);
 
-    const closeButton = new UIButton(this, 254, 590, 126, 40, t("button.close"), () => {
+    const closeButton = new UIButton(this, 329, 439, 40, 40, t("button.closeSymbol"), () => {
       this.destroyNameInput();
       this.scene.restart({ combinationId: this.selectedCombinationId });
     }, {
-      variant: "secondary"
+      variant: "secondary",
+      fontSize: 24
     });
     closeButton.setDepth(UI_DEPTH.overlayContent);
 

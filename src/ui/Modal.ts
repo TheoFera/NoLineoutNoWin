@@ -23,6 +23,14 @@ export class Modal extends Phaser.GameObjects.Container {
     options: ModalOptions = {}
   ) {
     super(scene, scene.scale.width / 2, scene.scale.height / 2);
+    const backdrop = scene.add.rectangle(
+      0,
+      0,
+      scene.scale.width,
+      scene.scale.height,
+      0x000000,
+      0.68
+    ).setInteractive();
     const titleText = scene.add.text(0, 0, title, {
       font: UI.font.subtitle,
       color: UI.colors.text,
@@ -60,7 +68,7 @@ export class Modal extends Phaser.GameObjects.Container {
     }, {
       variant: "secondary"
     });
-    const children: Phaser.GameObjects.GameObject[] = [bg, titleText, bodyText, close];
+    const children: Phaser.GameObjects.GameObject[] = [backdrop, bg, titleText, bodyText, close];
     if (options.secondaryAction) {
       const secondary = new UIButton(scene, -76, closeY, 128, buttonHeight, options.secondaryAction.label, () => {
         this.destroy();

@@ -3,6 +3,8 @@ import { BUTTON_STYLES, drawButtonStyle, getButtonFontSize, type ButtonVariant }
 
 type UIButtonOptions = {
   variant?: ButtonVariant;
+  fontSize?: number;
+  flipX?: boolean;
 };
 
 export class UIButton extends Phaser.GameObjects.Container {
@@ -33,11 +35,11 @@ export class UIButton extends Phaser.GameObjects.Container {
     this.shadow = scene.add.graphics();
     this.background = scene.add.graphics();
     this.label = scene.add.text(0, 1, text, {
-      font: `bold ${getButtonFontSize(width, height, text)}px Arial`,
+      font: `bold ${options.fontSize ?? getButtonFontSize(width, height, text)}px Arial`,
       color: BUTTON_STYLES[this.variant].textColor,
       align: "center",
       wordWrap: { width: Math.max(48, width - 18), useAdvancedWrap: true }
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setFlipX(options.flipX ?? false);
     this.hitArea = scene.add.zone(0, 0, width, height).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     this.hitArea.on("pointerdown", () => this.setPressedScale(0.985));

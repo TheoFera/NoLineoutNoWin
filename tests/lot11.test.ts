@@ -5,7 +5,9 @@ import type { Combination } from "../src/models/Combination.ts";
 import type { LineoutOutcome, LineoutResult } from "../src/models/Lineout.ts";
 import {
   findCombinationTargetOption,
-  getCombinationTargetPositions
+  getCombinationTargetPositions,
+  hasValidCombinationForMatch,
+  isCombinationValidForMatch
 } from "../src/rules/CombinationRules.ts";
 import { buildLineoutResultPresentation } from "../src/rules/LineoutResultPresentation.ts";
 import { getDistanceToNearestTryLine } from "../src/rules/MatchSimulator.ts";
@@ -87,6 +89,28 @@ test("only declared target options are exposed for the selected combination", ()
   assert.deepEqual(getCombinationTargetPositions(combination), [2, 4, 6, 7]);
   assert.equal(findCombinationTargetOption(combination, 6)?.id, "long-back");
   assert.equal(findCombinationTargetOption(combination, 5), undefined);
+});
+
+test("a match requires at least one combination containing two players", () => {
+  const definition = LINEOUT_COMBINATIONS[0];
+  assert.ok(definition);
+  const combination = (playerIds: Array<string | null>): Combination => ({
+    ...definition,
+    nameKey: `combo.${definition.id}`,
+    slots: playerIds.map((playerId, index) => ({
+      position: (index + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+      playerId
+    }))
+  });
+  const empty = combination([]);
+  const incomplete = combination(["player-1"]);
+  const valid = combination(["player-1", "player-2"]);
+
+  assert.equal(isCombinationValidForMatch(empty), false);
+  assert.equal(isCombinationValidForMatch(incomplete), false);
+  assert.equal(isCombinationValidForMatch(valid), true);
+  assert.equal(hasValidCombinationForMatch([empty, incomplete]), false);
+  assert.equal(hasValidCombinationForMatch([empty, valid]), true);
 });
 
 test("distance to the nearest try line is symmetric and clamped to the pitch", () => {

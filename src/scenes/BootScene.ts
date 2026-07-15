@@ -6,6 +6,10 @@ export class BootScene extends Phaser.Scene {
     super("BootScene");
   }
 
+  preload(): void {
+    this.load.image("main-menu-background", "assets/images/main-menu-background.png");
+  }
+
   create(): void {
     GameStore.boot();
     this.scene.start("PreloadScene");

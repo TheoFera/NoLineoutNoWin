@@ -1,8 +1,8 @@
 export const UI = {
   colors: {
-    background: 0x10271b,
-    panel: 0x163b27,
-    panelDark: 0x0b1f16,
+    background: 0x08142c,
+    panel: 0x12305f,
+    panelDark: 0x071326,
     text: "#f8fafc",
     muted: "#cbd5e1",
     pitch: 0x167a3a,

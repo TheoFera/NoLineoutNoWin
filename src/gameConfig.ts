@@ -10,6 +10,7 @@ import { ChampionshipScene } from "./scenes/ChampionshipScene";
 import { CombinationListScene } from "./scenes/CombinationListScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { ResultScene } from "./scenes/ResultScene";
+import { SeasonResultScene } from "./scenes/SeasonResultScene";
 
 export const GAME_WIDTH = 390;
 export const GAME_HEIGHT = 844;
@@ -19,7 +20,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   parent: "game",
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  backgroundColor: "#10271b",
+  backgroundColor: "#08142c",
   audio: {
     noAudio: true
   },
@@ -38,6 +39,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     ChampionshipScene,
     CombinationListScene,
     SettingsScene,
-    ResultScene
+    ResultScene,
+    SeasonResultScene
   ]
 };

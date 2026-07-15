@@ -89,6 +89,14 @@ export function countAssignedPlayers(combination?: Combination): number {
   return normalizeCombinationSlots(combination?.slots).filter((slot) => slot.playerId !== null).length;
 }
 
+export function isCombinationValidForMatch(combination?: Combination): boolean {
+  return countAssignedPlayers(combination) >= 2;
+}
+
+export function hasValidCombinationForMatch(combinations: Combination[]): boolean {
+  return combinations.some(isCombinationValidForMatch);
+}
+
 export function getTargetPlayerId(
   combination: Combination,
   targetPosition: LineoutPosition

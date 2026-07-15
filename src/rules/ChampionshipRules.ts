@@ -1,5 +1,5 @@
 import { getOpponentCatalog } from "../ai/OpponentGenerator.ts";
-import type { ChampionshipState, ChampionshipTeamRecord } from "../models/Championship.ts";
+import type { ChampionshipState, ChampionshipTeamRecord, SeasonSummary } from "../models/Championship.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { OpponentClub } from "../models/OpponentClub.ts";
 import { getNextDivision } from "./DivisionRules.ts";
@@ -125,14 +125,18 @@ export function sortStandings(standings: ChampionshipTeamRecord[]): Championship
       return right.leaguePoints - left.leaguePoints;
     }
 
-    const leftDiff = left.pointsFor - left.pointsAgainst;
-    const rightDiff = right.pointsFor - right.pointsAgainst;
+    const leftDiff = getGoalAverage(left);
+    const rightDiff = getGoalAverage(right);
     if (rightDiff !== leftDiff) {
       return rightDiff - leftDiff;
     }
 
     return right.pointsFor - left.pointsFor;
   });
+}
+
+export function getGoalAverage(record: ChampionshipTeamRecord): number {
+  return record.pointsFor - record.pointsAgainst;
 }
 
 export function createChampionshipState(divisionId: DivisionId, season: number, playerTeamName: string): ChampionshipState {
@@ -205,6 +209,7 @@ export function applyMatchToChampionship(
   divisionId: DivisionId;
   season: number;
   promoted: boolean;
+  completedSeason?: SeasonSummary;
 } {
   const opponentId = getCurrentOpponentId(championship);
   if (!opponentId) {
@@ -235,14 +240,30 @@ export function applyMatchToChampionship(
     };
   }
 
-  const promoted = getPlayerRank(updated) <= 2;
-  const nextDivisionId = promoted ? getNextDivision(updated.divisionId) : updated.divisionId;
+  const rank = getPlayerRank(updated);
+  const promotionDivisionId = getNextDivision(updated.divisionId);
+  const promoted = rank <= 2 && promotionDivisionId !== updated.divisionId;
+  const nextDivisionId = promoted ? promotionDivisionId : updated.divisionId;
   const nextSeason = updated.season + 1;
+  const playerRecord = updated.standings.find((record) => record.teamId === PLAYER_TEAM_ID);
+
+  if (!playerRecord) {
+    throw new Error("Player team is missing from championship standings.");
+  }
 
   return {
     championship: createChampionshipState(nextDivisionId, nextSeason, playerTeamName),
     divisionId: nextDivisionId,
     season: nextSeason,
-    promoted
+    promoted,
+    completedSeason: {
+      season: updated.season,
+      previousDivisionId: updated.divisionId,
+      nextDivisionId,
+      promoted,
+      rank,
+      teamCount: updated.standings.length,
+      playerRecord: { ...playerRecord }
+    }
   };
 }

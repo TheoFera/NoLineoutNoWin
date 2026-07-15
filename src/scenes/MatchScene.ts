@@ -10,7 +10,14 @@ import {
   getDistanceToNearestTryLine,
   getRealSecondsForSimulatedMinutes
 } from "../rules/MatchSimulator";
-import { countAssignedPlayers, getActiveOffensiveCombinations, getCombinationDisplayName, normalizeCombinationSlots, normalizeOffensiveCombinations } from "../rules/CombinationRules";
+import {
+  countAssignedPlayers,
+  getActiveOffensiveCombinations,
+  getCombinationDisplayName,
+  hasValidCombinationForMatch,
+  normalizeCombinationSlots,
+  normalizeOffensiveCombinations
+} from "../rules/CombinationRules";
 import { createEmptyUsage } from "../rules/PlayerProgression";
 import type { MatchStateData } from "../models/Match";
 import { navigateTo } from "../systems/Navigation";
@@ -33,13 +40,24 @@ export class MatchScene extends Phaser.Scene {
 
   create(): void {
     const save = GameStore.getSave();
+    let match = GameStore.getMatch();
+
+    if (!match) {
+      const activeCombinations = getActiveOffensiveCombinations(
+        normalizeOffensiveCombinations(save.offensiveCombinations),
+        save.offensiveRepertoire
+      );
+      if (!hasValidCombinationForMatch(activeCombinations)) {
+        this.renderMissingValidCombination();
+        return;
+      }
+    }
+
     const division = getDivision(save.currentDivisionId);
     const scheduledOpponentId = getCurrentOpponentId(save.championship) ?? "opponent_1";
     const opponent = GameStore.getOrStoreOpponentTeam(
       generateOpponentById(scheduledOpponentId, division)
     );
-    let match = GameStore.getMatch();
-
     if (!match) {
       const schedule = generateMatchSchedule(division);
       match = {
@@ -75,6 +93,26 @@ export class MatchScene extends Phaser.Scene {
     }
 
     this.render(match);
+  }
+
+  private renderMissingValidCombination(): void {
+    renderMenuBackdrop(this);
+    this.add.text(195, 330, t("match.cannotStartTitle"), {
+      font: UI.font.title,
+      color: UI.colors.text,
+      align: "center",
+      wordWrap: { width: 320 }
+    }).setOrigin(0.5);
+    this.add.text(195, 410, t("match.cannotStartCombination"), {
+      font: UI.font.body,
+      color: UI.colors.muted,
+      align: "center",
+      wordWrap: { width: 300 }
+    }).setOrigin(0.5);
+
+    new UIButton(this, 195, 500, 280, 52, t("button.combinations"), () => {
+      navigateTo(this, "CombinationListScene");
+    });
   }
 
   private render(match: MatchStateData): void {
@@ -410,7 +448,7 @@ export class MatchScene extends Phaser.Scene {
     this.add.circle(touchlineX + 18, previewBottom - 4, 8, UI.colors.attack, 1).setStrokeStyle(1, 0xffffff, 0.65).setDepth(12);
 
     slots.forEach((slot, index) => {
-      const ratio = slots.length === 1 ? 0.5 : index / (slots.length - 1);
+      const ratio = slots.length === 1 ? 0.5 : 1 - index / (slots.length - 1);
       const y = Phaser.Math.Linear(previewTop, previewBottom, ratio);
       const fillColor = slot.playerId ? UI.colors.accent : 0x10271b;
       const alpha = slot.playerId ? 0.95 : 0.75;
