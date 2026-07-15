@@ -4,8 +4,24 @@ import { UI_DEPTH } from "./UIDepth";
 import { UIButton } from "./UIButton";
 import { UI } from "./UITheme";
 
+export type ModalSecondaryAction = {
+  label: string;
+  onSelect: () => void;
+};
+
+export type ModalOptions = {
+  primaryLabel?: string;
+  secondaryAction?: ModalSecondaryAction;
+};
+
 export class Modal extends Phaser.GameObjects.Container {
-  constructor(scene: Phaser.Scene, title: string, body: string, onClose: () => void) {
+  constructor(
+    scene: Phaser.Scene,
+    title: string,
+    body: string,
+    onClose: () => void,
+    options: ModalOptions = {}
+  ) {
     super(scene, scene.scale.width / 2, scene.scale.height / 2);
     const titleText = scene.add.text(0, 0, title, {
       font: UI.font.subtitle,
@@ -36,13 +52,23 @@ export class Modal extends Phaser.GameObjects.Container {
 
     titleText.setY(titleY);
     bodyText.setY(bodyY);
-    const close = new UIButton(scene, 0, closeY, 128, buttonHeight, t("button.ok"), () => {
+    const hasSecondaryAction = Boolean(options.secondaryAction);
+    const closeX = hasSecondaryAction ? 76 : 0;
+    const close = new UIButton(scene, closeX, closeY, 128, buttonHeight, options.primaryLabel ?? t("button.ok"), () => {
       this.destroy();
       onClose();
     }, {
       variant: "secondary"
     });
-    this.add([bg, titleText, bodyText, close]);
+    const children: Phaser.GameObjects.GameObject[] = [bg, titleText, bodyText, close];
+    if (options.secondaryAction) {
+      const secondary = new UIButton(scene, -76, closeY, 128, buttonHeight, options.secondaryAction.label, () => {
+        this.destroy();
+        options.secondaryAction?.onSelect();
+      });
+      children.push(secondary);
+    }
+    this.add(children);
     scene.add.existing(this);
     this.setDepth(UI_DEPTH.overlayPanel);
   }

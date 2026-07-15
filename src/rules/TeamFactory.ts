@@ -1,13 +1,16 @@
-import type { FieldPlayer, Hooker } from "../models/Player";
-import { isJumperNumber, isLifterNumber } from "../models/Player";
-import type { JerseyColors, Team } from "../models/Team";
-import { PLAYER_NICKNAMES } from "../data/defaultNames";
-import { randomInt } from "../utils/Random";
-import { clamp } from "../utils/Clamp";
+import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
+import type { DivisionId } from "../models/Division.ts";
+import type { FieldPlayer, Hooker } from "../models/Player.ts";
+import type { JerseyColors, Team } from "../models/Team.ts";
+import {
+  MATH_RANDOM_SOURCE,
+  createSeededRandom,
+  type RandomSource
+} from "../utils/Random.ts";
+import { generateLineoutRoster, generateTeamForDivision } from "./TeamGeneration.ts";
 
-const DEFAULT_FIELD_PLAYER_NUMBERS = [1, 3, 4, 5, 6, 7, 8];
-const DEFAULT_TEAM_SIZE = DEFAULT_FIELD_PLAYER_NUMBERS.length;
-const DEFAULT_LINEOUT_SIZE = 7;
+const DEFAULT_TEAM_SIZE = 7;
+const DIVISION_IDS = Object.keys(LINEOUT_BALANCE.generation.divisionStats) as DivisionId[];
 
 export const DEFAULT_PRIMARY_COLOR = 0x2563eb;
 export const DEFAULT_SECONDARY_COLOR = 0xffffff;
@@ -17,18 +20,6 @@ type StoredTeamShape = Omit<Team, "fieldPlayers" | "lineoutPlayers"> & {
   lineoutPlayers?: FieldPlayer[];
 };
 
-function statAround(base: number): number {
-  return clamp(randomInt(base - 12, base + 12), 10, 95);
-}
-
-function roleHighStat(base: number): number {
-  return clamp(randomInt(Math.max(61, base + 12), Math.max(69, base + 28)), 61, 95);
-}
-
-function roleLowStat(base: number): number {
-  return clamp(randomInt(12, Math.max(24, Math.min(39, base - 6))), 10, 39);
-}
-
 function normalizeJerseyColors(colors?: Partial<JerseyColors>): JerseyColors {
   return {
     primary: colors?.primary ?? DEFAULT_PRIMARY_COLOR,
@@ -36,123 +27,110 @@ function normalizeJerseyColors(colors?: Partial<JerseyColors>): JerseyColors {
   };
 }
 
-function buildFieldPlayer(number: number, index: number, prefix: string, base: number): FieldPlayer {
-  const jump = isJumperNumber(number) ? roleHighStat(base) : roleLowStat(base);
-  const lift = isLifterNumber(number) ? roleHighStat(base) : roleLowStat(base);
-
-  return {
-    id: `${prefix}${index + 1}`,
-    role: "field",
-    number,
-    nickname: PLAYER_NICKNAMES[index] ?? `J${number}`,
-    height: randomInt(number <= 3 ? 176 : 184, number <= 3 ? 190 : 202),
-    width: randomInt(number <= 3 ? 92 : 82, number <= 3 ? 110 : 102),
-    jump,
-    lift,
-    hands: statAround(base)
-  };
+function inferDivisionFromLegacyBase(base: number): DivisionId {
+  return DIVISION_IDS.reduce((best, divisionId) => {
+    const bestDistance = Math.abs(
+      LINEOUT_BALANCE.generation.divisionStats[best].mean - base
+    );
+    const distance = Math.abs(
+      LINEOUT_BALANCE.generation.divisionStats[divisionId].mean - base
+    );
+    return distance < bestDistance ? divisionId : best;
+  }, "regionale_3" as DivisionId);
 }
 
-function dedupePlayers(players: FieldPlayer[]): FieldPlayer[] {
-  const seen = new Set<string>();
-  return players.filter((player) => {
-    if (seen.has(player.id)) {
-      return false;
-    }
-
-    seen.add(player.id);
-    return true;
-  });
+export function createDefaultHooker(
+  id: string,
+  nickname: string,
+  base = 65,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): Hooker {
+  return generateLineoutRoster({
+    divisionId: inferDivisionFromLegacyBase(base),
+    prefix: `${id}_fallback_`,
+    hookerId: id,
+    hookerNickname: nickname,
+    clubModifier: 0,
+    rng: randomSource
+  }).hooker;
 }
 
-function mergeFieldPlayers(primary: FieldPlayer[], fallback: FieldPlayer[]): FieldPlayer[] {
-  return dedupePlayers([...primary, ...fallback]).slice(0, DEFAULT_TEAM_SIZE);
+export function createDefaultFieldPlayers(
+  base = 65,
+  prefix = "p",
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): FieldPlayer[] {
+  return generateLineoutRoster({
+    divisionId: inferDivisionFromLegacyBase(base),
+    prefix,
+    hookerId: `${prefix}h2`,
+    hookerNickname: "Talonneur",
+    clubModifier: 0,
+    rng: randomSource
+  }).fieldPlayers;
 }
 
-function normalizeLineoutPlayers(fieldPlayers: FieldPlayer[], currentLineoutPlayers?: FieldPlayer[]): FieldPlayer[] {
-  const currentIds = new Set((currentLineoutPlayers ?? []).map((player) => player.id));
-  const selected: FieldPlayer[] = [];
-
-  for (const player of currentLineoutPlayers ?? []) {
-    const matching = fieldPlayers.find((fieldPlayer) => fieldPlayer.id === player.id);
-    if (!matching) {
-      continue;
-    }
-
-    if (selected.some((item) => item.id === matching.id)) {
-      continue;
-    }
-
-    selected.push(matching);
-    if (selected.length === DEFAULT_LINEOUT_SIZE) {
-      return selected;
-    }
-  }
-
-  for (const player of fieldPlayers) {
-    if (currentIds.has(player.id) && selected.some((item) => item.id === player.id)) {
-      continue;
-    }
-
-    if (selected.some((item) => item.id === player.id)) {
-      continue;
-    }
-
-    selected.push(player);
-    if (selected.length === DEFAULT_LINEOUT_SIZE) {
-      return selected;
-    }
-  }
-
-  return selected.slice(0, DEFAULT_LINEOUT_SIZE);
+export function createDefaultLineoutPlayers(
+  base = 65,
+  prefix = "p",
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): FieldPlayer[] {
+  return createDefaultFieldPlayers(base, prefix, randomSource).slice(0, DEFAULT_TEAM_SIZE);
 }
 
-export function createDefaultHooker(id: string, nickname: string, base = 45): Hooker {
-  return {
-    id,
-    role: "hooker",
-    number: 2,
-    nickname,
-    height: randomInt(168, 183),
-    width: randomInt(78, 92),
-    throwing: statAround(base)
-  };
-}
-
-export function createDefaultFieldPlayers(base = 45, prefix = "p"): FieldPlayer[] {
-  return DEFAULT_FIELD_PLAYER_NUMBERS.map((number, index) => buildFieldPlayer(number, index, prefix, base));
-}
-
-export function createDefaultLineoutPlayers(base = 45, prefix = "p"): FieldPlayer[] {
-  return createDefaultFieldPlayers(base, prefix).slice(0, DEFAULT_LINEOUT_SIZE);
-}
-
-export function createDefaultPlayerTeam(name: string, colors?: Partial<JerseyColors>): Team {
-  const fieldPlayers = createDefaultFieldPlayers(45, "p");
-
-  return {
+export function createDefaultPlayerTeam(
+  name: string,
+  colors?: Partial<JerseyColors>,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): Team {
+  const generated = generateTeamForDivision({
     id: "player_team",
     name,
     divisionId: "regionale_3",
     colors: normalizeJerseyColors(colors),
-    hooker: createDefaultHooker("h2", "Dédé", 45),
-    fieldPlayers,
-    lineoutPlayers: fieldPlayers.slice(0, DEFAULT_LINEOUT_SIZE)
+    prefix: "p",
+    clubModifier: 0,
+    rng: randomSource
+  }).team;
+  return {
+    ...generated,
+    hooker: { ...generated.hooker, id: "h2", nickname: "Dédé" }
   };
 }
 
 export function normalizeTeam(team: StoredTeamShape): Team {
-  const defaultFieldPlayers = createDefaultFieldPlayers(45, "p");
-  const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], defaultFieldPlayers);
+  const fallback = createDefaultFieldPlayers(65, "p", createSeededRandom(1));
+  const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
   const lineoutPlayers = normalizeLineoutPlayers(fieldPlayers, team.lineoutPlayers);
 
   return {
-    id: team.id,
-    name: team.name,
-    divisionId: team.divisionId,
+    ...team,
     colors: normalizeJerseyColors(team.colors),
-    hooker: team.hooker,
     fieldPlayers,
     lineoutPlayers
   };
+}
+
+function mergeFieldPlayers(primary: FieldPlayer[], fallback: FieldPlayer[]): FieldPlayer[] {
+  const byId = new Map<string, FieldPlayer>();
+  for (const player of [...primary, ...fallback]) {
+    if (!byId.has(player.id)) byId.set(player.id, player);
+  }
+  return [...byId.values()].slice(0, DEFAULT_TEAM_SIZE);
+}
+
+function normalizeLineoutPlayers(
+  fieldPlayers: FieldPlayer[],
+  currentLineoutPlayers?: FieldPlayer[]
+): FieldPlayer[] {
+  const byId = new Map(fieldPlayers.map((player) => [player.id, player]));
+  const selected: FieldPlayer[] = [];
+  for (const player of currentLineoutPlayers ?? []) {
+    const current = byId.get(player.id);
+    if (current && !selected.some((item) => item.id === current.id)) selected.push(current);
+  }
+  for (const player of fieldPlayers) {
+    if (!selected.some((item) => item.id === player.id)) selected.push(player);
+  }
+  return selected.slice(0, DEFAULT_TEAM_SIZE);
 }

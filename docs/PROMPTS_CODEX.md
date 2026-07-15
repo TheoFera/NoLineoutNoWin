@@ -1,5 +1,8 @@
 # Prompts prêts à copier dans Codex
 
+Les prompts dédiés au nouveau gameplay de touche sont regroupés dans
+`docs/PROMPTS_GAMEPLAY_V2.md`.
+
 ## Prompt de lancement
 
 ```text

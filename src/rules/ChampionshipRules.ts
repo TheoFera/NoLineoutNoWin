@@ -1,9 +1,9 @@
-import { getOpponentCatalog } from "../ai/OpponentGenerator";
-import type { ChampionshipState, ChampionshipTeamRecord } from "../models/Championship";
-import type { DivisionId } from "../models/Division";
-import type { OpponentClub } from "../models/OpponentClub";
-import { getNextDivision } from "./DivisionRules";
-import { randomInt } from "../utils/Random";
+import { getOpponentCatalog } from "../ai/OpponentGenerator.ts";
+import type { ChampionshipState, ChampionshipTeamRecord } from "../models/Championship.ts";
+import type { DivisionId } from "../models/Division.ts";
+import type { OpponentClub } from "../models/OpponentClub.ts";
+import { getNextDivision } from "./DivisionRules.ts";
+import { randomInt } from "../utils/Random.ts";
 
 const PLAYER_TEAM_ID = "player_team";
 const OPPONENT_COUNT = 5;
@@ -144,13 +144,15 @@ export function createChampionshipState(divisionId: DivisionId, season: number, 
     opponentIds.push(club.id);
     standings.push(createRecord(club.id, club.name));
   });
+  const firstLeg = shuffle(opponentIds);
+  const returnLeg = shuffle(opponentIds);
 
   return {
     season,
     divisionId,
     nextRound: 1,
-    totalRounds: opponentIds.length,
-    schedule: shuffle(opponentIds),
+    totalRounds: firstLeg.length + returnLeg.length,
+    schedule: [...firstLeg, ...returnLeg],
     standings
   };
 }
@@ -165,8 +167,14 @@ export function normalizeChampionshipState(
     return createChampionshipState(divisionId, season, playerTeamName);
   }
 
+  const uniqueOpponentIds = Array.from(new Set(championship.schedule));
+  const schedule = championship.schedule.length === uniqueOpponentIds.length
+    ? [...championship.schedule, ...uniqueOpponentIds]
+    : championship.schedule;
   return {
     ...championship,
+    schedule,
+    totalRounds: schedule.length,
     standings: championship.standings.map((record) => ({
       ...record,
       name: record.teamId === PLAYER_TEAM_ID ? playerTeamName : record.name

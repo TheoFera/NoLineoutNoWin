@@ -3,8 +3,14 @@ import { GameStore } from "../state/GameStore";
 import { getDivision } from "../rules/DivisionRules";
 import { getCurrentOpponentId } from "../rules/ChampionshipRules";
 import { generateOpponentById } from "../ai/OpponentGenerator";
-import { generateMatchLineouts } from "../rules/MatchSimulator";
-import { countAssignedPlayers, getAvailableOffensiveCombinations, getCombinationDisplayName, normalizeCombinationSlots, normalizeOffensiveCombinations } from "../rules/CombinationRules";
+import {
+  advanceToNextScheduledLineout,
+  generateMatchSchedule,
+  generateMatchMaximumFatigue,
+  getDistanceToNearestTryLine,
+  getRealSecondsForSimulatedMinutes
+} from "../rules/MatchSimulator";
+import { countAssignedPlayers, getActiveOffensiveCombinations, getCombinationDisplayName, normalizeCombinationSlots, normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { createEmptyUsage } from "../rules/PlayerProgression";
 import type { MatchStateData } from "../models/Match";
 import { navigateTo } from "../systems/Navigation";
@@ -12,12 +18,15 @@ import { t } from "../systems/I18n";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
-import { randomInt } from "../utils/Random";
 
 type MatchLineoutEvent = MatchStateData["lineouts"][number];
 type OffensiveCombination = ReturnType<typeof normalizeOffensiveCombinations>[number];
 
 export class MatchScene extends Phaser.Scene {
+  private clockText?: Phaser.GameObjects.Text;
+  private simulationBall?: Phaser.GameObjects.Ellipse;
+  private ballPositionText?: Phaser.GameObjects.Text;
+
   constructor() {
     super("MatchScene");
   }
@@ -26,28 +35,41 @@ export class MatchScene extends Phaser.Scene {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);
     const scheduledOpponentId = getCurrentOpponentId(save.championship) ?? "opponent_1";
-    const opponent = generateOpponentById(scheduledOpponentId, division);
+    const opponent = GameStore.getOrStoreOpponentTeam(
+      generateOpponentById(scheduledOpponentId, division)
+    );
     let match = GameStore.getMatch();
 
     if (!match) {
+      const schedule = generateMatchSchedule(division);
       match = {
         id: `match_${Date.now()}`,
         divisionId: division.id,
         home: save.playerTeam,
         away: opponent,
         minute: 0,
-        maxMinute: randomInt(80, 82),
+        maxMinute: schedule.maxMinute,
         ourScore: 0,
         opponentScore: 0,
         possession: 50,
         occupation: 50,
-        lineouts: generateMatchLineouts(division),
+        ballOwner: "player",
+        ballPositionMeters: 50,
+        playerPossessionTimeMinutes: 0,
+        opponentPossessionTimeMinutes: 0,
+        playerOccupationTimeMinutes: 0,
+        opponentOccupationTimeMinutes: 0,
+        playerAttackingPressure: 0,
+        opponentAttackingPressure: 0,
+        lineouts: schedule.lineouts,
         currentLineoutIndex: 0,
         playerUsage: {
           [save.playerTeam.hooker.id]: createEmptyUsage()
         },
         combinationStats: {},
-        lineoutHistory: []
+        opponentCombinationStats: {},
+        lineoutHistory: [],
+        maximumFatigueByPlayerId: generateMatchMaximumFatigue(save.playerTeam, opponent)
       } satisfies MatchStateData;
       GameStore.setMatch(match);
     }
@@ -59,7 +81,16 @@ export class MatchScene extends Phaser.Scene {
     renderMenuBackdrop(this);
 
     const next = match.lineouts[match.currentLineoutIndex];
-    this.renderScoreboard(match, next);
+    const simulationPending = next
+      ? match.minute < next.minute
+      : match.minute < match.maxMinute;
+    this.renderScoreboard(match, simulationPending ? undefined : next);
+
+    if (simulationPending) {
+      this.renderSimulationBoard(match);
+      this.startAcceleratedSimulation(match);
+      return;
+    }
 
     if (!next) {
       this.renderFullTimePanel();
@@ -104,7 +135,7 @@ export class MatchScene extends Phaser.Scene {
       color: UI.colors.text
     }).setOrigin(1, 0.5);
 
-    this.add.text(195, 34, this.formatMinute(minute), { font: "bold 22px Arial", color: "#fbbf24" }).setOrigin(0.5);
+    this.clockText = this.add.text(195, 34, this.formatMinute(minute), { font: "bold 22px Arial", color: "#fbbf24" }).setOrigin(0.5);
     this.add.text(195, 62, t(periodKey), { font: "bold 11px Arial", color: "#84cc16" }).setOrigin(0.5);
 
     this.add.rectangle(78, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
@@ -167,14 +198,99 @@ export class MatchScene extends Phaser.Scene {
       font: "bold 16px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
+    if (next.ballPositionMeters !== undefined) {
+      const distanceToLine = Math.round(getDistanceToNearestTryLine(next.ballPositionMeters));
+      this.add.text(195, 282, t("match.lineoutDistance")
+        .replace("{distance}", String(distanceToLine)), {
+        font: "bold 12px Arial",
+        color: "#fde68a"
+      }).setOrigin(0.5);
+    }
+  }
+
+  private renderSimulationBoard(match: MatchStateData): void {
+    const fieldLeft = 38;
+    const fieldRight = 352;
+    const fieldY = 390;
+    const fieldWidth = fieldRight - fieldLeft;
+    this.add.rectangle(195, fieldY, fieldWidth, 120, 0x1f6d45, 1)
+      .setStrokeStyle(3, 0xf8fafc, 0.9);
+    for (const meter of [22, 50, 78]) {
+      const x = fieldLeft + fieldWidth * (meter / 100);
+      this.add.rectangle(x, fieldY, meter === 50 ? 3 : 2, 116, 0xffffff, meter === 50 ? 0.8 : 0.45);
+      this.add.text(x, fieldY + 72, String(meter), {
+        font: "bold 10px Arial",
+        color: UI.colors.muted
+      }).setOrigin(0.5);
+    }
+    this.add.text(195, 286, t("match.simulationInProgress"), {
+      font: "bold 22px Arial",
+      color: UI.colors.text
+    }).setOrigin(0.5);
+    const ownerColor = match.ballOwner === "player"
+      ? match.home.colors.primary
+      : match.away.colors.primary;
+    const ballX = fieldLeft + fieldWidth * (match.ballPositionMeters / 100);
+    this.simulationBall = this.add.ellipse(ballX, fieldY, 18, 12, ownerColor, 1)
+      .setStrokeStyle(2, 0xffffff, 0.95);
+    this.ballPositionText = this.add.text(195, 494, t("match.ballPosition")
+      .replace("{meters}", String(Math.round(match.ballPositionMeters))), {
+      font: UI.font.body,
+      color: UI.colors.text
+    }).setOrigin(0.5);
+  }
+
+  private startAcceleratedSimulation(match: MatchStateData): void {
+    const target = advanceToNextScheduledLineout(match);
+    const simulatedMinutes = Math.max(0, target.minute - match.minute);
+    const duration = getRealSecondsForSimulatedMinutes(simulatedMinutes) * 1000;
+    if (duration <= 0) {
+      GameStore.setMatch(target);
+      this.scene.restart();
+      return;
+    }
+    if (this.simulationBall) {
+      this.tweens.add({
+        targets: this.simulationBall,
+        x: 38 + (352 - 38) * (target.ballPositionMeters / 100),
+        duration,
+        ease: "Sine.easeInOut"
+      });
+      if (target.ballOwner !== match.ballOwner) {
+        this.time.delayedCall(duration / 2, () => {
+          const color = target.ballOwner === "player"
+            ? target.home.colors.primary
+            : target.away.colors.primary;
+          this.simulationBall?.setFillStyle(color, 1);
+        });
+      }
+    }
+    this.tweens.addCounter({
+      from: match.minute,
+      to: target.minute,
+      duration,
+      ease: "Linear",
+      onUpdate: (tween) => {
+        this.clockText?.setText(this.formatMinute(tween.getValue() ?? match.minute));
+        if (this.simulationBall) {
+          const meters = ((this.simulationBall.x - 38) / (352 - 38)) * 100;
+          this.ballPositionText?.setText(t("match.ballPosition")
+            .replace("{meters}", String(Math.round(meters))));
+        }
+      },
+      onComplete: () => {
+        GameStore.setMatch(target);
+        this.scene.restart();
+      }
+    });
   }
 
   private renderOffensiveBoard(match: MatchStateData, next: MatchLineoutEvent): void {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);
-    const combinations = getAvailableOffensiveCombinations(
+    const combinations = getActiveOffensiveCombinations(
       normalizeOffensiveCombinations(save.offensiveCombinations),
-      division.offensiveCombinations
+      save.offensiveRepertoire
     );
 
     const boardY = 552;
@@ -329,6 +445,6 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private formatMinute(minute: number): string {
-    return `${minute}'`;
+    return `${Math.floor(minute)}'`;
   }
 }

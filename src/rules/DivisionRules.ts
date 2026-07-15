@@ -1,5 +1,5 @@
-import type { Division, DivisionId } from "../models/Division";
-import { DIVISIONS } from "../data/divisions";
+import type { Division, DivisionId } from "../models/Division.ts";
+import { DIVISIONS } from "../data/divisions.ts";
 
 export function getDivision(id: DivisionId): Division {
   const division = DIVISIONS.find((item) => item.id === id);

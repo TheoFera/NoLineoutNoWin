@@ -1,74 +1,43 @@
-import type { LineoutResult, LineoutSetup } from "../models/Lineout";
-import { resolveLineoutForThrowingTeam } from "./LineoutResolver";
+import type { LineoutResult, LineoutSetup } from "../models/Lineout.ts";
+import { MATH_RANDOM_SOURCE, type RandomSource } from "../utils/Random.ts";
+import {
+  adaptResolutionForPerspective,
+  buildResolutionInputFromSetup
+} from "./LineoutResolver.ts";
+import { resolveLineoutV2 } from "./LineoutV2Resolver.ts";
 
 export function resolveDefensiveLineout(
   setup: LineoutSetup,
-  selectedDefenderId: string | undefined
+  selectedDefenderId: string | undefined,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): LineoutResult {
   if (!selectedDefenderId || !setup.defensiveJumpPosition) {
-    return {
-      displayedResult: "lost",
-      internalEvent: "clean_catch",
-      possessionDelta: -8,
-      occupationDelta: -6,
-      explanationKey: "lineout.explanation.defenseMissed",
-      calculationScore: 0,
-      calculationDetails: []
-    };
+    return missedDefenseResult();
   }
 
-  const selectedIndex = setup.defensiveJumpPosition - 1;
-  const selectedPlayer = setup.defendingPlayers[selectedIndex];
+  const selectedPlayer = setup.defendingPlayers[setup.defensiveJumpPosition - 1];
   if (!selectedPlayer || selectedPlayer.id !== selectedDefenderId) {
-    return {
-      displayedResult: "lost",
-      internalEvent: "clean_catch",
-      possessionDelta: -8,
-      occupationDelta: -6,
-      explanationKey: "lineout.explanation.defenseMissed",
-      calculationScore: 0,
-      calculationDetails: []
-    };
+    return missedDefenseResult();
   }
 
-  const throwingResult = resolveLineoutForThrowingTeam(setup);
-  const relativeOffset = setup.targetPosition
-    ? setup.targetPosition - setup.defensiveJumpPosition
-    : -3;
-  const possessionDelta = -throwingResult.possessionDelta;
-  const occupationDelta = -throwingResult.occupationDelta;
+  const input = buildResolutionInputFromSetup(setup, randomSource);
+  if (!input) return missedDefenseResult();
 
-  if (throwingResult.displayedResult === "fault") {
-    return {
-      ...throwingResult,
-      possessionDelta,
-      occupationDelta
-    };
-  }
+  return adaptResolutionForPerspective(
+    resolveLineoutV2(input),
+    "defending",
+    input
+  );
+}
 
-  if (throwingResult.displayedResult === "lost") {
-    const cleanCounter = relativeOffset === 1 || relativeOffset === 0;
-
-    return {
-      displayedResult: cleanCounter ? "won" : "won_dirty",
-      internalEvent: cleanCounter ? "stolen" : "dirty_catch",
-      possessionDelta,
-      occupationDelta,
-      explanationKey: cleanCounter ? "lineout.explanation.defenseStolen" : "lineout.explanation.defenseContested",
-      calculationScore: throwingResult.calculationScore,
-      calculationDetails: throwingResult.calculationDetails
-    };
-  }
-
+function missedDefenseResult(): LineoutResult {
   return {
     displayedResult: "lost",
-    internalEvent: throwingResult.internalEvent,
-    possessionDelta,
-    occupationDelta,
-    explanationKey: relativeOffset >= 2 || relativeOffset < 0
-      ? "lineout.explanation.defenseLate"
-      : "lineout.explanation.defenseBeaten",
-    calculationScore: throwingResult.calculationScore,
-    calculationDetails: throwingResult.calculationDetails
+    internalEvent: "clean_catch",
+    possessionDelta: 0,
+    occupationDelta: 0,
+    explanationKey: "lineout.explanation.defenseMissed",
+    calculationScore: 0,
+    calculationDetails: []
   };
 }

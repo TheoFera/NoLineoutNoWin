@@ -1,5 +1,9 @@
 # Plan de développement avec Codex
 
+Pour le nouveau gameplay de touche, suivre le plan détaillé dans
+`docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`. Les lots V2 prévalent sur les lots
+historiques ci-dessous lorsqu'ils concernent la même mécanique.
+
 L'objectif est de faire coder le jeu par Codex en plusieurs lots courts. Chaque lot doit être testable avant de passer au suivant.
 
 ## Méthode générale

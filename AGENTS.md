@@ -10,6 +10,12 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
    - `docs/CDC_NORMALISE.md`
    - `docs/ARCHITECTURE.md`
    - `docs/PLAN_DEVELOPPEMENT_CODEX.md`
+   - `docs/GAMEPLAY_TOUCHE_V2.md`
+   - `docs/IA_TOUCHE_V2.md`
+   - `docs/SIMULATION_MATCH_V2.md`
+   - `docs/GENERATION_EQUIPES_V2.md`
+   - `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`
+   - `docs/INTEGRATION_GAMEPLAY_V2.md`
 4. Après chaque lot de travail, exécuter au minimum :
    - `npm run check`
    - `npm run build`
@@ -17,6 +23,14 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 6. Ne pas ajouter de framework non demandé.
 7. Ne pas ajouter de serveur, de compte utilisateur, de cloud, de pub ou d'achats intégrés dans la V1.
 8. Ne pas ajouter de stat joueur non prévue.
+
+## Sources de vérité du gameplay V2
+
+- Les documents `*_V2.md` décrivent le nouveau gameplay à atteindre.
+- En cas de contradiction avec le code actuel, le document V2 prévaut pour le nouveau chantier.
+- Les valeurs indiquées comme provisoires dans les documents V2 sont les valeurs initiales à implémenter et restent configurables.
+- Les valeurs ajustables doivent être centralisées dans `src/config/LineoutBalance.ts`.
+- Les sources aléatoires des règles et de l'IA doivent être injectables pour permettre des tests déterministes.
 
 ## Règles métier non négociables
 
@@ -32,7 +46,9 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
   - `hands` = Main
 - Le talonneur est un rôle spécial avec `throwing` = Lancer.
 - Ne pas ajouter `reading`, `timing`, `strength`, `morale`, `endurance` ou d'autres stats joueur.
-- La fatigue peut exister plus tard comme variable temporaire de match, mais pas comme stat joueur permanente dans la V1.
+- La fatigue est une variable temporaire de match exprimée en pourcentage, jamais une stat joueur permanente.
+- Aucun mini-jeu de timing : l'attaque sélectionne une cible et la défense sélectionne un bloc de contre.
+- Une combinaison peut proposer plusieurs options de lancer, chacune désignant une cible réelle de l'alignement.
 - Tous les textes visibles doivent passer par le système de traduction `t(key)`.
 - Le jeu doit être mobile portrait, sans scroll.
 

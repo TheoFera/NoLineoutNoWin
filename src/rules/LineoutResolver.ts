@@ -1,191 +1,300 @@
-import type { LineoutResult, LineoutSetup } from "../models/Lineout";
-import type { FieldPlayer } from "../models/Player";
-import { clamp } from "../utils/Clamp";
-import { randomInt } from "../utils/Random";
+import type {
+  LineoutAssignments,
+  LineoutResolution,
+  LineoutResolutionInput,
+  LineoutResult,
+  LineoutSetup
+} from "../models/Lineout.ts";
+import type { CombinationTargetOption, LineoutPosition } from "../models/Combination.ts";
+import type { FieldPlayer } from "../models/Player.ts";
+import { MATH_RANDOM_SOURCE, type RandomSource } from "../utils/Random.ts";
+import { calculateCurrentFatiguePercent } from "./LineoutThrowResolver.ts";
+import { resolveLineoutV2 } from "./LineoutV2Resolver.ts";
 
-const DISTANCE_FACTORS = [1, 0.96, 0.9, 0.8, 0.67, 0.52, 0.35] as const;
-const PRODUCT_SCORE_MULTIPLIER = 4.5;
+export function resolveLineoutForThrowingTeam(
+  setup: LineoutSetup,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): LineoutResult {
+  const input = buildResolutionInputFromSetup(setup, randomSource);
+  if (!input) {
+    return invalidSetupResult();
+  }
 
-function averageLiftAround(players: Array<FieldPlayer | null>, targetIndex: number): number {
-  const left = players[targetIndex - 1]?.lift ?? 0;
-  const right = players[targetIndex + 1]?.lift ?? 0;
-  if (left && right) return (left + right) / 2;
-  if (right) return right * 0.7;
-  if (left) return left * 0.4;
-  return 10;
+  const resolution = resolveLineoutV2(input);
+  return adaptResolutionForPerspective(resolution, "throwing", input);
 }
 
-function getReceptionSupportProfile(players: Array<FieldPlayer | null>, targetIndex: number): {
-  jumpMultiplier: number;
-  liftSupport: number;
-} {
-  const leftLift = players[targetIndex - 1]?.lift ?? 0;
-  const rightLift = players[targetIndex + 1]?.lift ?? 0;
+export function resolveLineout(
+  setup: LineoutSetup,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): LineoutResult {
+  return resolveLineoutForThrowingTeam(setup, randomSource);
+}
 
-  if (leftLift > 0 && rightLift > 0) {
-    return {
-      jumpMultiplier: 1,
-      liftSupport: averageLiftAround(players, targetIndex)
-    };
+export function buildResolutionInputFromSetup(
+  setup: LineoutSetup,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): LineoutResolutionInput | null {
+  if (!setup.targetPlayerId) return null;
+
+  const attackingAssignments = toAssignments(setup.attackingPlayers);
+  const defendingAssignments = toAssignments(setup.defendingPlayers);
+  const targetPosition = setup.targetPosition
+    ?? findPlayerPosition(attackingAssignments, setup.targetPlayerId);
+  if (!targetPosition || attackingAssignments[targetPosition]?.id !== setup.targetPlayerId) {
+    return null;
   }
 
-  if (leftLift <= 0 && rightLift > 0) {
-    return {
-      jumpMultiplier: 0.6,
-      liftSupport: rightLift * 0.6
-    };
-  }
+  const targetOption = findTargetOption(setup, attackingAssignments, targetPosition)
+    ?? createImplicitJumpOption(targetPosition, attackingAssignments);
+  const minute = setup.minute ?? 0;
 
   return {
-    jumpMultiplier: 0,
-    liftSupport: 0
+    minute,
+    throwingTeamId: setup.throwingSide === "us" ? "us" : "opponent",
+    defendingTeamId: setup.throwingSide === "us" ? "opponent" : "us",
+    throwingHooker: setup.hooker,
+    targetPlayerId: setup.targetPlayerId,
+    targetOption,
+    attackingAssignments,
+    defendingAssignments,
+    defensiveJumpPosition: setup.defensiveJumpPosition,
+    fatigueByPlayerId: buildCurrentFatigueMap(setup, minute),
+    rng: randomSource
   };
 }
 
-function getCounterBaseChance(relativeOffset: number): number {
-  if (relativeOffset === 1) return 82;
-  if (relativeOffset === 0) return 50;
-  if (relativeOffset === 2) return 30;
-  if (relativeOffset > 2) return 14;
-  return 6;
+export function adaptResolutionForPerspective(
+  resolution: LineoutResolution,
+  perspective: "throwing" | "defending",
+  input: LineoutResolutionInput
+): LineoutResult {
+  const ourResolutionTeam = perspective === "throwing" ? "throwingTeam" : "defendingTeam";
+  const weHaveBall = resolution.ballTeam === ourResolutionTeam;
+  const weOffended = resolution.offendingTeam === ourResolutionTeam;
+  const targetPlayer = input.attackingAssignments[input.targetOption.targetPosition];
+  const calculationDetails = buildCalculationDetails(resolution, targetPlayer);
+  const calculationScore = getNumericDetail(
+    resolution,
+    "blockReceptionScore",
+    "targetReceptionScore",
+    "duelAttackScore",
+    "throwQuality"
+  );
+
+  if (resolution.outcome === "notStraight") {
+    return legacyResult(
+      "fault",
+      "not_straight",
+      perspective === "throwing"
+        ? "lineout.explanation.fault"
+        : "lineout.explanation.opponentNotStraight",
+      calculationScore,
+      calculationDetails,
+      resolution
+    );
+  }
+
+  if (resolution.outcome === "knockOn") {
+    return legacyResult(
+      weOffended ? "fault" : "won_dirty",
+      "knock_on",
+      weOffended
+        ? "lineout.explanation.ourKnockOn"
+        : "lineout.explanation.opponentKnockOn",
+      calculationScore,
+      calculationDetails,
+      resolution
+    );
+  }
+
+  if (resolution.outcome === "looseBall") {
+    return legacyResult(
+      weHaveBall ? "won_dirty" : "lost",
+      weHaveBall ? "dirty_catch" : "stolen",
+      weHaveBall
+        ? "lineout.explanation.looseBallWon"
+        : "lineout.explanation.looseBallLost",
+      calculationScore,
+      calculationDetails,
+      resolution
+    );
+  }
+
+  if (weHaveBall) {
+    const clean = resolution.outcome === "cleanWin" || resolution.outcome === "cleanSteal";
+    return legacyResult(
+      clean ? "won" : "won_dirty",
+      clean ? "clean_catch" : "dirty_catch",
+      perspective === "defending"
+        ? clean
+          ? "lineout.explanation.defenseStolen"
+          : "lineout.explanation.defenseContested"
+        : clean
+          ? "lineout.explanation.clean"
+          : "lineout.explanation.dirty",
+      calculationScore,
+      calculationDetails,
+      resolution
+    );
+  }
+
+  return legacyResult(
+    "lost",
+    "stolen",
+    perspective === "defending"
+      ? "lineout.explanation.defenseBeaten"
+      : "lineout.explanation.lost",
+    calculationScore,
+    calculationDetails,
+    resolution
+  );
 }
 
-function lostResult(): LineoutResult {
+function toAssignments(players: Array<FieldPlayer | null>): LineoutAssignments {
+  const assignments: LineoutAssignments = {};
+  players.slice(0, 7).forEach((player, index) => {
+    if (player) assignments[(index + 1) as LineoutPosition] = player;
+  });
+  return assignments;
+}
+
+function findPlayerPosition(
+  assignments: LineoutAssignments,
+  playerId: string
+): LineoutPosition | undefined {
+  for (let position = 1; position <= 7; position += 1) {
+    if (assignments[position as LineoutPosition]?.id === playerId) {
+      return position as LineoutPosition;
+    }
+  }
+  return undefined;
+}
+
+function findTargetOption(
+  setup: LineoutSetup,
+  assignments: LineoutAssignments,
+  selectedPosition: LineoutPosition
+): CombinationTargetOption | undefined {
+  return setup.combination?.targetOptions?.find((option) => {
+    const rolePosition = option.type === "directCatch"
+      ? option.roles.receiverPosition
+      : option.roles.jumperPosition;
+    const effectivePosition = rolePosition ?? option.targetPosition;
+    return option.targetPosition === selectedPosition
+      && assignments[effectivePosition]?.id === setup.targetPlayerId;
+  });
+}
+
+function createImplicitJumpOption(
+  targetPosition: LineoutPosition,
+  assignments: LineoutAssignments
+): CombinationTargetOption {
+  const frontPosition = adjacentPosition(targetPosition, -1);
+  const rearPosition = adjacentPosition(targetPosition, 1);
+  return {
+    id: `legacy-jump-${targetPosition}`,
+    targetPosition,
+    type: "jumpBlock",
+    roles: {
+      jumperPosition: targetPosition,
+      ...(frontPosition && assignments[frontPosition]
+        ? { frontLifterPosition: frontPosition }
+        : {}),
+      ...(rearPosition && assignments[rearPosition]
+        ? { rearLifterPosition: rearPosition }
+        : {})
+    },
+    naturalWeight: 1
+  };
+}
+
+function buildCurrentFatigueMap(
+  setup: LineoutSetup,
+  minute: number
+): Record<string, number> {
+  const currentFatigue = { ...(setup.fatigueByPlayerId ?? {}) };
+  for (const [playerId, maximumFatigue] of Object.entries(
+    setup.maximumFatigueByPlayerId ?? {}
+  )) {
+    if (currentFatigue[playerId] === undefined) {
+      currentFatigue[playerId] = calculateCurrentFatiguePercent(maximumFatigue, minute);
+    }
+  }
+  return currentFatigue;
+}
+
+function buildCalculationDetails(
+  resolution: LineoutResolution,
+  targetPlayer?: FieldPlayer
+): LineoutResult["calculationDetails"] {
+  const details: LineoutResult["calculationDetails"] = [];
+  pushDetail(details, "lineout.calc.throwing", resolution.details.throwQuality);
+  pushDetail(details, "lineout.calc.jump", resolution.details.attackJumpQuality);
+  if (targetPlayer) pushDetail(details, "lineout.calc.hands", targetPlayer.hands);
+  pushDetail(
+    details,
+    "lineout.calc.pressure",
+    resolution.details.counterScore ?? resolution.details.defenseJumpQuality
+  );
+  return details;
+}
+
+function pushDetail(
+  details: LineoutResult["calculationDetails"],
+  labelKey: string,
+  value: number | string | boolean | undefined
+): void {
+  if (typeof value === "number") details.push({ labelKey, value });
+}
+
+function getNumericDetail(
+  resolution: LineoutResolution,
+  ...keys: string[]
+): number {
+  for (const key of keys) {
+    const value = resolution.details[key];
+    if (typeof value === "number") return value;
+  }
+  return 0;
+}
+
+function legacyResult(
+  displayedResult: LineoutResult["displayedResult"],
+  internalEvent: LineoutResult["internalEvent"],
+  explanationKey: string,
+  calculationScore: number,
+  calculationDetails: LineoutResult["calculationDetails"],
+  resolution: LineoutResolution
+): LineoutResult {
+  return {
+    displayedResult,
+    internalEvent,
+    possessionDelta: 0,
+    occupationDelta: 0,
+    explanationKey,
+    calculationScore,
+    calculationDetails,
+    resolution
+  };
+}
+
+function invalidSetupResult(): LineoutResult {
   return {
     displayedResult: "lost",
     internalEvent: "stolen",
-    possessionDelta: -10,
-    occupationDelta: -8,
-    explanationKey: "lineout.explanation.lost",
+    possessionDelta: 0,
+    occupationDelta: 0,
+    explanationKey: "lineout.explanation.invalidSetup",
     calculationScore: 0,
     calculationDetails: []
   };
 }
 
-function calculateDefensiveCounter(
-  defendingPlayers: Array<FieldPlayer | null>,
-  targetPosition: number,
-  defensiveJumpPosition?: number
-): number {
-  const contestPosition = defensiveJumpPosition ?? targetPosition;
-  const selectedDefender = defendingPlayers[contestPosition - 1];
-  const relativeOffset = targetPosition - contestPosition;
-  const baseChance = getCounterBaseChance(relativeOffset);
-
-  if (!selectedDefender) {
-    return clamp(baseChance * 0.35, 5, 30);
-  }
-
-  const supportProfile = getReceptionSupportProfile(defendingPlayers, contestPosition - 1);
-  const jumpQuality = supportProfile.jumpMultiplier > 0
-    ? clamp((selectedDefender.jump * 0.7 + supportProfile.liftSupport * 0.3) * supportProfile.jumpMultiplier, 0, 100)
-    : 0;
-  const handsImpact = (selectedDefender.hands - 50) * 0.25;
-  const jumpImpact = (jumpQuality - 50) * 0.45;
-
-  return clamp(baseChance + jumpImpact + handsImpact, 5, 95);
-}
-
-export function resolveLineoutForThrowingTeam(setup: LineoutSetup): LineoutResult {
-  if (!setup.targetPlayerId) {
-    return lostResult();
-  }
-
-  const attackingPlayers = setup.attackingPlayers.slice(0, 7);
-  const targetIndex = setup.targetPosition
-    ? setup.targetPosition - 1
-    : attackingPlayers.findIndex((player) => player?.id === setup.targetPlayerId);
-  const target = targetIndex >= 0 ? attackingPlayers[targetIndex] : null;
-
-  if (!target) {
-    return lostResult();
-  }
-
-  const position = targetIndex + 1;
-  const distanceFactor = DISTANCE_FACTORS[targetIndex] ?? 0.35;
-  const supportProfile = getReceptionSupportProfile(attackingPlayers, targetIndex);
-  const canJumpOnReception = supportProfile.jumpMultiplier > 0;
-  const liftSupport = supportProfile.liftSupport;
-  const jumpQuality = canJumpOnReception
-    ? clamp((target.jump * 0.7 + liftSupport * 0.3) * supportProfile.jumpMultiplier, 0, 100)
-    : null;
-  const throwQuality = clamp(setup.hooker.throwing * distanceFactor + randomInt(-8, 8), 0, 100);
-  const handsQuality = target.hands;
-  const defensiveCounter = calculateDefensiveCounter(
-    setup.defendingPlayers.slice(0, 7),
-    position,
-    setup.defensiveJumpPosition
-  );
-  const counterResistance = clamp(100 - defensiveCounter, 5, 100);
-  const scoreFactors = [
-    throwQuality,
-    handsQuality,
-    counterResistance,
-    ...(jumpQuality !== null ? [jumpQuality] : [])
-  ];
-  const factorProduct = scoreFactors.reduce((product, factor) => product * factor, 1);
-  const normalizationBase = 100 ** (scoreFactors.length - 2);
-
-  const score = clamp(
-    (factorProduct / normalizationBase) * PRODUCT_SCORE_MULTIPLIER,
-    5,
-    95
-  );
-  const successRoll = randomInt(1, 100);
-  const calculationDetails = [
-    { labelKey: "lineout.calc.throwing", value: throwQuality },
-    ...(jumpQuality !== null ? [{ labelKey: "lineout.calc.jump", value: jumpQuality }] : []),
-    { labelKey: "lineout.calc.hands", value: handsQuality },
-    { labelKey: "lineout.calc.pressure", value: defensiveCounter }
-  ];
-
-  if (successRoll <= score) {
-    if (score - successRoll >= 18 || score >= 70) {
-      return {
-        displayedResult: "won",
-        internalEvent: "clean_catch",
-        possessionDelta: 10,
-        occupationDelta: 10,
-        explanationKey: "lineout.explanation.clean",
-        calculationScore: score,
-        calculationDetails
-      };
-    }
-
-    return {
-      displayedResult: "won_dirty",
-      internalEvent: "dirty_catch",
-      possessionDelta: 5,
-      occupationDelta: 3,
-      explanationKey: "lineout.explanation.dirty",
-      calculationScore: score,
-      calculationDetails
-    };
-  }
-
-  if (throwQuality < 25 && defensiveCounter > 50 && successRoll >= score + 15) {
-    return {
-      displayedResult: "fault",
-      internalEvent: "not_straight",
-      possessionDelta: -12,
-      occupationDelta: -10,
-      explanationKey: "lineout.explanation.fault",
-      calculationScore: score,
-      calculationDetails
-    };
-  }
-
-  return {
-    displayedResult: "lost",
-    internalEvent: "stolen",
-    possessionDelta: -12,
-    occupationDelta: -10,
-    explanationKey: "lineout.explanation.lost",
-    calculationScore: score,
-    calculationDetails
-  };
-}
-
-export function resolveLineout(setup: LineoutSetup): LineoutResult {
-  return resolveLineoutForThrowingTeam(setup);
+function adjacentPosition(
+  position: LineoutPosition,
+  offset: -1 | 1
+): LineoutPosition | undefined {
+  const adjacent = position + offset;
+  return adjacent >= 1 && adjacent <= 7 ? adjacent as LineoutPosition : undefined;
 }

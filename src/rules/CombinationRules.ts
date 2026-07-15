@@ -1,11 +1,19 @@
-import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations";
-import type { Combination, CombinationPlayerSlot, LineoutPosition } from "../models/Combination";
-import type { FieldPlayer } from "../models/Player";
+import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations.ts";
+import {
+  normalizeCombinationTargetOptions,
+  type Combination,
+  type CombinationPlayerSlot,
+  type CombinationTargetOption,
+  type LineoutPosition,
+  type OffensiveRepertoire
+} from "../models/Combination.ts";
+import type { FieldPlayer } from "../models/Player.ts";
 
 function cloneCombination(combination: Combination): Combination {
   return {
     ...combination,
-    slots: normalizeCombinationSlots(combination.slots).map((slot) => ({ ...slot }))
+    slots: normalizeCombinationSlots(combination.slots).map((slot) => ({ ...slot })),
+    targetOptions: normalizeCombinationTargetOptions(combination.targetOptions)
   };
 }
 
@@ -43,12 +51,33 @@ export function normalizeOffensiveCombinations(combinations?: Combination[]): Co
   }
 
   const normalizedById = new Map(combinations.map((combination) => [combination.id, cloneCombination(combination)]));
-  const orderedDefaults = DEFAULT_COMBINATIONS.map((combination) => normalizedById.get(combination.id) ?? cloneCombination(combination));
+  const orderedDefaults = DEFAULT_COMBINATIONS.map((combination) => {
+    const stored = normalizedById.get(combination.id);
+    if (!stored) return cloneCombination(combination);
+    return {
+      ...stored,
+      targetOptions: stored.targetOptions && stored.targetOptions.length > 0
+        ? stored.targetOptions
+        : normalizeCombinationTargetOptions(combination.targetOptions)
+    };
+  });
   const additionalCombinations = combinations
     .filter((combination) => !DEFAULT_COMBINATIONS.some((defaultCombination) => defaultCombination.id === combination.id))
     .map(cloneCombination);
 
   return [...orderedDefaults, ...additionalCombinations];
+}
+
+export function getActiveOffensiveCombinations(
+  combinations: Combination[],
+  repertoire: OffensiveRepertoire
+): Combination[] {
+  const byId = new Map(
+    normalizeOffensiveCombinations(combinations).map((combination) => [combination.id, combination])
+  );
+  return repertoire.activeCombinationIds
+    .map((id) => byId.get(id))
+    .filter((combination): combination is Combination => Boolean(combination));
 }
 
 export function getAvailableOffensiveCombinations(combinations: Combination[], maxAvailable: number): Combination[] {
@@ -58,6 +87,36 @@ export function getAvailableOffensiveCombinations(combinations: Combination[], m
 
 export function countAssignedPlayers(combination?: Combination): number {
   return normalizeCombinationSlots(combination?.slots).filter((slot) => slot.playerId !== null).length;
+}
+
+export function getTargetPlayerId(
+  combination: Combination,
+  targetPosition: LineoutPosition
+): string | null {
+  return normalizeCombinationSlots(combination.slots)[targetPosition - 1]?.playerId ?? null;
+}
+
+export function getTargetOptionPlayerPosition(option: CombinationTargetOption): LineoutPosition {
+  return (option.type === "directCatch"
+    ? option.roles.receiverPosition
+    : option.roles.jumperPosition) ?? option.targetPosition;
+}
+
+export function getCombinationTargetPositions(combination: Combination): LineoutPosition[] {
+  return normalizeCombinationTargetOptions(combination.targetOptions)
+    .map(getTargetOptionPlayerPosition);
+}
+
+export function findCombinationTargetOption(
+  combination: Combination,
+  playerPosition: LineoutPosition | null
+): CombinationTargetOption | undefined {
+  if (!playerPosition) {
+    return undefined;
+  }
+
+  return normalizeCombinationTargetOptions(combination.targetOptions)
+    .find((option) => getTargetOptionPlayerPosition(option) === playerPosition);
 }
 
 export function getCombinationDisplayName(combination: Combination, translate: (key: string) => string): string {

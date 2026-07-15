@@ -1,4 +1,4 @@
-import type { OpponentClub } from "../models/OpponentClub";
+import type { OpponentClub } from "../models/OpponentClub.ts";
 
 // Couleurs normalisées à partir du fichier fourni. Certains libellés ont été approximés en hex simple.
 export const OPPONENT_CLUB_CATALOG: OpponentClub[] = [

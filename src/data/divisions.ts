@@ -1,4 +1,4 @@
-import type { Division } from "../models/Division";
+import type { Division } from "../models/Division.ts";
 
 export const DIVISIONS: Division[] = [
   { id: "regionale_3", label: "Régionale 3", minLineouts: 4, maxLineouts: 6, offensiveCombinations: 2, opponentSkill: 30, adaptationAfterRepeats: 2 },

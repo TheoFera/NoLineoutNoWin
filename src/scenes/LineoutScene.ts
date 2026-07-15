@@ -1,14 +1,32 @@
 import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
-import { buildDefensivePlan, buildOffensivePlan } from "../ai/DefenseAI";
+import { buildDefensivePlan } from "../ai/DefenseAI";
+import {
+  chooseAiOffensiveLineout,
+  predictDefensiveTarget,
+  type AiFieldZone,
+  type PreviousAiLineout
+} from "../ai/LineoutAiSelection";
+import { createOpponentAiIdentity } from "../ai/LineoutAiIdentity";
 import { getDivision } from "../rules/DivisionRules";
 import { resolveDefensiveLineout } from "../rules/DefensiveLineoutResolver";
 import { getDefensiveLineoutPlayers } from "../rules/DefenseSelection";
-import { countAssignedPlayers, getAvailableOffensiveCombinations, getPlayersAssignedToCombination, getUnassignedCombinationPlayers, normalizeOffensiveCombinations, replaceCombinationLayout } from "../rules/CombinationRules";
+import {
+  countAssignedPlayers,
+  findCombinationTargetOption,
+  getActiveOffensiveCombinations,
+  getCombinationTargetPositions,
+  getPlayersAssignedToCombination,
+  getUnassignedCombinationPlayers,
+  normalizeOffensiveCombinations,
+  replaceCombinationLayout
+} from "../rules/CombinationRules";
 import { resolveLineout } from "../rules/LineoutResolver";
-import { updateMatchAfterLineout } from "../rules/MatchSimulator";
+import { buildLineoutResultPresentation, type LineoutResultDetail } from "../rules/LineoutResultPresentation";
+import { applyLineoutResolutionToMatch } from "../rules/MatchSimulator";
 import { addUsage } from "../rules/PlayerProgression";
 import type { Combination, LineoutPosition } from "../models/Combination";
+import type { LineoutResult } from "../models/Lineout";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
 import { isLikelyJumper, isLikelyLifter } from "../models/Player";
 import type { FieldPlayer } from "../models/Player";
@@ -21,6 +39,7 @@ import { UI } from "../ui/UITheme";
 import { Modal } from "../ui/Modal";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { MATH_RANDOM_SOURCE } from "../utils/Random";
 
 const SCREEN_WIDTH = 390;
 const SCREEN_HEIGHT = 844;
@@ -95,6 +114,8 @@ export class LineoutScene extends Phaser.Scene {
   private opponentDefensiveJumpPosition: LineoutPosition | null = null;
   private opponentTargetId: string | null = null;
   private opponentTargetPosition: LineoutPosition | null = null;
+  private opponentTargetOptionId: string | null = null;
+  private opponentCombination: Combination | null = null;
   private dragState: DragState | null = null;
   private inspectedPlayer: FieldPlayer | null = null;
   private inspectorNameText?: Phaser.GameObjects.Text;
@@ -132,7 +153,7 @@ export class LineoutScene extends Phaser.Scene {
     this.allCombinations = normalizeOffensiveCombinations(save.offensiveCombinations);
 
     const visibleCombinations = this.mode === "match"
-      ? getAvailableOffensiveCombinations(this.allCombinations, division.offensiveCombinations)
+      ? getActiveOffensiveCombinations(this.allCombinations, save.offensiveRepertoire)
       : this.allCombinations;
 
     this.selectedCombination = visibleCombinations.find((combination) => combination.id === this.selectedCombinationId)
@@ -456,12 +477,14 @@ export class LineoutScene extends Phaser.Scene {
       this.bindMatchAttackToken(token);
       this.attackTokens.push(token);
     });
+    this.markOffensiveTargets();
 
     const attackCount = Math.max(2, countAssignedPlayers(this.selectedCombination));
     const defense = buildDefensivePlan(opponentPlayers, attackCount);
-    const activeSlots = this.getActiveSlotIndices(attackCount);
-    this.opponentDefensiveJumpPosition = (activeSlots[Math.max(0, defense.likelyJumpPosition - 1)] + 1) as LineoutPosition;
-    this.defenseSlotPlayers = this.createSpreadSlots(defense.selectedPlayers, attackCount);
+    this.defenseSlotPlayers = this.createDefenseSlotsForAttack(
+      defense.selectedPlayers,
+      this.attackSlotPlayers
+    );
     const defenseColor = match?.away.colors.primary ?? UI.colors.defense;
 
     this.defenseSlotPlayers.forEach((player, index) => {
@@ -491,13 +514,7 @@ export class LineoutScene extends Phaser.Scene {
     const match = GameStore.getMatch();
     const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
     const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
-    const opponentPlayers = (match?.away.lineoutPlayers ?? []).slice(0, numberOfPlayers);
-    const rawPlan = buildOffensivePlan(opponentPlayers, numberOfPlayers);
-    const activeSlots = this.getActiveSlotIndices(numberOfPlayers);
     this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
-    this.defenseSlotPlayers = this.createSpreadSlots(rawPlan.selectedPlayers, numberOfPlayers);
-    this.opponentTargetPosition = (activeSlots[Math.max(0, rawPlan.targetPosition - 1)] + 1) as LineoutPosition;
-    this.opponentTargetId = this.defenseSlotPlayers[this.opponentTargetPosition - 1]?.id ?? null;
 
     this.attackSlotPlayers.forEach((player, index) => {
       if (!player) {
@@ -773,7 +790,7 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
-    if (!targetToken) {
+    if (!targetToken || !this.findSelectedTargetOption()) {
       this.flashStatus(t("lineout.status.selectTarget"));
       return;
     }
@@ -786,6 +803,7 @@ export class LineoutScene extends Phaser.Scene {
       {
         throwingSide: "us",
         pitchZone,
+        minute: this.currentMatchLineout?.minute ?? match?.minute ?? 0,
         numberOfPlayers: Math.max(2, countAssignedPlayers(this.selectedCombination)),
         hooker: save.playerTeam.hooker,
         attackingPlayers: this.attackSlotPlayers,
@@ -793,25 +811,33 @@ export class LineoutScene extends Phaser.Scene {
         combination: this.selectedCombination,
         targetPlayerId: this.selectedTargetId ?? undefined,
         targetPosition: this.selectedTargetPosition ?? undefined,
-        defensiveJumpPosition: this.opponentDefensiveJumpPosition ?? undefined
+        defensiveJumpPosition: this.opponentDefensiveJumpPosition ?? undefined,
+        maximumFatigueByPlayerId: match?.maximumFatigueByPlayerId
       }
     );
 
     if (this.mode === "match" && match) {
-      const updated = updateMatchAfterLineout(match, result.possessionDelta, result.occupationDelta);
+      const updated = result.resolution
+        ? applyLineoutResolutionToMatch(match, result.resolution, "us")
+        : { ...match };
       updated.lineouts[updated.currentLineoutIndex].resolved = true;
       updated.minute = this.currentMatchLineout?.minute ?? updated.minute;
       updated.currentLineoutIndex += 1;
       updated.playerUsage = this.recordOffensiveUsage(updated.playerUsage, save.playerTeam.hooker.id);
       this.recordOffensiveSummary(updated, result);
       GameStore.setMatch(updated);
+      if (this.selectedTargetPosition) {
+        GameStore.observePlayerLineoutTarget(
+          match.away.id,
+          this.selectedCombination.id,
+          this.selectedTargetPosition
+        );
+      }
     }
 
     this.playThrowAnimation("us", this.selectedTargetPosition ?? 4, this.attackTokens, () => {
       this.isResolving = false;
-      new Modal(this, t(`lineout.result.${result.displayedResult}`), this.buildResultBody(result), () => {
-        this.scene.start("MatchScene");
-      });
+      this.showResult(result);
     });
   }
 
@@ -836,27 +862,46 @@ export class LineoutScene extends Phaser.Scene {
     const result = resolveDefensiveLineout({
       throwingSide: "opponent",
       pitchZone: this.currentMatchLineout?.pitchZone ?? "middle",
+      minute: this.currentMatchLineout?.minute ?? match.minute,
       numberOfPlayers: this.currentMatchLineout?.numberOfPlayers ?? 7,
       hooker: match.away.hooker,
       attackingPlayers: this.defenseSlotPlayers,
       defendingPlayers: this.attackSlotPlayers,
+      combination: this.opponentCombination ?? undefined,
       targetPlayerId: this.opponentTargetId ?? undefined,
       targetPosition: this.opponentTargetPosition ?? undefined,
-      defensiveJumpPosition: this.selectedTargetPosition ?? undefined
+      defensiveJumpPosition: this.selectedTargetPosition ?? undefined,
+      maximumFatigueByPlayerId: match.maximumFatigueByPlayerId
     }, this.selectedTargetId ?? undefined);
 
-    const updated = updateMatchAfterLineout(match, result.possessionDelta, result.occupationDelta);
+    const updated = result.resolution
+      ? applyLineoutResolutionToMatch(match, result.resolution, "opponent")
+      : { ...match };
     updated.lineouts[updated.currentLineoutIndex].resolved = true;
     updated.minute = this.currentMatchLineout?.minute ?? updated.minute;
     updated.currentLineoutIndex += 1;
     updated.playerUsage = this.recordDefensiveUsage(updated.playerUsage);
+    this.recordOpponentOffensiveSummary(updated, result);
     updated.lineoutHistory.push({
       minute: this.currentMatchLineout?.minute ?? updated.minute,
       throwingSide: "opponent",
       displayedResult: result.displayedResult,
-      success: result.displayedResult !== "lost"
+      success: result.displayedResult !== "lost",
+      combinationId: this.opponentCombination?.id,
+      targetOptionId: this.opponentTargetOptionId ?? undefined,
+      targetPosition: this.opponentTargetPosition ?? undefined,
+      defensivePosition: this.selectedTargetPosition ?? undefined,
+      officialOutcome: result.resolution?.outcome
     });
     GameStore.setMatch(updated);
+
+    if (this.selectedTargetPosition) {
+      GameStore.observePlayerDefensiveChoice(
+        match.away.id,
+        this.selectedTargetPosition,
+        result.resolution?.ballTeam === "defendingTeam"
+      );
+    }
 
     if (this.currentMatchLineout) {
       GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
@@ -864,9 +909,7 @@ export class LineoutScene extends Phaser.Scene {
 
     this.playThrowAnimation("opponent", this.opponentTargetPosition ?? 4, this.defenseTokens, () => {
       this.isResolving = false;
-      new Modal(this, t(`lineout.result.${result.displayedResult}`), this.buildResultBody(result), () => {
-        this.scene.start("MatchScene");
-      });
+      this.showResult(result);
     });
   }
 
@@ -1119,10 +1162,8 @@ export class LineoutScene extends Phaser.Scene {
       const match = GameStore.getMatch();
       const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
       const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
-      const opponentPlayers = (match?.away.lineoutPlayers ?? []).slice(0, numberOfPlayers);
-      const rawPlan = buildOffensivePlan(opponentPlayers, numberOfPlayers);
       this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
-      this.defenseSlotPlayers = this.createSpreadSlots(rawPlan.selectedPlayers, numberOfPlayers);
+      this.prepareOpponentOffensiveDecision(match);
       return;
     }
 
@@ -1131,7 +1172,21 @@ export class LineoutScene extends Phaser.Scene {
     const attackCount = Math.max(2, countAssignedPlayers(this.selectedCombination));
     const defense = buildDefensivePlan(opponentPlayers, attackCount);
     this.attackSlotPlayers = getPlayersAssignedToCombination(players, this.selectedCombination);
-    this.defenseSlotPlayers = this.createSpreadSlots(defense.selectedPlayers, attackCount);
+    this.defenseSlotPlayers = this.createDefenseSlotsForAttack(
+      defense.selectedPlayers,
+      this.attackSlotPlayers
+    );
+    if (match) {
+      const identity = createOpponentAiIdentity(match.away.id, match.divisionId);
+      const prediction = predictDefensiveTarget({
+        combination: this.selectedCombination,
+        memory: GameStore.getPreparedOpponentAiMemory(match.away.id),
+        identity,
+        divisionId: match.divisionId,
+        rng: MATH_RANDOM_SOURCE
+      });
+      this.opponentDefensiveJumpPosition = prediction.predictedPosition;
+    }
   }
 
   private getActiveSlotIndices(count: number): number[] {
@@ -1168,7 +1223,10 @@ export class LineoutScene extends Phaser.Scene {
     return [left, right].filter((player): player is FieldPlayer => player !== null);
   }
 
-  private recordOffensiveSummary(match: MatchStateData, result: { displayedResult: "won" | "won_dirty" | "lost" | "fault" }): void {
+  private recordOffensiveSummary(match: MatchStateData, result: {
+    displayedResult: "won" | "won_dirty" | "lost" | "fault";
+    resolution?: { outcome: MatchStateData["lineoutHistory"][number]["officialOutcome"] };
+  }): void {
     const combinationId = this.selectedCombination.id;
     const existing = match.combinationStats[combinationId];
     const success = result.displayedResult === "won" || result.displayedResult === "won_dirty";
@@ -1189,8 +1247,99 @@ export class LineoutScene extends Phaser.Scene {
       displayedResult: result.displayedResult,
       success,
       combinationId,
-      combinationName
+      combinationName,
+      targetOptionId: this.findSelectedTargetOption()?.id,
+      targetPosition: this.selectedTargetPosition ?? undefined,
+      defensivePosition: this.opponentDefensiveJumpPosition ?? undefined,
+      officialOutcome: result.resolution?.outcome
     });
+  }
+
+  private recordOpponentOffensiveSummary(match: MatchStateData, result: {
+    resolution?: {
+      outcome: MatchStateData["lineoutHistory"][number]["officialOutcome"];
+      ballTeam: "throwingTeam" | "defendingTeam";
+    };
+  }): void {
+    if (!this.opponentCombination) return;
+    const combinationId = this.opponentCombination.id;
+    const existing = match.opponentCombinationStats[combinationId];
+    const outcome = result.resolution?.outcome;
+    const success = result.resolution?.ballTeam === "throwingTeam"
+      && outcome !== "knockOn"
+      && outcome !== "notStraight";
+    match.opponentCombinationStats[combinationId] = {
+      combinationId,
+      combinationName: this.opponentCombination.customName?.trim()
+        || t(this.opponentCombination.nameKey),
+      playerCount: countAssignedPlayers(this.opponentCombination),
+      played: (existing?.played ?? 0) + 1,
+      won: (existing?.won ?? 0) + Number(success),
+      lost: (existing?.lost ?? 0) + Number(!success)
+    };
+  }
+
+  private prepareOpponentOffensiveDecision(match: MatchStateData | null): void {
+    if (!match?.away.offensiveCombinations || !match.away.offensiveRepertoire || !match.away.lineoutStyle) {
+      return;
+    }
+    const previousEntry = [...match.lineoutHistory].reverse().find((entry) => (
+      entry.throwingSide === "opponent"
+      && entry.combinationId
+      && entry.targetPosition
+      && entry.officialOutcome
+    ));
+    const previous: PreviousAiLineout | undefined = previousEntry
+      ? {
+        combinationId: previousEntry.combinationId as string,
+        targetPosition: previousEntry.targetPosition as LineoutPosition,
+        outcome: previousEntry.officialOutcome as NonNullable<typeof previousEntry.officialOutcome>
+      }
+      : undefined;
+    const decision = chooseAiOffensiveLineout({
+      combinations: match.away.offensiveCombinations,
+      repertoire: match.away.offensiveRepertoire,
+      style: match.away.lineoutStyle,
+      zone: this.getOpponentFieldZone(this.currentMatchLineout?.pitchZone ?? "middle"),
+      memory: GameStore.getPreparedOpponentAiMemory(match.away.id),
+      identity: createOpponentAiIdentity(match.away.id, match.divisionId),
+      previous,
+      rng: MATH_RANDOM_SOURCE
+    });
+    this.opponentCombination = decision.combination;
+    this.opponentTargetOptionId = decision.targetOption.id;
+    this.opponentTargetPosition = decision.targetOption.targetPosition;
+    this.opponentTargetId = decision.targetPlayerId;
+    this.defenseSlotPlayers = getPlayersAssignedToCombination(
+      match.away.fieldPlayers,
+      decision.combination
+    );
+    const playerCount = countAssignedPlayers(decision.combination);
+    if (this.currentMatchLineout) this.currentMatchLineout.numberOfPlayers = playerCount;
+  }
+
+  private createDefenseSlotsForAttack(
+    players: FieldPlayer[],
+    attackingSlots: Array<FieldPlayer | null>
+  ): Array<FieldPlayer | null> {
+    const slots: Array<FieldPlayer | null> = Array.from({ length: 7 }, () => null);
+    const occupiedPositions = attackingSlots
+      .map((player, index) => player ? index : -1)
+      .filter((index) => index >= 0);
+    players.slice(0, occupiedPositions.length).forEach((player, index) => {
+      slots[occupiedPositions[index]] = player;
+    });
+    return slots;
+  }
+
+  private findSelectedTargetOption() {
+    return findCombinationTargetOption(this.selectedCombination, this.selectedTargetPosition);
+  }
+
+  private getOpponentFieldZone(pitchZone: MatchLineoutEvent["pitchZone"]): AiFieldZone {
+    if (pitchZone === "their_22") return "own22";
+    if (pitchZone === "our_22") return "opponent22";
+    return "midfield";
   }
 
   private findTrainingTargetSlot(x: number, y: number, layout: LineoutLayout): number | null {
@@ -1227,13 +1376,50 @@ export class LineoutScene extends Phaser.Scene {
     return Phaser.Math.Clamp(rawPosition, 1, maxPosition) as LineoutPosition;
   }
 
-  private buildResultBody(result: {
-    explanationKey: string;
-    calculationScore: number;
-    calculationDetails: Array<{ labelKey: string; value: number }>;
-  }): string {
-    const detailLines = result.calculationDetails.map((detail) => `${t(detail.labelKey)} : ${Math.round(detail.value)}%`);
-    return [t(result.explanationKey), "", `${t("lineout.calc.summary")} : ${Math.round(result.calculationScore)}%`, ...detailLines].join("\n");
+  private markOffensiveTargets(): void {
+    const positions = new Set(getCombinationTargetPositions(this.selectedCombination));
+    this.attackTokens.forEach((token) => {
+      const position = token.getData("lineoutPosition") as LineoutPosition | undefined;
+      token.setTargetable(position !== undefined && positions.has(position));
+    });
+  }
+
+  private showResult(result: LineoutResult): void {
+    const presentation = buildLineoutResultPresentation(result);
+    const continueMatch = () => this.scene.start("MatchScene");
+    new Modal(this, t(presentation.titleKey), t(presentation.summaryKey), continueMatch, {
+      primaryLabel: t("button.continue"),
+      secondaryAction: {
+        label: t("lineout.result.details"),
+        onSelect: () => {
+          new Modal(
+            this,
+            t("lineout.result.detailsTitle"),
+            this.buildResultDetails(presentation.reasonKey, presentation.details),
+            continueMatch,
+            { primaryLabel: t("button.continue") }
+          );
+        }
+      }
+    });
+  }
+
+  private buildResultDetails(reasonKey: string | undefined, details: LineoutResultDetail[]): string {
+    const lines = details.map((detail) => `${t(detail.labelKey)} : ${this.formatResultDetail(detail)}`);
+    return [
+      ...(reasonKey ? [t(reasonKey), ""] : []),
+      ...lines
+    ].join("\n");
+  }
+
+  private formatResultDetail(detail: LineoutResultDetail): string {
+    if (detail.valueKey) {
+      return t(detail.valueKey);
+    }
+    if (detail.format === "score" && typeof detail.value === "number") {
+      return `${Math.round(detail.value)} / 100`;
+    }
+    return String(detail.value);
   }
 
   private getCurrentLineoutSize(): number {
@@ -1326,6 +1512,8 @@ export class LineoutScene extends Phaser.Scene {
     this.opponentDefensiveJumpPosition = null;
     this.opponentTargetId = null;
     this.opponentTargetPosition = null;
+    this.opponentTargetOptionId = null;
+    this.opponentCombination = null;
     this.attackTokens = [];
     this.defenseTokens = [];
     this.attackSlotPlayers = [];
