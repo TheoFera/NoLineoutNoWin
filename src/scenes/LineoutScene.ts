@@ -143,6 +143,12 @@ export class LineoutScene extends Phaser.Scene {
     this.selectedCombinationId = data.combinationId;
   }
 
+  preload(): void {
+    if (!this.textures.exists("lineout-pitch-background")) {
+      this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
+    }
+  }
+
   create(): void {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);

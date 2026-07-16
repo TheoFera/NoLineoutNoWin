@@ -24,11 +24,6 @@ export class PreloadScene extends Phaser.Scene {
     this.drawProgressBar(progressBar, 0);
     this.load.on(Phaser.Loader.Events.PROGRESS, (progress: number) => this.drawProgressBar(progressBar, progress));
 
-    this.load.image("create-club-background", "assets/images/create-club-background.png");
-    this.load.image("option-menu-background", "assets/images/option-menu-background.png");
-    this.load.image("championship-menu-background", "assets/images/championship-menu-background.png");
-    this.load.image("combi-menu-background", "assets/images/combi-menu-background.png");
-    this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
     preloadRugbyPlayerAssets(this.load);
   }
 

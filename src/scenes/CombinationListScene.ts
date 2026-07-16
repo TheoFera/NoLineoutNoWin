@@ -26,6 +26,12 @@ export class CombinationListScene extends Phaser.Scene {
     this.selectedCombinationId = data.combinationId;
   }
 
+  preload(): void {
+    if (!this.textures.exists("combi-menu-background")) {
+      this.load.image("combi-menu-background", "assets/images/combi-menu-background.png");
+    }
+  }
+
   create(): void {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);

@@ -28,6 +28,12 @@ export class ClubCreationScene extends Phaser.Scene {
     super("ClubCreationScene");
   }
 
+  preload(): void {
+    if (!this.textures.exists("create-club-background")) {
+      this.load.image("create-club-background", "assets/images/create-club-background.png");
+    }
+  }
+
   create(): void {
     const previewPlayerHeight = 224;
     const previewPlayerWidth = 100;

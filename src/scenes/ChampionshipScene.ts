@@ -13,6 +13,12 @@ export class ChampionshipScene extends Phaser.Scene {
     super("ChampionshipScene");
   }
 
+  preload(): void {
+    if (!this.textures.exists("championship-menu-background")) {
+      this.load.image("championship-menu-background", "assets/images/championship-menu-background.png");
+    }
+  }
+
   create(): void {
     const save = GameStore.getSave();
     const divisionLabel = t(`division.${save.currentDivisionId}`);

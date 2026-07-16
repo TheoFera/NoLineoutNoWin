@@ -12,6 +12,12 @@ export class SettingsScene extends Phaser.Scene {
     super("SettingsScene");
   }
 
+  preload(): void {
+    if (!this.textures.exists("option-menu-background")) {
+      this.load.image("option-menu-background", "assets/images/option-menu-background.png");
+    }
+  }
+
   create(): void {
     const currentLanguage = getLanguage();
 
