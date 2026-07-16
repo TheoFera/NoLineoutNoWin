@@ -130,9 +130,14 @@ export function advanceMatchSimulationWithTrace(
       endMinute - current.minute
     );
     const step = simulateStep(current, stepMinutes, randomSource);
-    current = step.state;
+    const ballLateralPosition = resolveActionLateralPosition(
+      current.ballLateralPosition ?? 0,
+      step.action.kind,
+      actions.length
+    );
+    current = { ...step.state, ballLateralPosition };
     frames.push(current);
-    actions.push(step.action);
+    actions.push({ ...step.action, state: current });
   }
   return { match: current, frames, actions };
 }
@@ -170,7 +175,11 @@ export function advanceToNextScheduledLineoutWithTrace(
       }
       : item
   ));
-  const ballLateralPosition = advanced.currentLineoutIndex % 2 === 0 ? -0.92 : 0.92;
+  const currentLateralPosition = clamp(advanced.ballLateralPosition ?? 0, -1, 1);
+  const lineoutSide = Math.abs(currentLateralPosition) >= 0.55
+    ? Math.sign(currentLateralPosition)
+    : advanced.currentLineoutIndex % 2 === 0 ? -1 : 1;
+  const ballLateralPosition = lineoutSide * 0.92;
   const finalMatch = { ...advanced, ballPositionMeters, ballLateralPosition, lineouts };
   return {
     match: finalMatch,
@@ -263,6 +272,20 @@ export function getPitchZoneFromPosition(positionMeters: number): MatchLineoutEv
 
 export function getTurnoverProbability(stepMinutes: number): number {
   return 1 - Math.pow(1 - BALANCE.turnoverProbabilityPerMinute, stepMinutes);
+}
+
+export function getBreakthroughProbability(
+  stepMinutes: number,
+  lateralPosition: number
+): number {
+  const wingFactor = Math.abs(clamp(lateralPosition, -1, 1));
+  const multiplier = BALANCE.breakthrough.centerProbabilityMultiplier
+    + (BALANCE.breakthrough.wingProbabilityMultiplier
+      - BALANCE.breakthrough.centerProbabilityMultiplier) * wingFactor;
+  return 1 - Math.pow(
+    1 - clamp(BALANCE.breakthrough.probabilityPerMinute * multiplier, 0, 1),
+    stepMinutes
+  );
 }
 
 export function getRealSecondsForSimulatedMinutes(simulatedMinutes: number): number {
@@ -361,7 +384,7 @@ function resolveMovement(
   );
   if (
     isInOwn22(match, owner)
-    && randomFloat(0, 1, randomSource) < getClearanceKickProbability(stepMinutes)
+    && randomFloat(0, 1, randomSource) < BALANCE.clearanceKick.probabilityFromOwn22
   ) {
     const landingPosition = owner === "player"
       ? randomFloat(
@@ -377,9 +400,9 @@ function resolveMovement(
     return { meters: landingPosition - match.ballPositionMeters, kind: "clearanceKick" };
   }
 
-  const breakthroughProbability = 1 - Math.pow(
-    1 - BALANCE.breakthrough.probabilityPerMinute,
-    stepMinutes
+  const breakthroughProbability = getBreakthroughProbability(
+    stepMinutes,
+    match.ballLateralPosition ?? 0
   );
   if (randomFloat(0, 1, randomSource) < breakthroughProbability) {
     return {
@@ -438,11 +461,17 @@ function resolveMovement(
   };
 }
 
-function getClearanceKickProbability(stepMinutes: number): number {
-  return 1 - Math.pow(
-    1 - BALANCE.clearanceKick.probabilityPerMinuteFromOwn22,
-    stepMinutes
-  );
+function resolveActionLateralPosition(
+  currentPosition: number,
+  kind: MatchSimulationActionKind,
+  actionIndex: number
+): number {
+  const current = clamp(currentPosition, -1, 1);
+  if (kind === "breakthrough" || kind === "score") return current;
+  if (kind === "ruck") return current * 0.55;
+  if (kind === "clearanceKick") return actionIndex % 2 === 0 ? -0.4 : 0.4;
+  const lanes = BALANCE.visualSimulation.passLateralLaneRatios;
+  return lanes[actionIndex % lanes.length];
 }
 
 function isInOwn22(match: MatchStateData, owner: MatchBallOwner): boolean {

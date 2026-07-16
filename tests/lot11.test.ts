@@ -10,7 +10,9 @@ import {
   isCombinationValidForMatch
 } from "../src/rules/CombinationRules.ts";
 import { buildLineoutResultPresentation } from "../src/rules/LineoutResultPresentation.ts";
+import { getDefensiveLineoutSlots, normalizeDefenseMemory } from "../src/rules/DefenseSelection.ts";
 import { getDistanceToNearestTryLine } from "../src/rules/MatchSimulator.ts";
+import { createDefaultPlayerTeam } from "../src/rules/TeamFactory.ts";
 
 const outcomeTitleKeys: Record<LineoutOutcome, string> = {
   cleanWin: "lineout.outcome.cleanWin",
@@ -119,4 +121,37 @@ test("distance to the nearest try line is symmetric and clamped to the pitch", (
   assert.equal(getDistanceToNearestTryLine(50), 50);
   assert.equal(getDistanceToNearestTryLine(82), 18);
   assert.equal(getDistanceToNearestTryLine(112), 0);
+});
+
+test("defensive layouts remember exact players and free slots for each lineout size", () => {
+  const team = createDefaultPlayerTeam("Mémoire défensive");
+  const ids = team.lineoutPlayers.map((player) => player.id);
+  const memory = normalizeDefenseMemory({
+    4: [ids[3], null, ids[0], null, ids[2], ids[1], null],
+    5: [ids[4], ids[3], null, ids[2], ids[1], null, ids[0]]
+  }, team);
+
+  const fourPlayerSlots = getDefensiveLineoutSlots(team, ids, memory, 4, [1, 2, 3, 4]);
+  const fivePlayerSlots = getDefensiveLineoutSlots(team, ids, memory, 5, [1, 2, 3, 4, 5]);
+
+  assert.deepEqual(fourPlayerSlots.map((player) => player?.id ?? null), memory[4]);
+  assert.deepEqual(fivePlayerSlots.map((player) => player?.id ?? null), memory[5]);
+});
+
+test("compact defensive memories from older saves still use the default spread", () => {
+  const team = createDefaultPlayerTeam("Ancienne sauvegarde");
+  const ids = team.lineoutPlayers.map((player) => player.id);
+  const memory = normalizeDefenseMemory({ 4: ids.slice(0, 4) }, team);
+
+  const slots = getDefensiveLineoutSlots(team, ids, memory, 4, [1, 2, 3, 4]);
+
+  assert.deepEqual(slots.map((player) => player?.id ?? null), [
+    null,
+    ids[0],
+    ids[1],
+    ids[2],
+    ids[3],
+    null,
+    null
+  ]);
 });

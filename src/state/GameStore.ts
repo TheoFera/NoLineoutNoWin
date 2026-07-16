@@ -1,4 +1,4 @@
-import type { SaveGame, SaveGameV1, SaveGameV2 } from "../models/SaveGame";
+import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2 } from "../models/SaveGame";
 import type { MatchStateData } from "../models/Match";
 import type { Team } from "../models/Team";
 import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations";
@@ -149,14 +149,14 @@ export class GameStore {
     saveGame(this.save);
   }
 
-  static setDefenseMemory(numberOfPlayers: number, playerIds: string[]): void {
+  static setDefenseMemory(numberOfPlayers: number, playerIdsBySlot: Array<string | null>): void {
     const save = this.getSave();
     this.save = this.withUpdatedAt({
       ...save,
-      defenseMemory: {
+      defenseMemory: normalizeDefenseMemory({
         ...save.defenseMemory,
-        [numberOfPlayers]: playerIds.slice(0, numberOfPlayers)
-      }
+        [numberOfPlayers]: playerIdsBySlot.slice(0, 7)
+      } satisfies DefenseMemory, save.playerTeam)
     });
     saveGame(this.save);
   }

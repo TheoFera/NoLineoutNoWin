@@ -10,7 +10,7 @@ import {
 import { createOpponentAiIdentity } from "../ai/LineoutAiIdentity";
 import { getDivision } from "../rules/DivisionRules";
 import { resolveDefensiveLineout } from "../rules/DefensiveLineoutResolver";
-import { getDefensiveLineoutPlayers } from "../rules/DefenseSelection";
+import { getDefensiveLineoutSlots } from "../rules/DefenseSelection";
 import {
   countAssignedPlayers,
   findCombinationTargetOption,
@@ -124,6 +124,7 @@ export class LineoutScene extends Phaser.Scene {
   private statusText?: Phaser.GameObjects.Text;
   private statusClearTimer?: Phaser.Time.TimerEvent;
   private hookerSprite?: RugbyPlayer;
+  private userSlotIndicators: Phaser.GameObjects.Rectangle[] = [];
   private readonly activeSlotPatterns: Record<number, number[]> = {
     1: [3],
     2: [3, 4],
@@ -211,8 +212,10 @@ export class LineoutScene extends Phaser.Scene {
     const minute = this.currentMatchLineout?.minute ?? match.minute;
     const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
 
-    this.add.rectangle(98, 42, 196, 76, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
-    this.add.rectangle(292, 42, 196, 76, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
+    this.add.rectangle(98, 42, 196, 76, match.home.colors.primary, 0.98)
+      .setStrokeStyle(3, match.home.colors.secondary, 1);
+    this.add.rectangle(292, 42, 196, 76, match.away.colors.primary, 0.98)
+      .setStrokeStyle(3, match.away.colors.secondary, 1);
     this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
 
     this.add.text(72, 20, match.home.name.toUpperCase(), {
@@ -295,10 +298,7 @@ export class LineoutScene extends Phaser.Scene {
     this.renderDashedPitchLine(SCREEN_WIDTH / 2, layout.fiveMeterLineY, layout.fieldWidth, 2, 0.72);
     this.add.rectangle(SCREEN_WIDTH / 2, layout.touchLineY, layout.fieldWidth, 3, 0xffffff, 0.95);
 
-    this.renderSlots(layout.attackX, 7, layout, this.attackSlotPlayers);
-    if (layout.defenseX) {
-      this.renderSlots(layout.defenseX, 7, layout, this.defenseSlotPlayers);
-    }
+    this.refreshUserSlotIndicators(layout);
 
     this.renderHooker(layout);
   }
@@ -315,18 +315,20 @@ export class LineoutScene extends Phaser.Scene {
     }
   }
 
-  private renderSlots(x: number, count: number, layout: LineoutLayout, occupiedSlots: Array<FieldPlayer | null> = []): void {
+  private refreshUserSlotIndicators(layout: LineoutLayout): void {
+    this.userSlotIndicators.forEach((indicator) => indicator.destroy());
+    this.userSlotIndicators = [];
     const slotWidth = layout.playerWidth + 18;
     const slotHeight = Math.round(slotWidth * 0.72);
     const slotBottomOffset = 5;
 
-    for (let index = 1; index <= count; index += 1) {
-      if (occupiedSlots[index - 1]) {
+    for (let index = 1; index <= 7; index += 1) {
+      if (this.attackSlotPlayers[index - 1]) {
         continue;
       }
 
-      this.add.rectangle(
-        x,
+      const indicator = this.add.rectangle(
+        layout.attackX,
         this.positionY(index as LineoutPosition, layout) + slotBottomOffset - slotHeight / 2,
         slotWidth,
         slotHeight,
@@ -334,6 +336,7 @@ export class LineoutScene extends Phaser.Scene {
         0.04
       )
         .setStrokeStyle(2, 0xffffff, 0.5);
+      this.userSlotIndicators.push(indicator);
     }
   }
 
@@ -521,8 +524,13 @@ export class LineoutScene extends Phaser.Scene {
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
     const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
-    const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
-    this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
+    this.attackSlotPlayers = getDefensiveLineoutSlots(
+      save.playerTeam,
+      save.defensivePriority,
+      save.defenseMemory,
+      numberOfPlayers,
+      this.getActiveSlotIndices(numberOfPlayers)
+    );
 
     this.attackSlotPlayers.forEach((player, index) => {
       if (!player) {
@@ -759,7 +767,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private finishMatchDefenseReorder(token: PlayerToken): void {
-    const previousOrder = this.getDefenseMemoryPlayerIds().join("|");
+    const previousLayout = this.getDefenseMemorySlotIds().join("|");
     const layout = this.getLayout();
     const sourceIndex = ((token.getData("lineoutPosition") as number | undefined) ?? 1) - 1;
     const targetIndex = this.findDefenseTargetSlot(token.y, layout);
@@ -773,9 +781,10 @@ export class LineoutScene extends Phaser.Scene {
 
     this.attackSlotPlayers = nextAssignments;
     this.syncDefenseTokenPositions(layout);
-    const nextOrder = this.getDefenseMemoryPlayerIds().join("|");
-    if (previousOrder !== nextOrder && this.currentMatchLineout) {
-      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
+    this.refreshUserSlotIndicators(layout);
+    const nextLayout = this.getDefenseMemorySlotIds().join("|");
+    if (previousLayout !== nextLayout && this.currentMatchLineout) {
+      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemorySlotIds());
     }
   }
 
@@ -919,7 +928,7 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     if (this.currentMatchLineout) {
-      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemoryPlayerIds());
+      GameStore.setDefenseMemory(this.currentMatchLineout.numberOfPlayers, this.getDefenseMemorySlotIds());
     }
 
     this.playThrowAnimation(
@@ -1189,10 +1198,8 @@ export class LineoutScene extends Phaser.Scene {
     }
   }
 
-  private getDefenseMemoryPlayerIds(): string[] {
-    return this.attackSlotPlayers
-      .filter((player): player is FieldPlayer => player !== null)
-      .map((player) => player.id);
+  private getDefenseMemorySlotIds(): Array<string | null> {
+    return this.attackSlotPlayers.map((player) => player?.id ?? null);
   }
 
   private primeSlotOccupancy(players: FieldPlayer[]): void {
@@ -1207,8 +1214,13 @@ export class LineoutScene extends Phaser.Scene {
       const save = GameStore.getSave();
       const match = GameStore.getMatch();
       const numberOfPlayers = this.currentMatchLineout?.numberOfPlayers ?? 7;
-      const selectedDefenders = getDefensiveLineoutPlayers(save.playerTeam, save.defensivePriority, save.defenseMemory, numberOfPlayers);
-      this.attackSlotPlayers = this.createSpreadSlots(selectedDefenders, numberOfPlayers);
+      this.attackSlotPlayers = getDefensiveLineoutSlots(
+        save.playerTeam,
+        save.defensivePriority,
+        save.defenseMemory,
+        numberOfPlayers,
+        this.getActiveSlotIndices(numberOfPlayers)
+      );
       this.prepareOpponentOffensiveDecision(match);
       return;
     }
@@ -1568,6 +1580,7 @@ export class LineoutScene extends Phaser.Scene {
     this.dragState = null;
     this.inspectedPlayer = null;
     this.hookerSprite = undefined;
+    this.userSlotIndicators = [];
     this.statusClearTimer?.remove(false);
     this.statusClearTimer = undefined;
   }

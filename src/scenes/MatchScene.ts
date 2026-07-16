@@ -157,8 +157,10 @@ export class MatchScene extends Phaser.Scene {
     const roundedPossession = Math.round(match.possession);
     const roundedOccupation = Math.round(match.occupation);
 
-    this.add.rectangle(98, 42, 196, 76, 0x11335b, 0.98).setStrokeStyle(2, 0x27568a);
-    this.add.rectangle(292, 42, 196, 76, 0x6a1f19, 0.98).setStrokeStyle(2, 0x8d342d);
+    this.add.rectangle(98, 42, 196, 76, match.home.colors.primary, 0.98)
+      .setStrokeStyle(3, match.home.colors.secondary, 1);
+    this.add.rectangle(292, 42, 196, 76, match.away.colors.primary, 0.98)
+      .setStrokeStyle(3, match.away.colors.secondary, 1);
     this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
 
     this.add.text(72, 20, match.home.name.toUpperCase(), {
@@ -286,11 +288,14 @@ export class MatchScene extends Phaser.Scene {
     const ownerColor = match.ballOwner === "player"
       ? match.home.colors.primary
       : match.away.colors.primary;
+    const ownerSecondaryColor = match.ballOwner === "player"
+      ? match.home.colors.secondary
+      : match.away.colors.secondary;
     const ballX = fieldLeft + fieldWidth * (match.ballPositionMeters / 100);
     const ballY = fieldY + Phaser.Math.Clamp(match.ballLateralPosition ?? 0, -1, 1)
       * LINEOUT_BALANCE.match.visualSimulation.passVerticalDistancePixels;
     this.simulationBall = this.add.ellipse(ballX, ballY, 18, 12, ownerColor, 1)
-      .setStrokeStyle(2, 0xffffff, 0.95);
+      .setStrokeStyle(3, ownerSecondaryColor, 1);
     this.ballPositionText = this.add.text(195, 494, t("match.ballPosition")
       .replace("{meters}", String(Math.round(match.ballPositionMeters))), {
       font: UI.font.body,
@@ -355,7 +360,7 @@ export class MatchScene extends Phaser.Scene {
         this.animateScoringRestart(previous, action.state, actionDuration, next);
         return;
       }
-      this.animateOpenPlayAction(action, index, actionDuration, next);
+      this.animateOpenPlayAction(action, previous, index, actionDuration, next);
     };
 
     playAction(0);
@@ -363,6 +368,7 @@ export class MatchScene extends Phaser.Scene {
 
   private animateOpenPlayAction(
     action: MatchSimulationAction,
+    previous: MatchStateData,
     actionIndex: number,
     actionDuration: number,
     onComplete: () => void
@@ -371,18 +377,13 @@ export class MatchScene extends Phaser.Scene {
     if (!ball) return;
     const targetX = this.getPitchX(action.state.ballPositionMeters);
     const direction = actionIndex % 2 === 0 ? -1 : 1;
-    const laneRatios = LINEOUT_BALANCE.match.visualSimulation.passLateralLaneRatios;
-    const laneRatio = laneRatios[actionIndex % laneRatios.length];
     const openPlayTargetY = 390
-      + laneRatio * LINEOUT_BALANCE.match.visualSimulation.passVerticalDistancePixels;
+      + Phaser.Math.Clamp(action.state.ballLateralPosition ?? 0, -1, 1)
+      * LINEOUT_BALANCE.match.visualSimulation.passVerticalDistancePixels;
     const lineoutDirection = Math.sign(action.state.ballLateralPosition ?? 0) || direction;
     const targetY = action.kind === "lineout"
       ? 390 + lineoutDirection * 56
-      : action.kind === "clearanceKick"
-        ? 390 + direction * 20
-        : action.kind === "ruck"
-          ? Phaser.Math.Clamp(Phaser.Math.Linear(ball.y, 390, 0.45) + direction * 5, 344, 436)
-          : openPlayTargetY;
+      : openPlayTargetY;
     const arcHeight = action.kind === "clearanceKick"
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
       : action.kind === "lineout"
@@ -392,9 +393,55 @@ export class MatchScene extends Phaser.Scene {
       * LINEOUT_BALANCE.match.visualSimulation.ballFlightDurationRatio;
 
     this.updateSimulationActionFor(action);
-    this.animateBallFlight(targetX, targetY, arcHeight, flightDuration, action.state, () => {
-      if (action.kind === "lineout") this.simulationBall?.setFillStyle(0xffffff, 1);
+    if (["handPlay", "ruck", "turnover"].includes(action.kind)) {
+      this.animatePassAndCarry(
+        action,
+        previous,
+        actionIndex,
+        targetX,
+        targetY,
+        flightDuration,
+        actionDuration,
+        onComplete
+      );
+      return;
+    }
+    const ballIsLoose = action.kind === "clearanceKick" || action.kind === "lineout";
+    this.animateBallFlight(targetX, targetY, arcHeight, flightDuration, action.state, ballIsLoose, () => {
+      if (action.kind === "lineout") this.setSimulationBallLooseStyle();
       this.time.delayedCall(Math.max(0, actionDuration - flightDuration), onComplete);
+    });
+  }
+
+  private animatePassAndCarry(
+    action: MatchSimulationAction,
+    previous: MatchStateData,
+    actionIndex: number,
+    targetX: number,
+    targetY: number,
+    movementDuration: number,
+    actionDuration: number,
+    onComplete: () => void
+  ): void {
+    const ball = this.simulationBall;
+    if (!ball) return;
+    const pattern = LINEOUT_BALANCE.match.visualSimulation.passBackwardMetersPattern;
+    const backwardMeters = pattern[actionIndex % pattern.length];
+    const ownerDirection = previous.ballOwner === "player" ? 1 : -1;
+    const pixelsPerMeter = (352 - 38) / LINEOUT_BALANCE.match.pitchLengthMeters;
+    const passTargetX = Phaser.Math.Clamp(
+      ball.x - ownerDirection * backwardMeters * pixelsPerMeter,
+      38,
+      352
+    );
+    const passDuration = movementDuration
+      * LINEOUT_BALANCE.match.visualSimulation.passDurationRatio;
+    const carryDuration = movementDuration - passDuration;
+
+    this.animateBallFlight(passTargetX, targetY, 0, passDuration, action.state, false, () => {
+      this.animateBallFlight(targetX, targetY, 0, carryDuration, action.state, false, () => {
+        this.time.delayedCall(Math.max(0, actionDuration - movementDuration), onComplete);
+      });
     });
   }
 
@@ -413,22 +460,31 @@ export class MatchScene extends Phaser.Scene {
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
       : 8;
 
-    this.animateBallFlight(scoringLineX, 390, scoringArc, duration * 0.3, previous, () => {
-      const concedingOwner = scoringOwner === "player" ? "opponent" : "player";
-      this.simulationBall?.setPosition(this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters), 390);
-      this.simulationBall?.setFillStyle(this.getOwnerColor(frame, concedingOwner), 1);
-      this.updateSimulationActionText("match.action.restart");
-      this.time.delayedCall(duration * 0.12, () => {
-        this.animateBallFlight(
-          this.getPitchX(frame.ballPositionMeters),
-          390,
-          LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
-          duration * 0.58,
-          frame,
-          onComplete
-        );
-      });
-    });
+    this.animateBallFlight(
+      scoringLineX,
+      390,
+      scoringArc,
+      duration * 0.3,
+      previous,
+      scoreDelta === LINEOUT_BALANCE.match.points.penalty,
+      () => {
+        const concedingOwner = scoringOwner === "player" ? "opponent" : "player";
+        this.simulationBall?.setPosition(this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters), 390);
+        this.setSimulationBallTeamStyle(frame, concedingOwner);
+        this.updateSimulationActionText("match.action.restart");
+        this.time.delayedCall(duration * 0.12, () => {
+          this.animateBallFlight(
+            this.getPitchX(frame.ballPositionMeters),
+            390,
+            LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
+            duration * 0.58,
+            frame,
+            true,
+            onComplete
+          );
+        });
+      }
+    );
   }
 
   private animateBallFlight(
@@ -437,13 +493,14 @@ export class MatchScene extends Phaser.Scene {
     arcHeight: number,
     duration: number,
     arrivalState: MatchStateData,
+    ballIsLoose: boolean,
     onComplete: () => void
   ): void {
     const ball = this.simulationBall;
     if (!ball) return;
     const startX = ball.x;
     const startY = ball.y;
-    ball.setFillStyle(0xffffff, 1);
+    if (ballIsLoose) this.setSimulationBallLooseStyle();
 
     this.tweens.addCounter({
       from: 0,
@@ -458,7 +515,7 @@ export class MatchScene extends Phaser.Scene {
       },
       onComplete: () => {
         ball.setPosition(targetX, targetY);
-        ball.setFillStyle(this.getOwnerColor(arrivalState, arrivalState.ballOwner), 1);
+        this.setSimulationBallTeamStyle(arrivalState, arrivalState.ballOwner);
         onComplete();
       }
     });
@@ -499,8 +556,18 @@ export class MatchScene extends Phaser.Scene {
     this.opponentScoreText?.setText(String(match.opponentScore));
   }
 
-  private getOwnerColor(match: MatchStateData, owner: MatchStateData["ballOwner"]): number {
-    return owner === "player" ? match.home.colors.primary : match.away.colors.primary;
+  private setSimulationBallTeamStyle(
+    match: MatchStateData,
+    owner: MatchStateData["ballOwner"]
+  ): void {
+    const team = owner === "player" ? match.home : match.away;
+    this.simulationBall?.setFillStyle(team.colors.primary, 1);
+    this.simulationBall?.setStrokeStyle(3, team.colors.secondary, 1);
+  }
+
+  private setSimulationBallLooseStyle(): void {
+    this.simulationBall?.setFillStyle(0xffffff, 1);
+    this.simulationBall?.setStrokeStyle(2, 0xd1d5db, 1);
   }
 
   private getPitchX(positionMeters: number): number {

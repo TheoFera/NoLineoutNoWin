@@ -10,6 +10,7 @@ import {
   advanceToNextScheduledLineoutWithTrace,
   applyLineoutResolutionToMatch,
   generateMatchSchedule,
+  getBreakthroughProbability,
   getPitchZoneFromPosition,
   getRealSecondsForSimulatedMinutes,
   getTurnoverProbability
@@ -129,8 +130,8 @@ test("simulation accumulates real possession and occupation times", () => {
 });
 
 test("turnover probability scales exactly to the simulation step", () => {
-  assert.ok(Math.abs(getTurnoverProbability(1) - 0.025) < 1e-12);
-  assert.ok(Math.abs(getTurnoverProbability(0.5) - (1 - Math.sqrt(0.975))) < 1e-12);
+  assert.ok(Math.abs(getTurnoverProbability(1) - 0.05) < 1e-12);
+  assert.ok(Math.abs(getTurnoverProbability(0.5) - (1 - Math.sqrt(0.95))) < 1e-12);
 });
 
 test("random turnovers wait for a possession sequence to build", () => {
@@ -140,7 +141,7 @@ test("random turnovers wait for a possession sequence to build", () => {
     constant(0)
   );
   const exposedPhase = advanceMatchSimulationWithTrace(
-    match({ possessionDurationMinutes: 2 }),
+    match({ possessionDurationMinutes: 1 }),
     0.5,
     constant(0)
   );
@@ -192,7 +193,7 @@ test("simulation exposes every intermediate half-minute frame for animation", ()
   assert.equal(trace.match, trace.frames[2]);
 });
 
-test("a low clearance roll from the 22 gives the ball to the receiver", () => {
+test("a team in its own 22 usually clears and gives the ball to the receiver", () => {
   const trace = advanceMatchSimulationWithTrace(
     match({ ballPositionMeters: 10, ballOwner: "player" }),
     0.5,
@@ -203,21 +204,46 @@ test("a low clearance roll from the 22 gives the ball to the receiver", () => {
   assert.equal(trace.match.ballOwner, "opponent");
 });
 
-test("clearance kicks from the 22 are occasional rather than automatic", () => {
-  const trace = advanceMatchSimulationWithTrace(
-    match({ ballPositionMeters: 10, ballOwner: "player" }),
-    0.5,
-    constant(0.2)
-  );
-  assert.notEqual(trace.actions[0].kind, "clearanceKick");
-  assert.equal(trace.match.ballOwner, "player");
-});
-
 test("open play can create a breakthrough between 10 and 40 metres", () => {
-  const trace = advanceMatchSimulationWithTrace(match(), 0.5, constant(0));
+  const trace = advanceMatchSimulationWithTrace(
+    match({ ballLateralPosition: 0.8 }),
+    0.5,
+    constant(0)
+  );
   assert.equal(trace.actions[0].kind, "breakthrough");
   assert.equal(trace.actions[0].distanceMeters, 10);
   assert.equal(trace.match.ballPositionMeters, 60);
+  assert.equal(trace.match.ballLateralPosition, 0.8);
+});
+
+test("breakthroughs are more likely on the wings than in the centre", () => {
+  assert.ok(getBreakthroughProbability(0.5, 0.9) > getBreakthroughProbability(0.5, 0));
+  assert.equal(getBreakthroughProbability(0.5, -0.9), getBreakthroughProbability(0.5, 0.9));
+});
+
+test("hand play stores its receiving lane for the following carry", () => {
+  const trace = advanceMatchSimulationWithTrace(match(), 0.5, constant(0.5));
+  assert.equal(trace.actions[0].kind, "handPlay");
+  assert.equal(trace.actions[0].state.ballLateralPosition, -0.35);
+  assert.equal(trace.match.ballLateralPosition, -0.35);
+});
+
+test("a wing breakthrough reaches the scheduled lineout on the same side", () => {
+  const scheduled = match({
+    ballLateralPosition: 0.8,
+    lineouts: [{
+      id: "wing-lineout",
+      minute: 0.5,
+      pitchZone: "middle",
+      throwingSide: "opponent",
+      numberOfPlayers: 7,
+      cause: "carrierIntoTouch",
+      resolved: false
+    }]
+  });
+  const trace = advanceToNextScheduledLineoutWithTrace(scheduled, constant(0));
+  assert.equal(trace.actions[0].kind, "breakthrough");
+  assert.equal(trace.match.ballLateralPosition, 0.92);
 });
 
 test("missed immediate chance preserves possession and lineout pressure", () => {

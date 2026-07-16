@@ -98,13 +98,17 @@ L’écart de niveau entre les équipes ne peut modifier ces probabilités que f
 
 Hors de ses propres 22 mètres, l'équipe en possession joue principalement à la main. Le ballon circule entre plusieurs couloirs latéraux et revient fréquemment dans la zone centrale située entre les deux lignes des 15 mètres. Les couloirs proches des touches restent possibles, mais le ballon ne doit pas alterner mécaniquement entre les deux extrêmes. Une phase peut avancer, stagner ou reculer et peut être suivie d'un point de fixation ramenant progressivement le jeu vers le centre.
 
+Une phase à la main est représentée par deux segments : une passe latérale presque à hauteur ou légèrement vers l'arrière, puis une course droite dans le couloir de réception. La passe peut reculer de 0 à 1,8 mètre. La course assure ensuite la progression ou le recul longitudinal calculé par la simulation.
+
 ### 6.2 Dégagement depuis les 22 mètres
 
-Dans ses propres 22 mètres, l'équipe en possession a initialement 15 % de chances par minute simulée de se dégager au pied. Cette probabilité est recalculée à l'échelle de chaque pas de simulation : un pas de 30 secondes ne reprend donc pas directement les 15 %. Le ballon suit une trajectoire en cloche et retombe entre les 35 mètres du camp du botteur et une zone située dans le camp adverse. La réception rend normalement la possession à l'autre équipe. Une touche programmée peut conclure ce dégagement.
+Dans ses propres 22 mètres, l'équipe en possession a 78 % de chances de se dégager au pied à chaque pas de simulation. Le ballon suit une trajectoire en cloche et retombe entre les 35 mètres du camp du botteur et une zone située dans le camp adverse. La réception rend normalement la possession à l'autre équipe. Une touche programmée peut conclure ce dégagement.
 
 ### 6.3 Percées
 
 Une phase à la main peut produire une percée de 10 à 40 mètres. La probabilité initiale est de 5 % par minute simulée. Une perte de balle peut survenir à l'issue de la percée sans supprimer l'événement visuel de percée.
+
+La probabilité de percée dépend du couloir : elle utilise 65 % de sa valeur de base au centre et monte progressivement jusqu'à 180 % sur les ailes. Lorsqu'une percée se déclenche, le porteur ne fait pas la passe suivante et continue tout droit dans son couloir. Une percée proche d'une ligne de touche peut se conclure par la touche programmée suivante.
 
 ## 7. Changement de possession
 
@@ -118,7 +122,7 @@ pTurnoverStep = 1 - Math.pow(1 - 0.08, stepMinutes);
 
 Une perte de balle change `ballOwner` sans téléportation du ballon.
 
-Une perte aléatoire ne peut pas intervenir pendant les 2,5 premières minutes simulées d'une nouvelle séquence de possession. Après ce délai, le risque de base est de 2,5 % par minute. Cette protection ne concerne pas les dégagements, les scores ni les résultats de touche, qui peuvent changer immédiatement la possession.
+Une perte aléatoire ne peut pas intervenir pendant les 1,5 premières minutes simulées d'une nouvelle séquence de possession. Après ce délai, le risque de base est de 5 % par minute. Cette protection ne concerne pas les dégagements, les scores ni les résultats de touche, qui peuvent changer immédiatement la possession.
 
 ## 8. Nombre de touches
 
@@ -246,7 +250,7 @@ Pendant la simulation :
 - score ;
 - chronomètre ;
 - mini-terrain de 0 à 100 m ;
-- ballon coloré de la couleur de l’équipe lorsqu’il est tenu ;
+- ballon rempli avec la couleur principale de l'équipe et entouré de sa couleur secondaire lorsqu'il est tenu ;
 - ballon blanc pendant une passe, un coup de pied ou toute autre phase libre ;
 - possession cumulée ;
 - occupation cumulée.
@@ -255,6 +259,10 @@ Pendant la simulation :
 Mouvement du ballon : fluide, avec déplacements latéraux sur les passes et trajectoires en cloche sur les coups de pied. La vitesse du ballon est indépendante de celle du chronomètre.
 
 Une perte de balle n'ajoute ni texte ni animation dédiée : elle est indiquée uniquement par la couleur du ballon lors de sa nouvelle prise de possession. Il n'y a aucun choix tactique demandé au joueur pendant la simulation entre les touches.
+
+Pendant le jeu à la main, le ballon conserve sans interruption la couleur principale de l'équipe en possession, y compris pendant une passe, un point de fixation, une percée ou un déplacement. Il devient blanc uniquement pendant un coup de pied, une sortie en touche ou une autre phase où aucune équipe ne le contrôle.
+
+Dans le header du match et de la touche, le panneau de chaque équipe utilise sa couleur principale en fond et sa couleur secondaire en bordure.
 
 Lors d’une touche :
 

@@ -4,7 +4,9 @@ import type { DivisionId } from "./Division";
 import type { Team } from "./Team";
 import type { LineoutVideoMatch, OpponentAiMemory } from "./LineoutAI";
 
-export type DefenseMemory = Record<number, string[]>; // clé 2..7 = ordre de joueurs mémorisé
+// Une entrée compacte issue d'une ancienne sauvegarde contient seulement les identifiants.
+// Les nouvelles entrées contiennent toujours 7 cases afin de conserver aussi les espaces libres.
+export type DefenseMemory = Record<number, Array<string | null>>;
 
 type SaveGameBase = {
   language: "fr" | "en";
