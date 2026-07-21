@@ -186,26 +186,27 @@ export class ClubCreationScene extends Phaser.Scene {
     }
 
     const bounds = this.game.canvas.getBoundingClientRect();
-    const scale = bounds.width / 390;
+    const scaleX = bounds.width / 390;
+    const scaleY = bounds.height / 844;
 
-    this.nameInput.style.left = `${bounds.left + 35 * scale}px`;
-    this.nameInput.style.top = `${bounds.top + 172 * scale}px`;
-    this.nameInput.style.width = `${320 * scale}px`;
-    this.nameInput.style.height = `${50 * scale}px`;
-    this.nameInput.style.fontSize = `${18 * scale}px`;
+    this.nameInput.style.left = `${bounds.left + 35 * scaleX}px`;
+    this.nameInput.style.top = `${bounds.top + 172 * scaleY}px`;
+    this.nameInput.style.width = `${320 * scaleX}px`;
+    this.nameInput.style.height = `${50 * scaleY}px`;
+    this.nameInput.style.fontSize = `${18 * Math.min(scaleX, scaleY)}px`;
 
     if (this.primaryColorInput) {
-      this.primaryColorInput.style.left = `${bounds.left + 90 * scale}px`;
-      this.primaryColorInput.style.top = `${bounds.top + 330 * scale}px`;
-      this.primaryColorInput.style.width = `${72 * scale}px`;
-      this.primaryColorInput.style.height = `${72 * scale}px`;
+      this.primaryColorInput.style.left = `${bounds.left + 90 * scaleX}px`;
+      this.primaryColorInput.style.top = `${bounds.top + 330 * scaleY}px`;
+      this.primaryColorInput.style.width = `${72 * scaleX}px`;
+      this.primaryColorInput.style.height = `${72 * scaleY}px`;
     }
 
     if (this.secondaryColorInput) {
-      this.secondaryColorInput.style.left = `${bounds.left + 90 * scale}px`;
-      this.secondaryColorInput.style.top = `${bounds.top + 488 * scale}px`;
-      this.secondaryColorInput.style.width = `${72 * scale}px`;
-      this.secondaryColorInput.style.height = `${72 * scale}px`;
+      this.secondaryColorInput.style.left = `${bounds.left + 90 * scaleX}px`;
+      this.secondaryColorInput.style.top = `${bounds.top + 488 * scaleY}px`;
+      this.secondaryColorInput.style.width = `${72 * scaleX}px`;
+      this.secondaryColorInput.style.height = `${72 * scaleY}px`;
     }
   }
 

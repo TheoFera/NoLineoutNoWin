@@ -161,12 +161,13 @@ export class CombinationListScene extends Phaser.Scene {
     }
 
     const bounds = this.game.canvas.getBoundingClientRect();
-    const scale = bounds.width / 390;
-    this.nameInput.style.left = `${bounds.left + 52 * scale}px`;
-    this.nameInput.style.top = `${bounds.top + 494 * scale}px`;
-    this.nameInput.style.width = `${286 * scale}px`;
-    this.nameInput.style.height = `${48 * scale}px`;
-    this.nameInput.style.fontSize = `${18 * scale}px`;
+    const scaleX = bounds.width / 390;
+    const scaleY = bounds.height / 844;
+    this.nameInput.style.left = `${bounds.left + 52 * scaleX}px`;
+    this.nameInput.style.top = `${bounds.top + 494 * scaleY}px`;
+    this.nameInput.style.width = `${286 * scaleX}px`;
+    this.nameInput.style.height = `${48 * scaleY}px`;
+    this.nameInput.style.fontSize = `${18 * Math.min(scaleX, scaleY)}px`;
   }
 
   private destroyNameInput(): void {
