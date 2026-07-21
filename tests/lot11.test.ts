@@ -10,9 +10,15 @@ import {
   isCombinationValidForMatch
 } from "../src/rules/CombinationRules.ts";
 import { buildLineoutResultPresentation } from "../src/rules/LineoutResultPresentation.ts";
-import { getDefensiveLineoutSlots, normalizeDefenseMemory } from "../src/rules/DefenseSelection.ts";
+import {
+  getDefensiveLineoutSlots,
+  normalizeDefenseMemory,
+  normalizeDefensiveLayout
+} from "../src/rules/DefenseSelection.ts";
 import { getDistanceToNearestTryLine } from "../src/rules/MatchSimulator.ts";
 import { createDefaultPlayerTeam } from "../src/rules/TeamFactory.ts";
+import { loadGame, saveGame } from "../src/systems/SaveSystem.ts";
+import { resolveRugbyPlayerAssetSet } from "../src/ui/RugbyPlayerAssetResolver.ts";
 
 const outcomeTitleKeys: Record<LineoutOutcome, string> = {
   cleanWin: "lineout.outcome.cleanWin",
@@ -154,4 +160,80 @@ test("compact defensive memories from older saves still use the default spread",
     null,
     null
   ]);
+});
+
+test("every defensive lineout size keeps an independent seven-slot layout", () => {
+  const team = createDefaultPlayerTeam("Toutes les tailles");
+  const ids = team.lineoutPlayers.map((player) => player.id);
+  const layouts = Object.fromEntries(
+    [2, 3, 4, 5, 6, 7].map((size) => [
+      size,
+      Array.from({ length: 7 }, (_, slot) => slot < size ? ids[(slot + size) % ids.length] : null)
+    ])
+  );
+  const memory = normalizeDefenseMemory(layouts, team);
+
+  for (const size of [2, 3, 4, 5, 6, 7]) {
+    assert.deepEqual(memory[size as 2 | 3 | 4 | 5 | 6 | 7], layouts[size]);
+  }
+});
+
+test("new defensive layouts are always stored with all seven positions", () => {
+  assert.deepEqual(normalizeDefensiveLayout(["avant", null, "fond"]), [
+    "avant",
+    null,
+    "fond",
+    null,
+    null,
+    null,
+    null
+  ]);
+});
+
+test("defensive layouts survive a complete local save reload", () => {
+  const previousStorage = globalThis.localStorage;
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+    key: (index: number) => [...values.keys()][index] ?? null,
+    get length() { return values.size; }
+  } as Storage;
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+
+  try {
+    const team = createDefaultPlayerTeam("Persistance défensive");
+    const ids = team.lineoutPlayers.map((player) => player.id);
+    const defenseMemory = normalizeDefenseMemory({
+      2: [ids[1], null, null, null, ids[0], null, null],
+      3: [null, ids[2], null, ids[1], null, ids[0], null],
+      4: [ids[3], null, ids[2], null, ids[1], null, ids[0]],
+      5: [ids[4], ids[3], null, ids[2], null, ids[1], ids[0]],
+      6: [ids[5], ids[4], ids[3], null, ids[2], ids[1], ids[0]],
+      7: [ids[6], ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]]
+    }, team);
+
+    saveGame({ version: 3, defenseMemory } as Parameters<typeof saveGame>[0]);
+
+    assert.deepEqual(loadGame()?.defenseMemory, defenseMemory);
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previousStorage });
+  }
+});
+
+test("rugby player poses fall back through medium_standard before stand_front", () => {
+  assert.deepEqual(resolveRugbyPlayerAssetSet("large_large", "hooker_throw_back"), {
+    bodyShape: "medium_standard",
+    pose: "hooker_throw_back"
+  });
+  assert.deepEqual(resolveRugbyPlayerAssetSet("small_slim", "lifter_front"), {
+    bodyShape: "medium_standard",
+    pose: "lifter_front"
+  });
+  assert.deepEqual(resolveRugbyPlayerAssetSet("large_large", "hooker_ready_back"), {
+    bodyShape: "medium_standard",
+    pose: "stand_front"
+  });
 });

@@ -8,7 +8,12 @@ import { normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { applyMatchToChampionship, createChampionshipState, normalizeChampionshipState } from "../rules/ChampionshipRules";
 import { applyPlayerProgression } from "../rules/PlayerProgression";
 import { createDefaultPlayerTeam, DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR, normalizeTeam } from "../rules/TeamFactory";
-import { normalizeDefenseMemory, normalizeDefensivePriority } from "../rules/DefenseSelection";
+import {
+  isDefensiveLineoutSize,
+  normalizeDefenseMemory,
+  normalizeDefensiveLayout,
+  normalizeDefensivePriority
+} from "../rules/DefenseSelection";
 import { getDivision } from "../rules/DivisionRules";
 import { normalizeOffensiveRepertoire } from "../rules/LineoutRepertoire";
 import { replaceFailedActiveCombinations } from "../rules/LineoutRepertoire";
@@ -150,12 +155,15 @@ export class GameStore {
   }
 
   static setDefenseMemory(numberOfPlayers: number, playerIdsBySlot: Array<string | null>): void {
+    if (!isDefensiveLineoutSize(numberOfPlayers)) {
+      return;
+    }
     const save = this.getSave();
     this.save = this.withUpdatedAt({
       ...save,
       defenseMemory: normalizeDefenseMemory({
         ...save.defenseMemory,
-        [numberOfPlayers]: playerIdsBySlot.slice(0, 7)
+        [numberOfPlayers]: normalizeDefensiveLayout(playerIdsBySlot)
       } satisfies DefenseMemory, save.playerTeam)
     });
     saveGame(this.save);

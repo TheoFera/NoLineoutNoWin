@@ -4,9 +4,14 @@ import type { DivisionId } from "./Division";
 import type { Team } from "./Team";
 import type { LineoutVideoMatch, OpponentAiMemory } from "./LineoutAI";
 
+export const DEFENSIVE_LINEOUT_SIZES = [2, 3, 4, 5, 6, 7] as const;
+
+export type DefensiveLineoutSize = typeof DEFENSIVE_LINEOUT_SIZES[number];
+export type DefensiveLayout = Array<string | null>;
+
 // Une entrée compacte issue d'une ancienne sauvegarde contient seulement les identifiants.
 // Les nouvelles entrées contiennent toujours 7 cases afin de conserver aussi les espaces libres.
-export type DefenseMemory = Record<number, Array<string | null>>;
+export type DefenseMemory = Partial<Record<DefensiveLineoutSize, DefensiveLayout>>;
 
 type SaveGameBase = {
   language: "fr" | "en";

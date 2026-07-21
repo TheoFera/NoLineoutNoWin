@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  AVAILABLE_RUGBY_PLAYER_ASSET_SETS,
+  hasRugbyPlayerAssetSet,
+  resolveRugbyPlayerAssetSet
+} from "./RugbyPlayerAssetResolver";
 import { RUGBY_PLAYER_LAYER_NAMES } from "./RugbyPlayerTypes";
 import type { BodyShapeName, PlayerLayerName, PoseName } from "./RugbyPlayerTypes";
 
@@ -6,16 +11,6 @@ export const RUGBY_PLAYER_FRAME_WIDTH = 48;
 export const RUGBY_PLAYER_FRAME_HEIGHT = 64;
 
 const RUGBY_PLAYER_ASSET_BASE_PATH = "assets/sprites/rugby-player";
-const FALLBACK_BODY_SHAPE: BodyShapeName = "medium_standard";
-const FALLBACK_POSE: PoseName = "stand_front";
-
-const AVAILABLE_RUGBY_PLAYER_ASSET_SETS = [
-  { bodyShape: FALLBACK_BODY_SHAPE, pose: FALLBACK_POSE }
-] as const;
-
-const availableAssetSetKeys = new Set<string>(
-  AVAILABLE_RUGBY_PLAYER_ASSET_SETS.map(({ bodyShape, pose }) => getAssetSetKey(bodyShape, pose))
-);
 
 type RugbyPlayerLayerPaths = {
   body: string;
@@ -46,7 +41,7 @@ export function getRugbyPlayerTextureKey(bodyShape: BodyShapeName, pose: PoseNam
 export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseName, layer: PlayerLayerName): boolean {
   const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
   return RUGBY_PLAYER_LAYER_NAMES.includes(layer)
-    && availableAssetSetKeys.has(getAssetSetKey(resolvedAssetSet.bodyShape, resolvedAssetSet.pose));
+    && hasRugbyPlayerAssetSet(resolvedAssetSet.bodyShape, resolvedAssetSet.pose);
 }
 
 export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): void {
@@ -63,14 +58,6 @@ export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): vo
   }
 }
 
-function getAssetSetKey(bodyShape: BodyShapeName, pose: PoseName): string {
-  return `${bodyShape}:${pose}`;
-}
-
 function resolveAssetSet(bodyShape: BodyShapeName, pose: PoseName): { bodyShape: BodyShapeName; pose: PoseName } {
-  if (availableAssetSetKeys.has(getAssetSetKey(bodyShape, pose))) {
-    return { bodyShape, pose };
-  }
-
-  return { bodyShape: FALLBACK_BODY_SHAPE, pose: FALLBACK_POSE };
+  return resolveRugbyPlayerAssetSet(bodyShape, pose);
 }

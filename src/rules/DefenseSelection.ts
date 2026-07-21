@@ -1,6 +1,13 @@
 import type { FieldPlayer } from "../models/Player";
-import type { DefenseMemory } from "../models/SaveGame";
+import {
+  DEFENSIVE_LINEOUT_SIZES,
+  type DefenseMemory,
+  type DefensiveLayout,
+  type DefensiveLineoutSize
+} from "../models/SaveGame.ts";
 import type { Team } from "../models/Team";
+
+const DEFENSIVE_SLOT_COUNT = 7;
 
 function buildLineoutPool(team: Team): FieldPlayer[] {
   return team.lineoutPlayers.slice();
@@ -14,7 +21,7 @@ export function getDefensiveLineoutPlayers(
 ): FieldPlayer[] {
   const pool = buildLineoutPool(team);
   const byId = new Map(pool.map((player) => [player.id, player]));
-  const preferredOrder = (defenseMemory[numberOfPlayers] ?? defensivePriority)
+  const preferredOrder = (getRememberedLayout(defenseMemory, numberOfPlayers) ?? defensivePriority)
     .filter((playerId): playerId is string => typeof playerId === "string");
   const selected: FieldPlayer[] = [];
   const used = new Set<string>();
@@ -52,7 +59,7 @@ export function getDefensiveLineoutSlots(
   numberOfPlayers: number,
   defaultSlotIndices: number[]
 ): Array<FieldPlayer | null> {
-  const rememberedSlots = defenseMemory[numberOfPlayers];
+  const rememberedSlots = getRememberedLayout(defenseMemory, numberOfPlayers);
   const players = getDefensiveLineoutPlayers(team, defensivePriority, defenseMemory, numberOfPlayers);
 
   if (rememberedSlots?.length !== 7) {
@@ -76,7 +83,7 @@ export function getDefensiveLineoutSlots(
     ...slots.map((_, index) => index)
   ].filter((slotIndex, index, source) => (
     slotIndex >= 0
-    && slotIndex < 7
+    && slotIndex < DEFENSIVE_SLOT_COUNT
     && source.indexOf(slotIndex) === index
     && slots[slotIndex] === null
   ));
@@ -89,7 +96,7 @@ export function getDefensiveLineoutSlots(
 }
 
 function placePlayersInSlots(players: FieldPlayer[], slotIndices: number[]): Array<FieldPlayer | null> {
-  const slots: Array<FieldPlayer | null> = Array(7).fill(null);
+  const slots: Array<FieldPlayer | null> = Array(DEFENSIVE_SLOT_COUNT).fill(null);
   players.slice(0, slotIndices.length).forEach((player, index) => {
     const slotIndex = slotIndices[index];
     if (slotIndex !== undefined) slots[slotIndex] = player;
@@ -123,7 +130,7 @@ export function normalizeDefenseMemory(memory: DefenseMemory | undefined, team: 
 
   for (const [key, ids] of Object.entries(memory ?? {})) {
     const count = Number(key);
-    if (!Number.isInteger(count) || count < 2 || count > 7) {
+    if (!isDefensiveLineoutSize(count)) {
       continue;
     }
 
@@ -131,7 +138,7 @@ export function normalizeDefenseMemory(memory: DefenseMemory | undefined, team: 
       continue;
     }
 
-    if (ids.length === 7) {
+    if (ids.length === DEFENSIVE_SLOT_COUNT) {
       const used = new Set<string>();
       let keptPlayers = 0;
       const slots = ids.map((playerId) => {
@@ -161,4 +168,22 @@ export function normalizeDefenseMemory(memory: DefenseMemory | undefined, team: 
   }
 
   return normalized;
+}
+
+export function normalizeDefensiveLayout(layout: Array<string | null>): DefensiveLayout {
+  return Array.from(
+    { length: DEFENSIVE_SLOT_COUNT },
+    (_, index) => typeof layout[index] === "string" ? layout[index] : null
+  );
+}
+
+export function isDefensiveLineoutSize(value: number): value is DefensiveLineoutSize {
+  return DEFENSIVE_LINEOUT_SIZES.some((size) => size === value);
+}
+
+function getRememberedLayout(
+  memory: DefenseMemory,
+  numberOfPlayers: number
+): DefensiveLayout | undefined {
+  return isDefensiveLineoutSize(numberOfPlayers) ? memory[numberOfPlayers] : undefined;
 }

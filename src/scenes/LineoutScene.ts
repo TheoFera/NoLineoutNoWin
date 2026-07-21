@@ -29,7 +29,7 @@ import type { Combination, LineoutPosition } from "../models/Combination";
 import type { LineoutResult } from "../models/Lineout";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
 import { isLikelyJumper, isLikelyLifter } from "../models/Player";
-import type { FieldPlayer } from "../models/Player";
+import type { FieldPlayer, Hooker } from "../models/Player";
 import { PlayerToken } from "../ui/PlayerToken";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
@@ -51,6 +51,7 @@ const PLAYER_FIELD_HEIGHT_RATIO = 0.13;
 const PLAYER_DEPTH_BASE = 100;
 const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
 const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
+const PLAYER_INSPECTOR_DEPTH = 1000;
 const RUGBY_DASH_WIDTH = 18;
 const RUGBY_DASH_GAP = 12;
 
@@ -118,6 +119,7 @@ export class LineoutScene extends Phaser.Scene {
   private opponentCombination: Combination | null = null;
   private dragState: DragState | null = null;
   private inspectedPlayer: FieldPlayer | null = null;
+  private inspectorPanel?: Phaser.GameObjects.Container;
   private inspectorNameText?: Phaser.GameObjects.Text;
   private inspectorStatsText?: Phaser.GameObjects.Text;
   private inspectorRoleText?: Phaser.GameObjects.Text;
@@ -267,22 +269,30 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderPlayerInspector(layout: LineoutLayout): void {
-    const panelY = this.mode === "training" ? 92 : 153;
-    const panelHeight = this.mode === "training" ? 98 : 28;
+    const panelY = 92;
+    const panelHeight = 98;
+    const panel = this.add.rectangle(195, panelY, 344, panelHeight, 0x07111a, 0.94).setStrokeStyle(2, 0x334155);
 
-    this.add.rectangle(195, panelY, 344, panelHeight, 0x07111a, 0.94).setStrokeStyle(2, 0x334155);
-    this.inspectorNameText = this.add.text(28, panelY - (this.mode === "training" ? 26 : 7), t("lineout.playerPanel.empty"), {
-      font: this.mode === "training" ? "bold 18px Arial" : "bold 11px Arial",
+    this.inspectorNameText = this.add.text(28, panelY - 26, t("lineout.playerPanel.empty"), {
+      font: "bold 18px Arial",
       color: UI.colors.text
     }).setOrigin(0, 0.5);
     this.inspectorRoleText = this.add.text(28, panelY + 2, "", {
-      font: this.mode === "training" ? "bold 12px Arial" : "bold 9px Arial",
+      font: "bold 12px Arial",
       color: "#fde68a"
     }).setOrigin(0, 0.5);
-    this.inspectorStatsText = this.add.text(28, panelY + (this.mode === "training" ? 28 : 10), "", {
-      font: this.mode === "training" ? "12px Arial" : "9px Arial",
+    this.inspectorStatsText = this.add.text(28, panelY + 28, "", {
+      font: "12px Arial",
       color: UI.colors.muted
     }).setOrigin(0, 0.5);
+    this.inspectorPanel = this.add.container(0, 0, [
+      panel,
+      this.inspectorNameText,
+      this.inspectorRoleText,
+      this.inspectorStatsText
+    ])
+      .setDepth(PLAYER_INSPECTOR_DEPTH)
+      .setVisible(this.mode === "training");
     this.statusText = this.add.text(195, this.mode === "training" ? panelY + 44 : layout.fieldTop + 18, "", {
       font: "bold 11px Arial",
       color: "#fca5a5",
@@ -356,21 +366,23 @@ export class LineoutScene extends Phaser.Scene {
       this,
       hookerX,
       hookerFeetY,
-      "hooker_ready_back",
+      "hooker_throw_back",
       hookerKit,
       getBodyShapeForPlayer(isOpponentThrow ? match?.away.hooker ?? save.playerTeam.hooker : save.playerTeam.hooker)
     ).setVisualSize(layout.playerWidth, layout.playerHeight);
     this.hookerSprite.setKit(hookerKit);
 
-    const hookerText = this.add.text(hookerX, hookerFeetY - 28, String(hookerNumber), {
-      font: "bold 18px Arial",
+    // PlayerToken place le numero par rapport a son conteneur, dont le sprite a les pieds 4 px plus bas.
+    const hookerNumberY = hookerFeetY - 1 - Math.max(12, layout.playerHeight * 0.42);
+    const hookerText = this.add.text(hookerX, hookerNumberY, String(hookerNumber), {
+      font: "bold 12px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
     const hookerDepth = this.getPlayerDepth(hookerFeetY);
     this.hookerSprite.setDepth(hookerDepth);
     hookerText.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
 
-    if (this.mode !== "training") {
+    if (this.mode !== "training" && !isOpponentThrow) {
       return;
     }
 
@@ -382,7 +394,10 @@ export class LineoutScene extends Phaser.Scene {
     ).setOrigin(0);
     hitbox.setInteractive({ useHandCursor: true });
     hitbox.on("pointerdown", () => {
-      this.showHookerInspector();
+      const hooker = isOpponentThrow ? match?.away.hooker : save.playerTeam.hooker;
+      if (hooker) {
+        this.showHookerInspector(hooker);
+      }
     });
     hitbox.setDepth(hookerDepth + PLAYER_HITBOX_DEPTH_OFFSET);
   }
@@ -511,13 +526,11 @@ export class LineoutScene extends Phaser.Scene {
         displayWidth: layout.playerWidth,
         displayHeight: layout.playerHeight
       });
-      token.disableInteractive();
       token.setData("lineoutPosition", position);
       this.syncPlayerTokenDepth(token);
+      this.bindOpponentInspectorToken(token);
       this.defenseTokens.push(token);
     });
-
-    this.setInspectedPlayer(this.attackSlotPlayers.find((player): player is FieldPlayer => player !== null) ?? null);
   }
 
   private renderDefensiveLineout(layout: LineoutLayout): void {
@@ -572,13 +585,11 @@ export class LineoutScene extends Phaser.Scene {
         displayWidth: layout.playerWidth,
         displayHeight: layout.playerHeight
       });
-      token.disableInteractive();
       token.setData("lineoutPosition", position);
       this.syncPlayerTokenDepth(token);
+      this.bindOpponentInspectorToken(token);
       this.defenseTokens.push(token);
     });
-
-    this.setInspectedPlayer(this.attackSlotPlayers.find((player): player is FieldPlayer => player !== null) ?? null);
   }
 
   private bindTrainingSlotToken(token: PlayerToken, slotIndex: number): void {
@@ -613,7 +624,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchAttackToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      this.setInspectedPlayer(token.player);
+      this.hidePlayerInspector();
       this.dragState = {
         origin: { kind: "match-attack" },
         pointer,
@@ -628,7 +639,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchDefenseToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      this.setInspectedPlayer(token.player);
+      this.hidePlayerInspector();
       this.dragState = {
         origin: { kind: "match-defense" },
         pointer,
@@ -638,6 +649,12 @@ export class LineoutScene extends Phaser.Scene {
         homeX: token.x,
         homeY: token.y
       };
+    });
+  }
+
+  private bindOpponentInspectorToken(token: PlayerToken): void {
+    token.on("pointerdown", () => {
+      this.setInspectedPlayer(token.player);
     });
   }
 
@@ -674,6 +691,7 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
+    const startedDragging = !this.dragState.moved;
     this.dragState.moved = true;
     const layout = this.getLayout();
 
@@ -685,6 +703,9 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     if (origin.kind === "match-defense") {
+      if (startedDragging) {
+        this.setInspectedPlayer(token.player);
+      }
       const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
       const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
       token.y = Phaser.Math.Clamp(pointer.y, minY, maxY);
@@ -994,7 +1015,6 @@ export class LineoutScene extends Phaser.Scene {
       },
       onComplete: () => {
         ball.destroy();
-        this.hookerSprite?.setPose("hooker_ready_back");
         supportTokens.forEach((token) => {
           token.resetPose();
         });
@@ -1014,9 +1034,13 @@ export class LineoutScene extends Phaser.Scene {
     targetToken?: PlayerToken
   ): void {
     const supportPose = side === "us" ? "lifter_front" : "lifter_back";
+    const targetPosition = targetToken?.getData("lineoutPosition") as LineoutPosition | undefined;
 
     supportTokens.forEach((token) => {
-      token.setPose(supportPose);
+      const supportPosition = token.getData("lineoutPosition") as LineoutPosition | undefined;
+      if (targetPosition !== undefined && supportPosition === targetPosition - 1) {
+        token.setPose(supportPose);
+      }
       this.tweens.add({
         targets: token,
         y: token.y - 10,
@@ -1108,22 +1132,27 @@ export class LineoutScene extends Phaser.Scene {
   private selectTarget(token: PlayerToken): void {
     this.selectedTargetId = token.player.id;
     this.selectedTargetPosition = (token.getData("lineoutPosition") as LineoutPosition | undefined) ?? null;
-    this.setInspectedPlayer(token.player);
     this.attackTokens.forEach((item) => item.setSelected(item === token));
   }
 
   private setInspectedPlayer(player: FieldPlayer | null): void {
     this.inspectedPlayer = player;
     this.refreshPlayerInspector();
+    this.inspectorPanel?.setVisible(true);
   }
 
-  private showHookerInspector(): void {
-    const hooker = GameStore.getSave().playerTeam.hooker;
-
+  private showHookerInspector(hooker: Hooker): void {
     this.inspectedPlayer = null;
     this.inspectorNameText?.setText(`${t("team.numberPrefix")}${hooker.number} - ${hooker.nickname}`);
     this.inspectorRoleText?.setText(t("lineout.hookerLabel"));
     this.inspectorStatsText?.setText(`${t("team.throwing")} ${hooker.throwing}`);
+    this.inspectorPanel?.setVisible(true);
+  }
+
+  private hidePlayerInspector(): void {
+    if (this.mode === "match") {
+      this.inspectorPanel?.setVisible(false);
+    }
   }
 
   private refreshPlayerInspector(): void {
@@ -1579,6 +1608,11 @@ export class LineoutScene extends Phaser.Scene {
     this.trainingAssignedPlayers = [];
     this.dragState = null;
     this.inspectedPlayer = null;
+    this.inspectorPanel = undefined;
+    this.inspectorNameText = undefined;
+    this.inspectorStatsText = undefined;
+    this.inspectorRoleText = undefined;
+    this.statusText = undefined;
     this.hookerSprite = undefined;
     this.userSlotIndicators = [];
     this.statusClearTimer?.remove(false);
