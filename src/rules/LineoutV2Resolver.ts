@@ -72,7 +72,7 @@ export function resolveLineoutV2(input: LineoutResolutionInput): LineoutResoluti
 
 function getTargetPlayer(input: LineoutResolutionInput): FieldPlayer {
   const rolePosition = input.targetOption.type === "directCatch"
-    ? input.targetOption.roles.receiverPosition
+    ? input.targetOption.roles.directCatcherPosition
     : input.targetOption.roles.jumperPosition;
   const targetPosition = rolePosition ?? input.targetOption.targetPosition;
   const targetPlayer = input.attackingAssignments[targetPosition];
@@ -90,15 +90,15 @@ function resolveDirectCatch(
   context: ResolutionContext,
   receiver: FieldPlayer
 ): LineoutResolution {
-  const receiverPosition = context.input.targetOption.roles.receiverPosition
+  const directCatcherPosition = context.input.targetOption.roles.directCatcherPosition
     ?? context.input.targetOption.targetPosition;
   const placements = getRecoveryPlacements(
-    receiverPosition,
+    directCatcherPosition,
     context.input.defendingAssignments
   );
   const reception = resolveSoloReception(receiver, placements, context.input.rng);
   addSoloReceptionDetails(context.details, reception, "targetReception");
-  context.details.receiverPosition = receiverPosition;
+  context.details.directCatcherPosition = directCatcherPosition;
   context.details.receiverId = receiver.id;
   context.details.receiverPlacements = placements.join(",");
 

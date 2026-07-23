@@ -1,8 +1,9 @@
 import type { OffensiveRepertoire } from "../models/Combination";
+import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
 
 function uniqueKnownIds(ids: readonly string[], knownIds: ReadonlySet<string>): string[] {
   const seen = new Set<string>();
-  return ids.filter((id) => {
+  return ids.map(toCanonicalLineoutCombinationId).filter((id) => {
     if (!knownIds.has(id) || seen.has(id)) {
       return false;
     }
@@ -17,7 +18,7 @@ export function normalizeOffensiveRepertoire(
   current?: Partial<OffensiveRepertoire>,
   maxReserve = Number.POSITIVE_INFINITY
 ): OffensiveRepertoire {
-  const orderedIds = Array.from(new Set(combinationIds));
+  const orderedIds = Array.from(new Set(combinationIds.map(toCanonicalLineoutCombinationId)));
   const knownIds = new Set(orderedIds);
   const activeLimit = Math.max(0, Math.min(Math.floor(maxActive), orderedIds.length));
   const preferredActive = uniqueKnownIds(current?.activeCombinationIds ?? [], knownIds);

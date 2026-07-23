@@ -5,6 +5,7 @@ import {
   buildVideoTargetMemory,
   createEmptyOpponentAiMemory,
   estimateTargetFrequency,
+  normalizeOpponentAiMemory,
   observePlayerDefense,
   observePlayerTarget,
   withVideoObservations
@@ -27,8 +28,8 @@ const combination: Combination = {
     id: `target-${position}`,
     targetPosition: position as 2 | 4,
     type: "directCatch" as const,
-    roles: { receiverPosition: position as 2 | 4 },
-    naturalWeight: 50
+    roles: { directCatcherPosition: position as 2 | 4 },
+    defaultNaturalWeight: 50
   }))
 };
 
@@ -47,6 +48,27 @@ test("direct observations are isolated and reach full confidence after five uses
   assert.equal(estimate.frequency, 1);
   assert.equal(estimate.confidence, 1);
   assert.equal(estimate.combinationObservations, 5);
+});
+
+test("saved AI memories migrate former combination identifiers", () => {
+  const memory = normalizeOpponentAiMemory({
+    playerTargets: {
+      directObservations: {
+        shift_4: { 3: 2 },
+        six_long: { 5: 1 }
+      },
+      videoObservations: {
+        five_split: { 4: 3 },
+        long_back: { 6: 4 }
+      },
+      globalTargetCounts: {}
+    }
+  });
+
+  assert.deepEqual(memory.playerTargets.directObservations.six_long, { 3: 2, 5: 1 });
+  assert.deepEqual(memory.playerTargets.videoObservations.middle_block, { 4: 3 });
+  assert.deepEqual(memory.playerTargets.videoObservations.seven_triple, { 6: 4 });
+  assert.equal(memory.playerTargets.directObservations.shift_4, undefined);
 });
 
 test("frequency combines exact combination at 70 percent and global habits at 30 percent", () => {

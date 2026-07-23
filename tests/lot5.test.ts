@@ -55,8 +55,8 @@ function directOption(position: LineoutPosition): CombinationTargetOption {
     id: `direct-${position}`,
     targetPosition: position,
     type: "directCatch",
-    roles: { receiverPosition: position },
-    naturalWeight: 1
+    roles: { directCatcherPosition: position },
+    defaultNaturalWeight: 1
   };
 }
 
@@ -70,7 +70,7 @@ function jumpOption(position: LineoutPosition): CombinationTargetOption {
       frontLifterPosition: (position - 1) as LineoutPosition,
       rearLifterPosition: (position + 1) as LineoutPosition
     },
-    naturalWeight: 1
+    defaultNaturalWeight: 1
   };
 }
 

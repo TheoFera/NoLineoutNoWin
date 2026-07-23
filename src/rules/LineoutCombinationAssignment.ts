@@ -16,6 +16,7 @@ import {
   getDistanceCoefficient,
   calculateDistanceIndex
 } from "./LineoutThrowResolver.ts";
+import { getTargetNaturalWeight } from "./CombinationRules.ts";
 
 const GENERATION = LINEOUT_BALANCE.generation;
 const THROWING = LINEOUT_BALANCE.throwing;
@@ -163,7 +164,7 @@ function isOptionEligible(
   playersByPosition: PlayerByPosition
 ): boolean {
   if (option.type === "directCatch") {
-    return Boolean(playerAt(playersByPosition, option.roles.receiverPosition ?? option.targetPosition));
+    return Boolean(playerAt(playersByPosition, option.roles.directCatcherPosition ?? option.targetPosition));
   }
 
   const jumper = playerAt(playersByPosition, option.roles.jumperPosition ?? option.targetPosition);
@@ -193,7 +194,7 @@ function calculateOptionAssignmentScore(
   playersByPosition: PlayerByPosition
 ): number {
   if (option.type === "directCatch") {
-    return playerAt(playersByPosition, option.roles.receiverPosition ?? option.targetPosition)?.hands ?? 0;
+    return playerAt(playersByPosition, option.roles.directCatcherPosition ?? option.targetPosition)?.hands ?? 0;
   }
 
   const jumper = playerAt(playersByPosition, option.roles.jumperPosition ?? option.targetPosition);
@@ -213,10 +214,10 @@ function calculateCombinationStyleWeight(
   item: AssignedLineoutCombination,
   style: TeamLineoutStyle
 ): number {
-  const size = item.definition.occupiedPositions.length as 4 | 5 | 6 | 7;
+  const size = item.definition.occupiedPositions.length as 3 | 4 | 5 | 6 | 7;
   const sizeWeight = Math.max(0, style.sizeWeights[size] ?? 1);
   const targetWeight = (item.combination.targetOptions ?? []).reduce((total, option) => (
-    total + option.naturalWeight * Math.max(0, style.naturalTargetWeights[option.targetPosition] ?? 1)
+    total + getTargetNaturalWeight(option, style.naturalTargetWeights)
   ), 0);
   return sizeWeight * targetWeight;
 }

@@ -8,6 +8,8 @@ import {
   type RandomSource
 } from "../utils/Random.ts";
 import { generateLineoutRoster, generateTeamForDivision } from "./TeamGeneration.ts";
+import { normalizeStoredOffensiveCombinations } from "./CombinationRules.ts";
+import { normalizeOffensiveRepertoire } from "./LineoutRepertoire.ts";
 
 const DEFAULT_TEAM_SIZE = 7;
 const DIVISION_IDS = Object.keys(LINEOUT_BALANCE.generation.divisionStats) as DivisionId[];
@@ -103,11 +105,26 @@ export function normalizeTeam(team: StoredTeamShape): Team {
   const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
   const lineoutPlayers = normalizeLineoutPlayers(fieldPlayers, team.lineoutPlayers);
 
+  const offensiveCombinations = team.offensiveCombinations
+    ? normalizeStoredOffensiveCombinations(team.offensiveCombinations)
+    : undefined;
+  const activeCount = team.offensiveRepertoire?.activeCombinationIds.length ?? 0;
+  const reserveCount = team.offensiveRepertoire?.reserveCombinationIds.length ?? 0;
+
   return {
     ...team,
     colors: normalizeJerseyColors(team.colors),
     fieldPlayers,
-    lineoutPlayers
+    lineoutPlayers,
+    offensiveCombinations,
+    offensiveRepertoire: offensiveCombinations && team.offensiveRepertoire
+      ? normalizeOffensiveRepertoire(
+        offensiveCombinations.map((combination) => combination.id),
+        activeCount,
+        team.offensiveRepertoire,
+        reserveCount
+      )
+      : team.offensiveRepertoire
   };
 }
 

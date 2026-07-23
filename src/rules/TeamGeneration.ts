@@ -256,6 +256,7 @@ function generateGeneralStat(
 function generateLineoutStyle(rng: RandomSource): TeamLineoutStyle {
   return {
     sizeWeights: {
+      3: randomInt(20, 100, rng),
       4: randomInt(20, 100, rng),
       5: randomInt(20, 100, rng),
       6: randomInt(20, 100, rng),

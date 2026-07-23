@@ -183,7 +183,7 @@ function findTargetOption(
 ): CombinationTargetOption | undefined {
   return setup.combination?.targetOptions?.find((option) => {
     const rolePosition = option.type === "directCatch"
-      ? option.roles.receiverPosition
+      ? option.roles.directCatcherPosition
       : option.roles.jumperPosition;
     const effectivePosition = rolePosition ?? option.targetPosition;
     return option.targetPosition === selectedPosition
@@ -210,7 +210,7 @@ function createImplicitJumpOption(
         ? { rearLifterPosition: rearPosition }
         : {})
     },
-    naturalWeight: 1
+    defaultNaturalWeight: 1
   };
 }
 

@@ -8,6 +8,7 @@ import type {
   PlayerDefenseMemory
 } from "../models/LineoutAI.ts";
 import { clamp } from "../utils/Clamp.ts";
+import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
 
 const MEMORY = LINEOUT_BALANCE.ai.memory;
 
@@ -52,7 +53,12 @@ export function observePlayerTarget(
   targetPosition: LineoutPosition
 ): OpponentAiMemory {
   const normalized = normalizeOpponentAiMemory(memory);
-  incrementTarget(normalized.playerTargets.directObservations, combinationId, targetPosition, 1);
+  incrementTarget(
+    normalized.playerTargets.directObservations,
+    toCanonicalLineoutCombinationId(combinationId),
+    targetPosition,
+    1
+  );
   normalized.playerTargets.globalTargetCounts[targetPosition] =
     (normalized.playerTargets.globalTargetCounts[targetPosition] ?? 0) + 1;
   return normalized;
@@ -85,7 +91,12 @@ export function buildVideoTargetMemory(
     const weights = LINEOUT_BALANCE.ai.videoRecencyWeights;
     const weight = weights[Math.min(matchIndex, weights.length - 1)];
     for (const observation of match.observations) {
-      incrementTarget(result, observation.combinationId, observation.targetPosition, weight);
+      incrementTarget(
+        result,
+        toCanonicalLineoutCombinationId(observation.combinationId),
+        observation.targetPosition,
+        weight
+      );
     }
   });
   return result;
@@ -107,7 +118,7 @@ export function estimateTargetFrequency(
   combinationId: string,
   targetPosition: LineoutPosition
 ): TargetFrequencyEstimate {
-  const combinationCounts = observations[combinationId] ?? {};
+  const combinationCounts = observations[toCanonicalLineoutCombinationId(combinationId)] ?? {};
   const combinationObservations = sumPositionCounts(combinationCounts);
   const globalObservations = sumPositionCounts(globalTargetCounts);
   const combinationFrequency = combinationObservations > 0
@@ -157,12 +168,19 @@ function incrementTarget(
 
 function cloneTargetMemory(memory?: CombinationTargetMemory): CombinationTargetMemory {
   if (!memory) return {};
-  return Object.fromEntries(
-    Object.entries(memory).map(([combinationId, counts]) => [
-      combinationId,
-      normalizePositionCounts(counts)
-    ])
-  );
+  const result: CombinationTargetMemory = {};
+  for (const [combinationId, counts] of Object.entries(memory)) {
+    const canonicalId = toCanonicalLineoutCombinationId(combinationId);
+    const normalizedCounts = normalizePositionCounts(counts);
+    for (let position = 1; position <= 7; position += 1) {
+      const lineoutPosition = position as LineoutPosition;
+      const value = normalizedCounts[lineoutPosition];
+      if (value !== undefined) {
+        incrementTarget(result, canonicalId, lineoutPosition, value);
+      }
+    }
+  }
+  return result;
 }
 
 function normalizePositionCounts(

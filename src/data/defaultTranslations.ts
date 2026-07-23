@@ -1,5 +1,22 @@
+import { GENERATED_LINEOUT_COMBINATIONS } from "./LineoutCombinations.ts";
+
 export type Language = "fr" | "en";
 export type TranslationKey = string;
+
+const generatedCombinationTranslations: Record<
+  TranslationKey,
+  Record<Language, string>
+> = Object.fromEntries(GENERATED_LINEOUT_COMBINATIONS.map((definition) => {
+  const positions = definition.occupiedPositions.join("-");
+  const playerCount = definition.occupiedPositions.length;
+  return [
+    `combo.${definition.id}`,
+    {
+      fr: `Alignement à ${playerCount} — positions ${positions}`,
+      en: `${playerCount}-player lineout — positions ${positions}`
+    }
+  ];
+}));
 
 export const translations: Record<TranslationKey, Record<Language, string>> = {
   "app.title": { fr: "No Lineout No Win", en: "No Lineout No Win" },
@@ -182,16 +199,14 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "lineout.explanation.invalidSetup": { fr: "La cible choisie n'est pas correctement placée dans l'alignement.", en: "The selected target is not correctly assigned in the lineout." },
   "combo.safe_front": { fr: "Combi 1", en: "Set 1" },
   "combo.middle_block": { fr: "Combi 2", en: "Set 2" },
-  "combo.long_back": { fr: "Combi 3", en: "Set 3" },
-  "combo.shift_4": { fr: "Combi 4", en: "Set 4" },
   "combo.shift_5": { fr: "Combi 5", en: "Set 5" },
   "combo.quick_four": { fr: "Rapide à quatre", en: "Quick four" },
   "combo.four_double": { fr: "Double bloc à quatre", en: "Four-player double block" },
-  "combo.five_split": { fr: "Partagée à cinq", en: "Split five" },
   "combo.six_middle": { fr: "Axe à six", en: "Six-player middle" },
   "combo.six_long": { fr: "Longue à six", en: "Six-player long" },
   "combo.seven_double": { fr: "Double bloc à sept", en: "Seven-player double block" },
   "combo.seven_triple": { fr: "Triple bloc à sept", en: "Seven-player triple block" },
+  ...generatedCombinationTranslations,
   "training.practiceLineout": { fr: "Travailler la touche", en: "Practice lineout" },
   "training.playMatch": { fr: "Jouer le match", en: "Play match" },
   "result.title": { fr: "Résultat", en: "Result" },

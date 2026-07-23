@@ -83,19 +83,19 @@ test("the detailed result keeps trajectory, useful scores and final possession",
 });
 
 test("only declared target options are exposed for the selected combination", () => {
-  const definition = LINEOUT_COMBINATIONS.find((item) => item.id === "long_back");
+  const definition = LINEOUT_COMBINATIONS.find((item) => item.id === "seven_triple");
   assert.ok(definition);
   const combination: Combination = {
     ...definition,
-    nameKey: "combo.long_back",
+    nameKey: "combo.seven_triple",
     slots: definition.occupiedPositions.map((position) => ({
       position,
       playerId: `player-${position}`
     }))
   };
 
-  assert.deepEqual(getCombinationTargetPositions(combination), [2, 4, 6, 7]);
-  assert.equal(findCombinationTargetOption(combination, 6)?.id, "long-back");
+  assert.deepEqual(getCombinationTargetPositions(combination), [2, 4, 6]);
+  assert.equal(findCombinationTargetOption(combination, 6)?.id, "seven-triple-back");
   assert.equal(findCombinationTargetOption(combination, 5), undefined);
 });
 

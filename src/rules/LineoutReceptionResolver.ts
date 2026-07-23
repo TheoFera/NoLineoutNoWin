@@ -213,7 +213,7 @@ function occupiedPositions(assignments: LineoutAssignments): LineoutPosition[] {
 }
 
 export function getRecoveryPlacements(
-  receiverPosition: LineoutPosition,
+  directCatcherPosition: LineoutPosition,
   opponentAssignments: LineoutAssignments
 ): RecoveryPlacement[] {
   const opponentPositions = occupiedPositions(opponentAssignments);
@@ -222,7 +222,7 @@ export function getRecoveryPlacements(
   }
 
   return opponentPositions.map((opponentPosition) => {
-    const relativeOffset = receiverPosition - opponentPosition;
+    const relativeOffset = directCatcherPosition - opponentPosition;
     if (relativeOffset === 1) return "oneAhead";
     if (relativeOffset === 2) return "twoAhead";
     if (relativeOffset === -1) return "oneBehind";

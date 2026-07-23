@@ -38,7 +38,7 @@ interface TargetOption {
     jumperPosition?: number;
     frontLifterPosition?: number;
     rearLifterPosition?: number;
-    receiverPosition?: number;
+    directCatcherPosition?: number;
   };
 }
 ```
@@ -493,4 +493,3 @@ Choix de l’option de lancer
 → cascade derrière si ballon trop haut
 → issue finale et équipe en possession
 ```
-

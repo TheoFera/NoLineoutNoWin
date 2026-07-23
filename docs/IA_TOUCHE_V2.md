@@ -33,9 +33,9 @@ interface TargetOption {
     jumperPosition?: number;
     frontLifterPosition?: number;
     rearLifterPosition?: number;
-    receiverPosition?: number;
+    directCatcherPosition?: number;
   };
-  naturalWeight: number;
+  defaultNaturalWeight: number;
 }
 ```
 
@@ -45,7 +45,7 @@ Le style est enregistré avec un seul champ :
 
 ```ts
 interface TeamLineoutStyle {
-  sizeWeights: Partial<Record<4 | 5 | 6 | 7, number>>;
+  sizeWeights: Partial<Record<3 | 4 | 5 | 6 | 7, number>>;
   naturalTargetWeights: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7, number>>;
 }
 ```
@@ -112,7 +112,7 @@ La zone ne choisit pas entre 4 et 5, ni entre 6 et 7. Le style naturel de l’é
 
 ```ts
 scoreCombinaison =
-  naturalWeight * zoneMultiplier
+  defaultNaturalWeight * zoneMultiplier
   + memoryBonus
   + repetitionPenalty
   + randomAdjustment;
@@ -284,4 +284,3 @@ Les poids exacts évoluent avec le nombre d’observations directes et restent c
 ## 14. Nombre de touches
 
 L’IA doit avoir exactement le même nombre de touches offensives que le joueur pendant un match. Le nombre est tiré une fois selon la division, puis appliqué aux deux équipes.
-

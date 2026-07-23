@@ -30,6 +30,7 @@ import {
   withVideoObservations
 } from "../ai/LineoutMemory";
 import { createOpponentAiIdentity } from "../ai/LineoutAiIdentity";
+import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
 
 type StoredTeam = Parameters<typeof normalizeTeam>[0];
 type StoredSaveGame =
@@ -256,7 +257,7 @@ export class GameStore {
         && entry.targetPosition
       ))
       .map((entry) => ({
-        combinationId: entry.combinationId as string,
+        combinationId: toCanonicalLineoutCombinationId(entry.combinationId as string),
         targetPosition: entry.targetPosition as LineoutPosition
       }));
     const replacement = LINEOUT_BALANCE.ai.returnMatchReplacement;
@@ -341,7 +342,13 @@ export class GameStore {
       defenseMemory: normalizeDefenseMemory(save.defenseMemory, playerTeam),
       opponentAiMemories,
       playerLineoutVideoHistory: save.version === 3
-        ? (save.playerLineoutVideoHistory ?? [])
+        ? (save.playerLineoutVideoHistory ?? []).map((match) => ({
+          ...match,
+          observations: match.observations.map((observation) => ({
+            ...observation,
+            combinationId: toCanonicalLineoutCombinationId(observation.combinationId)
+          }))
+        }))
         : [],
       opponentTeams: save.version === 3
         ? Object.fromEntries(Object.entries(save.opponentTeams ?? {}).map(([id, team]) => [

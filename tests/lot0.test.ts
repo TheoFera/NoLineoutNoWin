@@ -3,6 +3,7 @@ import test from "node:test";
 import { normalizeCombinationTargetOptions } from "../src/models/Combination.ts";
 import { LINEOUT_BALANCE } from "../src/config/LineoutBalance.ts";
 import { normalizeOffensiveRepertoire } from "../src/rules/LineoutRepertoire.ts";
+import { normalizeOffensiveCombinations } from "../src/rules/CombinationRules.ts";
 import { pickOne, randomFloat, randomInt, type RandomSource } from "../src/utils/Random.ts";
 
 function sequenceSource(values: number[]): RandomSource {
@@ -43,7 +44,7 @@ test("a V1 combination order migrates to active and reserve lists", () => {
 
   assert.deepEqual(repertoire, {
     activeCombinationIds: ["safe_front", "middle_block"],
-    reserveCombinationIds: ["long_back", "shift_4"]
+    reserveCombinationIds: ["seven_triple", "six_long"]
   });
 });
 
@@ -63,13 +64,47 @@ test("repertoire normalization preserves valid choices and repairs stale data", 
   });
 });
 
+test("all former combination identifiers migrate to canonical identifiers", () => {
+  const repertoire = normalizeOffensiveRepertoire(
+    ["six_long", "middle_block", "seven_triple"],
+    3,
+    {
+      activeCombinationIds: ["shift_4", "five_split", "long_back"],
+      reserveCombinationIds: []
+    }
+  );
+
+  assert.deepEqual(repertoire.activeCombinationIds, [
+    "six_long",
+    "middle_block",
+    "seven_triple"
+  ]);
+});
+
+test("stored combinations migrate former identifiers and do not keep aliases", () => {
+  const combinations = normalizeOffensiveCombinations([{
+    id: "shift_4",
+    nameKey: "combo.shift_4",
+    risk: 0,
+    complexity: 0,
+    slots: [1, 2, 3, 4, 5, 6, 7].map((position) => ({
+      position: position as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+      playerId: null
+    })),
+    targetOptions: []
+  }]);
+
+  assert.ok(combinations.some((combination) => combination.id === "six_long"));
+  assert.ok(!combinations.some((combination) => combination.id === "shift_4"));
+});
+
 test("target options are cloned, normalized and deduplicated", () => {
   const options = normalizeCombinationTargetOptions([
     {
       id: " back ",
       targetPosition: 7,
       type: "jumpBlock",
-      naturalWeight: 70,
+      defaultNaturalWeight: 70,
       roles: {
         jumperPosition: 7,
         rearLifterPosition: 6
@@ -88,7 +123,7 @@ test("target options are cloned, normalized and deduplicated", () => {
       id: "invalid",
       targetPosition: 8 as 7,
       type: "jumpBlock",
-      naturalWeight: 10,
+      defaultNaturalWeight: 10,
       roles: { jumperPosition: 4 }
     }
   ]);
@@ -98,15 +133,34 @@ test("target options are cloned, normalized and deduplicated", () => {
       id: "back",
       targetPosition: 7,
       type: "jumpBlock",
-      naturalWeight: 70,
+      defaultNaturalWeight: 70,
       roles: {
         jumperPosition: 7,
         frontLifterPosition: undefined,
         rearLifterPosition: 6,
-        receiverPosition: undefined
+        directCatcherPosition: undefined
       }
     }
   ]);
+
+  assert.deepEqual(normalizeCombinationTargetOptions([{
+    id: "legacy-direct",
+    targetPosition: 5,
+    type: "directCatch",
+    naturalWeight: 30,
+    roles: { receiverPosition: 5 }
+  }]), [{
+    id: "legacy-direct",
+    targetPosition: 5,
+    type: "directCatch",
+    defaultNaturalWeight: 30,
+    roles: {
+      jumperPosition: undefined,
+      frontLifterPosition: undefined,
+      rearLifterPosition: undefined,
+      directCatcherPosition: 5
+    }
+  }]);
 });
 
 test("the V2 balance configuration contains the source-of-truth anchors", () => {

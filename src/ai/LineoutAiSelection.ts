@@ -17,6 +17,7 @@ import {
   estimateDefensiveWeakness,
   estimateTargetFrequency
 } from "./LineoutMemory.ts";
+import { getTargetNaturalWeight } from "../rules/CombinationRules.ts";
 
 const AI = LINEOUT_BALANCE.ai;
 const SELECTION = AI.selection;
@@ -84,7 +85,7 @@ export function chooseAiOffensiveLineout(options: {
     options.rng
   );
   const rolePosition = targetOption.type === "directCatch"
-    ? targetOption.roles.receiverPosition
+    ? targetOption.roles.directCatcherPosition
     : targetOption.roles.jumperPosition;
   const targetPlayerId = combination.slots.find(
     (slot) => slot.position === (rolePosition ?? targetOption.targetPosition)
@@ -117,7 +118,7 @@ export function predictDefensiveTarget(options: {
   const directGlobal = options.memory.playerTargets.globalTargetCounts;
   const videoGlobal = buildGlobalCounts(options.memory.playerTargets.videoObservations);
   const naturalTotal = targetOptions.reduce(
-    (sum, option) => sum + getNaturalTargetWeight(option, options.naturalTargetWeights),
+    (sum, option) => sum + getTargetNaturalWeight(option, options.naturalTargetWeights),
     0
   );
   let maximumDirectConfidence = 0;
@@ -141,13 +142,13 @@ export function predictDefensiveTarget(options: {
     const videoWeight = (1 - directWeight)
       * video.confidence
       * (options.identity.videoPreparation / SELECTION.videoPreparationScale);
-    const naturalWeight = Math.max(0, 1 - directWeight - videoWeight);
+    const fallbackNaturalBlendWeight = Math.max(0, 1 - directWeight - videoWeight);
     const naturalFrequency = naturalTotal > 0
-      ? getNaturalTargetWeight(targetOption, options.naturalTargetWeights) / naturalTotal
+      ? getTargetNaturalWeight(targetOption, options.naturalTargetWeights) / naturalTotal
       : 1 / targetOptions.length;
     optionScores[targetOption.id] = direct.frequency * directWeight
       + video.frequency * videoWeight
-      + naturalFrequency * naturalWeight;
+      + naturalFrequency * fallbackNaturalBlendWeight;
     maximumDirectConfidence = Math.max(maximumDirectConfidence, directWeight);
     maximumVideoConfidence = Math.max(maximumVideoConfidence, videoWeight);
   }
@@ -187,8 +188,8 @@ function calculateCombinationScore(
   combination: Combination,
   options: Parameters<typeof chooseAiOffensiveLineout>[0]
 ): number {
-  const size = combination.slots.filter((slot) => slot.playerId).length as 4 | 5 | 6 | 7;
-  const naturalWeight = options.style.sizeWeights[size] ?? SELECTION.minimumWeight;
+  const size = combination.slots.filter((slot) => slot.playerId).length as 3 | 4 | 5 | 6 | 7;
+  const defaultSizeWeight = options.style.sizeWeights[size] ?? SELECTION.minimumWeight;
   const zone = AI.zoneSizeMultiplier[options.zone];
   const zoneMultiplier = size <= 5 ? zone.short : zone.long;
   const weaknesses = getPlayableOptions(combination).map((target) => (
@@ -204,7 +205,7 @@ function calculateCombinationScore(
   const repetitionPenalty = options.previous?.combinationId === combination.id
     ? getRepetitionPenalty(options.previous.outcome).combination
     : 0;
-  return naturalWeight * zoneMultiplier
+  return defaultSizeWeight * zoneMultiplier
     + memoryBonus
     + repetitionPenalty
     + randomAdjustment(options.rng);
@@ -222,8 +223,10 @@ function calculateOffensiveTargetScore(
   const adaptationEffective = (
     options.identity.aiIntelligence / SELECTION.intelligenceScale
   ) * weakness.confidence;
-  const usualWeight = targetOption.naturalWeight
-    * (options.style.naturalTargetWeights[targetOption.targetPosition] ?? 1);
+  const usualWeight = getTargetNaturalWeight(
+    targetOption,
+    options.style.naturalTargetWeights
+  );
   const tacticalScore = weakness.weakness * SELECTION.scoreScale;
   const repetitionPenalty = options.previous?.combinationId === combination.id
     && options.previous.targetPosition === targetOption.targetPosition
@@ -250,19 +253,12 @@ export function getRepetitionPenalty(outcome: LineoutOutcome): {
 function getPlayableOptions(combination: Combination): CombinationTargetOption[] {
   return (combination.targetOptions ?? []).filter((option) => {
     const rolePosition = option.type === "directCatch"
-      ? option.roles.receiverPosition
+      ? option.roles.directCatcherPosition
       : option.roles.jumperPosition;
     return Boolean(combination.slots.find(
       (slot) => slot.position === (rolePosition ?? option.targetPosition)
     )?.playerId);
   });
-}
-
-function getNaturalTargetWeight(
-  option: CombinationTargetOption,
-  style?: Partial<Record<LineoutPosition, number>>
-): number {
-  return Math.max(0, option.naturalWeight * (style?.[option.targetPosition] ?? 1));
 }
 
 function randomAdjustment(rng: RandomSource): number {

@@ -1,4 +1,5 @@
 import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations.ts";
+import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
 import {
   normalizeCombinationTargetOptions,
   type Combination,
@@ -50,22 +51,45 @@ export function normalizeOffensiveCombinations(combinations?: Combination[]): Co
     return DEFAULT_COMBINATIONS.map(cloneCombination);
   }
 
-  const normalizedById = new Map(combinations.map((combination) => [combination.id, cloneCombination(combination)]));
-  const orderedDefaults = DEFAULT_COMBINATIONS.map((combination) => {
-    const stored = normalizedById.get(combination.id);
-    if (!stored) return cloneCombination(combination);
-    return {
-      ...stored,
-      targetOptions: stored.targetOptions && stored.targetOptions.length > 0
-        ? stored.targetOptions
-        : normalizeCombinationTargetOptions(combination.targetOptions)
-    };
-  });
-  const additionalCombinations = combinations
-    .filter((combination) => !DEFAULT_COMBINATIONS.some((defaultCombination) => defaultCombination.id === combination.id))
-    .map(cloneCombination);
+  const storedCombinations = normalizeStoredOffensiveCombinations(combinations);
+  const normalizedById = new Map(
+    storedCombinations.map((combination) => [combination.id, combination])
+  );
+  const orderedDefaults = DEFAULT_COMBINATIONS.map((combination) => (
+    normalizedById.get(combination.id) ?? cloneCombination(combination)
+  ));
+  const additionalCombinations = storedCombinations.filter(
+    (combination) => !DEFAULT_COMBINATIONS.some(
+      (defaultCombination) => defaultCombination.id === combination.id
+    )
+  );
 
   return [...orderedDefaults, ...additionalCombinations];
+}
+
+export function normalizeStoredOffensiveCombinations(
+  combinations?: readonly Combination[]
+): Combination[] {
+  const normalizedById = new Map<string, Combination>();
+  for (const combination of combinations ?? []) {
+    const canonicalId = toCanonicalLineoutCombinationId(combination.id);
+    const current = normalizedById.get(canonicalId);
+    if (!current || combination.id === canonicalId) {
+      const defaultCombination = DEFAULT_COMBINATIONS.find((item) => item.id === canonicalId);
+      const validOptionIds = new Set(defaultCombination?.targetOptions?.map((option) => option.id));
+      const storedOptions = normalizeCombinationTargetOptions(combination.targetOptions)
+        .filter((option) => !defaultCombination || validOptionIds.has(option.id));
+      normalizedById.set(canonicalId, {
+        ...cloneCombination(combination),
+        id: canonicalId,
+        nameKey: defaultCombination ? `combo.${canonicalId}` : combination.nameKey,
+        targetOptions: storedOptions.length > 0
+          ? storedOptions
+          : normalizeCombinationTargetOptions(defaultCombination?.targetOptions)
+      });
+    }
+  }
+  return [...normalizedById.values()];
 }
 
 export function getActiveOffensiveCombinations(
@@ -106,8 +130,18 @@ export function getTargetPlayerId(
 
 export function getTargetOptionPlayerPosition(option: CombinationTargetOption): LineoutPosition {
   return (option.type === "directCatch"
-    ? option.roles.receiverPosition
+    ? option.roles.directCatcherPosition
     : option.roles.jumperPosition) ?? option.targetPosition;
+}
+
+export function getTargetNaturalWeight(
+  option: CombinationTargetOption,
+  teamTargetWeights?: Partial<Record<LineoutPosition, number>>
+): number {
+  return Math.max(
+    0,
+    teamTargetWeights?.[option.targetPosition] ?? option.defaultNaturalWeight
+  );
 }
 
 export function getCombinationTargetPositions(combination: Combination): LineoutPosition[] {

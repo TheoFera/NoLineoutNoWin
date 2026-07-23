@@ -9,7 +9,7 @@ export type CombinationTargetRoles = {
   jumperPosition?: LineoutPosition;
   frontLifterPosition?: LineoutPosition;
   rearLifterPosition?: LineoutPosition;
-  receiverPosition?: LineoutPosition;
+  directCatcherPosition?: LineoutPosition;
 };
 
 export type CombinationTargetOption = {
@@ -17,7 +17,17 @@ export type CombinationTargetOption = {
   targetPosition: LineoutPosition;
   type: "jumpBlock" | "directCatch";
   roles: CombinationTargetRoles;
-  naturalWeight: number;
+  defaultNaturalWeight: number;
+};
+
+type StoredCombinationTargetOption = Omit<CombinationTargetOption, "roles" | "defaultNaturalWeight"> & {
+  roles: CombinationTargetRoles & {
+    /** Ancien nom lu uniquement pendant la migration des sauvegardes. */
+    receiverPosition?: LineoutPosition;
+  };
+  defaultNaturalWeight?: number;
+  /** Ancien nom lu uniquement pendant la migration des sauvegardes. */
+  naturalWeight?: number;
 };
 
 export type LineoutCombinationDefinition = {
@@ -44,7 +54,7 @@ export type OffensiveRepertoire = {
 };
 
 export function normalizeCombinationTargetOptions(
-  options?: readonly CombinationTargetOption[]
+  options?: readonly StoredCombinationTargetOption[]
 ): CombinationTargetOption[] {
   const seen = new Set<string>();
   const normalized: CombinationTargetOption[] = [];
@@ -56,15 +66,25 @@ export function normalizeCombinationTargetOptions(
     }
 
     seen.add(id);
+    const {
+      naturalWeight: legacyNaturalWeight,
+      defaultNaturalWeight,
+      ...currentOption
+    } = option;
     normalized.push({
-      ...option,
+      ...currentOption,
       id,
-      naturalWeight: Math.max(0, option.naturalWeight),
+      defaultNaturalWeight: Math.max(
+        0,
+        defaultNaturalWeight ?? legacyNaturalWeight ?? 0
+      ),
       roles: {
         jumperPosition: normalizeOptionalPosition(option.roles.jumperPosition),
         frontLifterPosition: normalizeOptionalPosition(option.roles.frontLifterPosition),
         rearLifterPosition: normalizeOptionalPosition(option.roles.rearLifterPosition),
-        receiverPosition: normalizeOptionalPosition(option.roles.receiverPosition)
+        directCatcherPosition: normalizeOptionalPosition(
+          option.roles.directCatcherPosition ?? option.roles.receiverPosition
+        )
       }
     });
   }

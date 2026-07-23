@@ -8,7 +8,7 @@ export type JerseyColors = {
 };
 
 export type TeamLineoutStyle = {
-  sizeWeights: Partial<Record<4 | 5 | 6 | 7, number>>;
+  sizeWeights: Partial<Record<3 | 4 | 5 | 6 | 7, number>>;
   naturalTargetWeights: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7, number>>;
 };
 

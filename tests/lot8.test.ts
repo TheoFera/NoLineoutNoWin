@@ -38,8 +38,8 @@ function combination(id: string, size: 4 | 7, targets: LineoutPosition[]): Combi
       id: `${id}-target-${position}`,
       targetPosition: position,
       type: "directCatch" as const,
-      roles: { receiverPosition: position },
-      naturalWeight: 50
+      roles: { directCatcherPosition: position },
+      defaultNaturalWeight: 50
     }))
   };
 }

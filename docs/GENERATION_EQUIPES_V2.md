@@ -102,12 +102,22 @@ Toutes les combinaisons existantes sont stockées dans un fichier de données un
 src/data/LineoutCombinations.ts
 ```
 
+La bibliothèque couvre exhaustivement toutes les dispositions de 3 à 7
+joueurs parmi les 7 positions. Pour chaque disposition générée, elle expose
+toutes les réceptions directes et tous les blocs de saut autorisés par les
+règles ci-dessous.
+
 Chaque combinaison contient uniquement :
 
 - un identifiant stable ;
 - les positions occupées ;
 - les options de lancer ;
 - les rôles par option.
+
+Pour une réception directe ciblant la position `P`, les positions `P - 1` et
+`P - 2` qui existent doivent toutes les deux être libres. La présence d'un
+seul joueur de la même équipe dans l'une de ces deux positions invalide
+l'option. Cette contrainte ne s'applique pas aux blocs de saut.
 
 Les propriétés suivantes doivent être déduites du positionnement et ne doivent pas être dupliquées :
 
@@ -197,4 +207,3 @@ Générer les statistiques
 ```
 
 Ne pas régénérer sans fin toute l’équipe. Le générateur doit être déterministe avec une graine et produire un rapport de validation exploitable dans les tests.
-
