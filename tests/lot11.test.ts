@@ -224,6 +224,10 @@ test("defensive layouts survive a complete local save reload", () => {
 });
 
 test("rugby player poses fall back through medium_standard before stand_front", () => {
+  assert.deepEqual(resolveRugbyPlayerAssetSet("small_large", "hand"), {
+    bodyShape: "medium_standard",
+    pose: "hand"
+  });
   assert.deepEqual(resolveRugbyPlayerAssetSet("large_large", "hooker_throw_back"), {
     bodyShape: "medium_standard",
     pose: "hooker_throw_back"

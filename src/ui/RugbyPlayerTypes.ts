@@ -1,6 +1,7 @@
 export const RUGBY_PLAYER_POSE_NAMES = [
   "stand_front",
   "stand_back",
+  "hand",
   "hooker_ready_back",
   "hooker_throw_back",
   "jumper_catch_front",

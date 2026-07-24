@@ -17,7 +17,6 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   readonly player: FieldPlayer;
   private tokenBody: Phaser.GameObjects.GameObject;
   private selectionRing: Phaser.GameObjects.Ellipse;
-  private targetRing: Phaser.GameObjects.Ellipse;
   private hitTarget: Phaser.GameObjects.Zone;
   private numberText: Phaser.GameObjects.Text;
   private rugbyPlayer?: RugbyPlayer;
@@ -42,16 +41,13 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     // Keep the interactive zone tighter than the full sprite so stacked lineout players stay individually draggable.
     this.hitTarget = scene.add.zone(-hitboxWidth / 2, -hitboxHeight + 4, hitboxWidth, hitboxHeight).setOrigin(0);
     this.selectionRing = scene.add.ellipse(0, -ringHeight / 2 + 4, ringWidth, ringHeight).setStrokeStyle(4, UI.colors.accent).setVisible(false);
-    this.targetRing = scene.add.ellipse(0, -ringHeight / 2 + 4, ringWidth + 6, ringHeight + 6)
-      .setStrokeStyle(2, 0x86efac, 0.95)
-      .setVisible(false);
     this.tokenBody = this.createBody(scene, color, visualConfig);
     this.numberText = scene.add.text(0, -Math.max(12, (visualConfig?.displayHeight ?? 64) * 0.42), String(player.number), {
       font: "bold 12px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
     const roleIcons = this.createRoleIcons(scene, player, visualConfig);
-    this.add([this.targetRing, this.selectionRing, this.hitTarget, this.tokenBody, this.numberText, ...roleIcons]);
+    this.add([this.selectionRing, this.hitTarget, this.tokenBody, this.numberText, ...roleIcons]);
     this.hitTarget.setInteractive({ useHandCursor: true });
     this.hitTarget.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       this.emit("pointerdown", pointer);
@@ -68,7 +64,11 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   }
 
   setTargetable(targetable: boolean): void {
-    this.targetRing.setVisible(targetable);
+    if (targetable) {
+      this.rugbyPlayer?.setPose("hand");
+    } else {
+      this.resetPose();
+    }
     this.setAlpha(targetable ? 1 : 0.68);
   }
 
