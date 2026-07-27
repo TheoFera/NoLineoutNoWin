@@ -22,13 +22,14 @@ import {
   replaceCombinationLayout
 } from "../rules/CombinationRules";
 import { resolveLineout } from "../rules/LineoutResolver";
+import { rebuildPlayableCombinationTargets } from "../rules/LineoutCombinationAssignment";
+import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { buildLineoutResultPresentation, type LineoutResultDetail } from "../rules/LineoutResultPresentation";
 import { applyLineoutResolutionToMatch } from "../rules/MatchSimulator";
 import { addUsage } from "../rules/PlayerProgression";
 import type { Combination, LineoutPosition } from "../models/Combination";
 import type { LineoutResult } from "../models/Lineout";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
-import { isLikelyJumper, isLikelyLifter } from "../models/Player";
 import type { FieldPlayer, Hooker } from "../models/Player";
 import { PlayerToken } from "../ui/PlayerToken";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
@@ -168,6 +169,11 @@ export class LineoutScene extends Phaser.Scene {
     this.selectedCombination = visibleCombinations.find((combination) => combination.id === this.selectedCombinationId)
       ?? visibleCombinations[0]
       ?? this.allCombinations[0];
+    this.selectedCombination = rebuildPlayableCombinationTargets(
+      this.selectedCombination,
+      save.playerTeam.hooker,
+      save.playerTeam.lineoutPlayers
+    );
 
     this.primeSlotOccupancy(save.playerTeam.lineoutPlayers);
     const layout = this.getLayout();
@@ -627,7 +633,6 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchAttackToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      this.hidePlayerInspector();
       this.dragState = {
         origin: { kind: "match-attack" },
         pointer,
@@ -746,6 +751,12 @@ export class LineoutScene extends Phaser.Scene {
 
   private handleTap(drag: DragState): void {
     if (drag.origin.kind === "match-attack") {
+      const targetPosition = drag.token.getData("lineoutPosition") as LineoutPosition | undefined;
+      if (!findCombinationTargetOption(this.selectedCombination, targetPosition ?? null)) {
+        this.setInspectedPlayer(drag.token.player);
+        return;
+      }
+      this.hidePlayerInspector();
       this.throwLineout(drag.token.player.id);
       return;
     }
@@ -1171,10 +1182,10 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     const roles: string[] = [];
-    if (isLikelyJumper(this.inspectedPlayer)) {
+    if (canBeLineoutJumper(this.inspectedPlayer)) {
       roles.push(t("lineout.role.jumper"));
     }
-    if (isLikelyLifter(this.inspectedPlayer)) {
+    if (canBeLineoutLifter(this.inspectedPlayer)) {
       roles.push(t("lineout.role.lifter"));
     }
 
@@ -1386,8 +1397,15 @@ export class LineoutScene extends Phaser.Scene {
         outcome: previousEntry.officialOutcome as NonNullable<typeof previousEntry.officialOutcome>
       }
       : undefined;
+    const playableCombinations = match.away.offensiveCombinations.map((combination) => (
+      rebuildPlayableCombinationTargets(
+        combination,
+        match.away.hooker,
+        match.away.fieldPlayers
+      )
+    ));
     const decision = chooseAiOffensiveLineout({
-      combinations: match.away.offensiveCombinations,
+      combinations: playableCombinations,
       repertoire: match.away.offensiveRepertoire,
       style: match.away.lineoutStyle,
       zone: this.getOpponentFieldZone(this.currentMatchLineout?.pitchZone ?? "middle"),

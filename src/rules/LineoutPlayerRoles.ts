@@ -1,0 +1,10 @@
+import { LINEOUT_BALANCE } from "../config/LineoutBalance";
+import type { FieldPlayer } from "../models/Player";
+
+export function canBeLineoutJumper(player: FieldPlayer): boolean {
+  return player.jump >= LINEOUT_BALANCE.generation.roleThreshold;
+}
+
+export function canBeLineoutLifter(player: FieldPlayer): boolean {
+  return player.lift >= LINEOUT_BALANCE.generation.roleThreshold;
+}

@@ -137,6 +137,17 @@ function createGeneratedDefinition(
   occupiedPositions: LineoutPosition[]
 ): LineoutCombinationDefinition {
   const id = `formation_${occupiedPositions.length}_${occupiedPositions.join("")}`;
+  return {
+    id,
+    occupiedPositions,
+    targetOptions: createTargetOptionsForFormation(id, occupiedPositions)
+  };
+}
+
+export function createTargetOptionsForFormation(
+  combinationId: string,
+  occupiedPositions: readonly LineoutPosition[]
+): CombinationTargetOption[] {
   const occupied = new Set(occupiedPositions);
   const targetDescriptions = occupiedPositions.flatMap((targetPosition) => {
     const descriptions: Array<{
@@ -157,21 +168,17 @@ function createGeneratedDefinition(
   });
   const defaultNaturalWeight = 100 / targetDescriptions.length;
 
-  return {
-    id,
-    occupiedPositions,
-    targetOptions: targetDescriptions.map(({ targetPosition, type }) => ({
-      id: `${id}-${type === "jumpBlock" ? "jump" : "direct"}-${targetPosition}`,
-      targetPosition,
-      type,
-      roles: type === "jumpBlock"
-        ? {
-          frontLifterPosition: (targetPosition - 1) as LineoutPosition,
-          jumperPosition: targetPosition,
-          rearLifterPosition: (targetPosition + 1) as LineoutPosition
-        }
-        : { directCatcherPosition: targetPosition },
-      defaultNaturalWeight
-    }))
-  };
+  return targetDescriptions.map(({ targetPosition, type }) => ({
+    id: `${combinationId}-${type === "jumpBlock" ? "jump" : "direct"}-${targetPosition}`,
+    targetPosition,
+    type,
+    roles: type === "jumpBlock"
+      ? {
+        frontLifterPosition: (targetPosition - 1) as LineoutPosition,
+        jumperPosition: targetPosition,
+        rearLifterPosition: (targetPosition + 1) as LineoutPosition
+      }
+      : { directCatcherPosition: targetPosition },
+    defaultNaturalWeight
+  }));
 }

@@ -1,5 +1,8 @@
 import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
-import { LINEOUT_COMBINATIONS } from "../data/LineoutCombinations.ts";
+import {
+  createTargetOptionsForFormation,
+  LINEOUT_COMBINATIONS
+} from "../data/LineoutCombinations.ts";
 import type {
   Combination,
   CombinationTargetOption,
@@ -78,7 +81,7 @@ export function assignPlayersToCombination(
     availablePlayers,
     (playersByPosition) => {
       const eligibleOptions = throwEligibleOptions.filter((option) => (
-        isOptionEligible(option, playersByPosition)
+        isTargetOptionEligible(option, playersByPosition)
       ));
       if (eligibleOptions.length === 0) return;
       const score = eligibleOptions.reduce(
@@ -159,7 +162,7 @@ export function assignTeamLineoutRepertoire(options: {
   };
 }
 
-function isOptionEligible(
+export function isTargetOptionEligible(
   option: CombinationTargetOption,
   playersByPosition: PlayerByPosition
 ): boolean {
@@ -176,6 +179,61 @@ function isOptionEligible(
 
   return calculateExpectedJump(jumper, rearLifter, frontLifter)
     >= GENERATION.minimumExpectedJump;
+}
+
+export function rebuildPlayableCombinationTargets(
+  combination: Combination,
+  hooker: Hooker,
+  availablePlayers: readonly FieldPlayer[]
+): Combination {
+  const playersById = new Map(availablePlayers.map((player) => [player.id, player]));
+  const playersByPosition: PlayerByPosition = {};
+  const occupiedPositions: LineoutPosition[] = [];
+
+  for (const slot of combination.slots) {
+    if (!slot.playerId || playersByPosition[slot.position]) {
+      continue;
+    }
+    const player = playersById.get(slot.playerId);
+    if (!player) {
+      continue;
+    }
+    playersByPosition[slot.position] = player;
+    occupiedPositions.push(slot.position);
+  }
+
+  occupiedPositions.sort((left, right) => left - right);
+  const storedOptions = combination.targetOptions ?? [];
+  const playableOptions = createTargetOptionsForFormation(
+    combination.id,
+    occupiedPositions
+  )
+    .map((generatedOption) => {
+      const storedOption = storedOptions.find((option) => (
+        option.type === generatedOption.type
+        && option.targetPosition === generatedOption.targetPosition
+      ));
+      return storedOption ? cloneOption(storedOption) : generatedOption;
+    })
+    .filter((option) => (
+      calculateStraightThrowProbability(hooker.throwing, option.targetPosition) >= 0.5
+      && isTargetOptionEligible(option, playersByPosition)
+    ));
+  const totalNaturalWeight = playableOptions.reduce(
+    (total, option) => total + Math.max(0, option.defaultNaturalWeight),
+    0
+  );
+
+  return {
+    ...combination,
+    slots: combination.slots.map((slot) => ({ ...slot })),
+    targetOptions: playableOptions.map((option) => ({
+      ...cloneOption(option),
+      defaultNaturalWeight: totalNaturalWeight > 0
+        ? (Math.max(0, option.defaultNaturalWeight) / totalNaturalWeight) * 100
+        : 100 / Math.max(1, playableOptions.length)
+    }))
+  };
 }
 
 export function calculateExpectedJump(

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
-import { isLikelyJumper, isLikelyLifter } from "../models/Player";
 import type { FieldPlayer } from "../models/Player";
+import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { RugbyPlayer } from "./RugbyPlayer";
 import type { BodyShapeName, Kit, PoseName } from "./RugbyPlayerTypes";
 import { UI } from "./UITheme";
@@ -125,13 +125,13 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     const jumperX = Math.round(bodyWidth / 2) + 10;
     const lifterX = -jumperX;
 
-    if (isLikelyJumper(player)) {
+    if (canBeLineoutJumper(player)) {
       const bg = scene.add.circle(jumperX, iconY, 8, UI.colors.accent, 1).setStrokeStyle(1, 0x3f2d00);
       const text = scene.add.text(jumperX, iconY, "S", { font: "bold 10px Arial", color: "#1f2937" }).setOrigin(0.5);
       icons.push(bg, text);
     }
 
-    if (isLikelyLifter(player)) {
+    if (canBeLineoutLifter(player)) {
       const bg = scene.add.circle(lifterX, iconY, 8, 0x0f3d2b, 1).setStrokeStyle(1, UI.colors.line);
       const text = scene.add.text(lifterX, iconY, "L", { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
       icons.push(bg, text);

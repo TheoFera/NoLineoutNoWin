@@ -58,6 +58,17 @@ export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): vo
   }
 }
 
+export function useCrispRugbyPlayerTextures(textures: Phaser.Textures.TextureManager): void {
+  for (const { bodyShape, pose } of AVAILABLE_RUGBY_PLAYER_ASSET_SETS) {
+    for (const layer of RUGBY_PLAYER_LAYER_NAMES) {
+      const textureKey = getRugbyPlayerTextureKey(bodyShape, pose, layer);
+      if (textures.exists(textureKey)) {
+        textures.get(textureKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
+  }
+}
+
 function resolveAssetSet(bodyShape: BodyShapeName, pose: PoseName): { bodyShape: BodyShapeName; pose: PoseName } {
   return resolveRugbyPlayerAssetSet(bodyShape, pose);
 }

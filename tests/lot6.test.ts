@@ -9,7 +9,8 @@ import type { FieldPlayer, Hooker } from "../src/models/Player.ts";
 import {
   assignPlayersToCombination,
   assignTeamLineoutRepertoire,
-  calculateStraightThrowProbability
+  calculateStraightThrowProbability,
+  rebuildPlayableCombinationTargets
 } from "../src/rules/LineoutCombinationAssignment.ts";
 import { replaceFailedActiveCombinations } from "../src/rules/LineoutRepertoire.ts";
 import {
@@ -147,6 +148,30 @@ test("direct-catch availability requires both positions in front to be empty", (
   assert.equal(isDirectCatchTargetAvailable([1, 2, 5], 5), true);
   assert.equal(isDirectCatchTargetAvailable([1, 3, 5], 5), false);
   assert.equal(isDirectCatchTargetAvailable([1, 4, 5], 5), false);
+});
+
+test("playable targets follow the current player layout instead of stale saved options", () => {
+  const definition = LINEOUT_COMBINATIONS.find((item) => item.id === "safe_front");
+  assert.ok(definition);
+  const currentPlayers = [
+    player("front"),
+    { ...player("former-jumper"), jump: 40, lift: 80 },
+    player("current-jumper"),
+    player("back")
+  ];
+  const rebuilt = rebuildPlayableCombinationTargets({
+    ...definition,
+    nameKey: "combo.safe_front",
+    slots: currentPlayers.map((currentPlayer, index) => ({
+      position: (index + 1) as 1 | 2 | 3 | 4,
+      playerId: currentPlayer.id
+    }))
+  }, hooker(100), currentPlayers);
+
+  assert.deepEqual(
+    rebuilt.targetOptions?.map((option) => `${option.type}:${option.targetPosition}`),
+    ["directCatch:1", "jumpBlock:3"]
+  );
 });
 
 test("definition validation rejects invalid direct catches and missing roles", () => {

@@ -2,7 +2,10 @@ import Phaser from "phaser";
 import { t } from "../systems/I18n";
 import { replaceNavigationState } from "../systems/Navigation";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
-import { preloadRugbyPlayerAssets } from "../ui/RugbyPlayerAssets";
+import {
+  preloadRugbyPlayerAssets,
+  useCrispRugbyPlayerTextures
+} from "../ui/RugbyPlayerAssets";
 import { UI } from "../ui/UITheme";
 
 const LOADING_BAR_X = 37;
@@ -28,6 +31,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
+    useCrispRugbyPlayerTextures(this.textures);
     replaceNavigationState("MainMenuScene");
     this.scene.start("MainMenuScene");
   }

@@ -64,12 +64,15 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
   }
 
   setVisualSize(width: number, height: number): this {
-    this.bodyLayer.setDisplaySize(width, height);
-    this.jerseyLayer.setDisplaySize(width, height);
-    this.shortsLayer.setDisplaySize(width, height);
-    this.socksLayer.setDisplaySize(width, height);
-    this.detailsLayer?.setDisplaySize(width, height);
-    this.setSize(width, height);
+    const scale = Math.min(width / this.bodyLayer.width, height / this.bodyLayer.height);
+    const displayWidth = Math.round(this.bodyLayer.width * scale);
+    const displayHeight = Math.round(this.bodyLayer.height * scale);
+    this.bodyLayer.setDisplaySize(displayWidth, displayHeight);
+    this.jerseyLayer.setDisplaySize(displayWidth, displayHeight);
+    this.shortsLayer.setDisplaySize(displayWidth, displayHeight);
+    this.socksLayer.setDisplaySize(displayWidth, displayHeight);
+    this.detailsLayer?.setDisplaySize(displayWidth, displayHeight);
+    this.setSize(displayWidth, displayHeight);
     return this;
   }
 
