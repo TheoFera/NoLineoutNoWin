@@ -503,7 +503,7 @@ export class LineoutScene extends Phaser.Scene {
       this.bindMatchAttackToken(token);
       this.attackTokens.push(token);
     });
-    this.markOffensiveTargets();
+    this.markTargetablePlayers(this.attackTokens, this.selectedCombination);
 
     const attackCount = Math.max(2, countAssignedPlayers(this.selectedCombination));
     const defense = buildDefensivePlan(opponentPlayers, attackCount);
@@ -590,6 +590,9 @@ export class LineoutScene extends Phaser.Scene {
       this.bindOpponentInspectorToken(token);
       this.defenseTokens.push(token);
     });
+    if (this.opponentCombination) {
+      this.markTargetablePlayers(this.defenseTokens, this.opponentCombination);
+    }
   }
 
   private bindTrainingSlotToken(token: PlayerToken, slotIndex: number): void {
@@ -1463,9 +1466,9 @@ export class LineoutScene extends Phaser.Scene {
     return Phaser.Math.Clamp(rawPosition, 1, maxPosition) as LineoutPosition;
   }
 
-  private markOffensiveTargets(): void {
-    const positions = new Set(getCombinationTargetPositions(this.selectedCombination));
-    this.attackTokens.forEach((token) => {
+  private markTargetablePlayers(tokens: readonly PlayerToken[], combination: Combination): void {
+    const positions = new Set(getCombinationTargetPositions(combination));
+    tokens.forEach((token) => {
       const position = token.getData("lineoutPosition") as LineoutPosition | undefined;
       token.setTargetable(position !== undefined && positions.has(position));
     });

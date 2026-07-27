@@ -99,6 +99,23 @@ test("only declared target options are exposed for the selected combination", ()
   assert.equal(findCombinationTargetOption(combination, 5), undefined);
 });
 
+test("direct receivers and jumpers are both exposed as targetable positions", () => {
+  const definition = LINEOUT_COMBINATIONS.find((item) => item.id === "quick_four");
+  assert.ok(definition);
+  const combination: Combination = {
+    ...definition,
+    nameKey: "combo.quick_four",
+    slots: definition.occupiedPositions.map((position) => ({
+      position,
+      playerId: `player-${position}`
+    }))
+  };
+
+  assert.deepEqual(getCombinationTargetPositions(combination), [1, 3]);
+  assert.equal(findCombinationTargetOption(combination, 1)?.type, "directCatch");
+  assert.equal(findCombinationTargetOption(combination, 3)?.type, "jumpBlock");
+});
+
 test("a match requires at least one combination containing two players", () => {
   const definition = LINEOUT_COMBINATIONS[0];
   assert.ok(definition);
