@@ -1071,7 +1071,7 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    targetToken.setPose("jumper_catch_front");
+    targetToken.setPose("jumper");
     this.tweens.add({
       targets: targetToken,
       y: targetToken.y - 28,

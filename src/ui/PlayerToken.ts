@@ -69,7 +69,7 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     } else {
       this.resetPose();
     }
-    this.setAlpha(targetable ? 1 : 0.68);
+    this.setAlpha(1);
   }
 
   override disableInteractive(): this {

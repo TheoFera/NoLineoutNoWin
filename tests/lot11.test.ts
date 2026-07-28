@@ -253,6 +253,10 @@ test("rugby player poses fall back through medium_standard before stand_front", 
     bodyShape: "medium_standard",
     pose: "lifter_front"
   });
+  assert.deepEqual(resolveRugbyPlayerAssetSet("large_slim", "jumper"), {
+    bodyShape: "medium_standard",
+    pose: "jumper"
+  });
   assert.deepEqual(resolveRugbyPlayerAssetSet("large_large", "hooker_ready_back"), {
     bodyShape: "medium_standard",
     pose: "stand_front"
