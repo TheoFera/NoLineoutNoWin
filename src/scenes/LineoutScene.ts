@@ -32,6 +32,11 @@ import type { LineoutResult } from "../models/Lineout";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
 import type { FieldPlayer, Hooker } from "../models/Player";
 import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
+import {
+  getLifterAnimationConfig,
+  getLineoutLiftSequenceDurationMs,
+  LINEOUT_LIFT_ANIMATION
+} from "../ui/LineoutLiftAnimation";
 import { PlayerToken } from "../ui/PlayerToken";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
@@ -1003,7 +1008,6 @@ export class LineoutScene extends Phaser.Scene {
     const strokeColor = throwingSide === "us" ? 0x1d4ed8 : UI.colors.defense;
     const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor);
     ball.setDepth(this.getPlayerDepth(startY) + PLAYER_LABEL_DEPTH_OFFSET);
-    const defendingSide = throwingSide === "us" ? "opponent" : "us";
     const defendingTargetToken = defendingJumpPosition
       ? defendingTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === defendingJumpPosition)
       : undefined;
@@ -1014,57 +1018,59 @@ export class LineoutScene extends Phaser.Scene {
       })
       : [];
 
-    // On change juste quelques poses le temps du lancer pour garder l'animation tres simple.
     this.hookerSprite?.setPose("hooker_throw_back");
-    this.animateJumpGroup(throwingSide, supportTokens, targetToken);
-    this.animateJumpGroup(defendingSide, defendingSupportTokens, defendingTargetToken);
+    this.time.delayedCall(LINEOUT_LIFT_ANIMATION.hookerReleaseDelayMs, () => {
+      this.hookerSprite?.setPose("lifter_front");
+    });
+    this.animateJumpGroup(supportTokens, targetToken);
+    this.animateJumpGroup(defendingSupportTokens, defendingTargetToken);
 
     this.tweens.add({
       targets: ball,
       x: targetX,
       y: targetY,
       angle: 18,
-      duration: 320,
+      duration: LINEOUT_LIFT_ANIMATION.ballFlightDurationMs,
       ease: "Sine.easeOut",
       onUpdate: () => {
         ball.setDepth(this.getPlayerDepth(ball.y) + PLAYER_LABEL_DEPTH_OFFSET);
       },
       onComplete: () => {
         ball.destroy();
-        supportTokens.forEach((token) => {
-          token.resetPose();
-        });
-        defendingSupportTokens.forEach((token) => {
-          token.resetPose();
-        });
-        targetToken?.resetPose();
-        defendingTargetToken?.resetPose();
-        this.time.delayedCall(120, onComplete);
       }
     });
+    this.time.delayedCall(getLineoutLiftSequenceDurationMs(), onComplete);
   }
 
   private animateJumpGroup(
-    side: "us" | "opponent",
     supportTokens: PlayerToken[],
     targetToken?: PlayerToken
   ): void {
-    const supportPose = side === "us" ? "lifter_front" : "lifter_back";
     const targetPosition = targetToken?.getData("lineoutPosition") as LineoutPosition | undefined;
 
     supportTokens.forEach((token) => {
       const supportPosition = token.getData("lineoutPosition") as LineoutPosition | undefined;
-      if (targetPosition !== undefined && supportPosition === targetPosition - 1) {
-        token.setPose(supportPose);
+      if (targetPosition === undefined || supportPosition === undefined) {
+        return;
       }
+
+      const animationConfig = getLifterAnimationConfig(supportPosition, targetPosition);
+      if (!animationConfig) {
+        return;
+      }
+
+      const originalY = token.y;
       this.tweens.add({
         targets: token,
-        y: token.y - 10,
-        duration: 180,
-        yoyo: true,
+        y: originalY + animationConfig.approachOffsetY,
+        duration: LINEOUT_LIFT_ANIMATION.approachDurationMs,
         ease: "Sine.easeInOut",
         onUpdate: () => {
           this.syncPlayerTokenDepth(token);
+        },
+        onComplete: () => {
+          token.setPose(animationConfig.pose);
+          this.animateLifterSupport(token, originalY);
         }
       });
     });
@@ -1073,15 +1079,53 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    targetToken.setPose("jumper");
+    const originalTargetY = targetToken.y;
+    this.time.delayedCall(LINEOUT_LIFT_ANIMATION.approachDurationMs, () => {
+      targetToken.setPose("jumper");
+      this.tweens.add({
+        targets: targetToken,
+        y: originalTargetY - LINEOUT_LIFT_ANIMATION.jumperLiftHeightPixels,
+        duration: LINEOUT_LIFT_ANIMATION.jumperLiftDurationMs,
+        hold: LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs,
+        yoyo: true,
+        ease: "Sine.easeOut",
+        onUpdate: () => {
+          this.syncPlayerTokenDepth(targetToken);
+        },
+        onComplete: () => {
+          targetToken.y = originalTargetY;
+          this.syncPlayerTokenDepth(targetToken);
+          targetToken.resetPose();
+        }
+      });
+    });
+  }
+
+  private animateLifterSupport(token: PlayerToken, originalY: number): void {
     this.tweens.add({
-      targets: targetToken,
-      y: targetToken.y - 28,
-      duration: 220,
+      targets: token,
+      y: token.y - LINEOUT_LIFT_ANIMATION.supportLiftHeightPixels,
+      duration: LINEOUT_LIFT_ANIMATION.supportLiftDurationMs,
       yoyo: true,
-      ease: "Sine.easeOut",
+      ease: "Sine.easeInOut",
       onUpdate: () => {
-        this.syncPlayerTokenDepth(targetToken);
+        this.syncPlayerTokenDepth(token);
+      },
+      onComplete: () => {
+        token.resetPose();
+        this.tweens.add({
+          targets: token,
+          y: originalY,
+          duration: LINEOUT_LIFT_ANIMATION.supportReturnDurationMs,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            this.syncPlayerTokenDepth(token);
+          },
+          onComplete: () => {
+            token.y = originalY;
+            this.syncPlayerTokenDepth(token);
+          }
+        });
       }
     });
   }

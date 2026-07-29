@@ -23,6 +23,11 @@ import {
   areJerseyColorsTooSimilar,
   getContrastingOpponentColors
 } from "../src/ui/JerseyColorContrast.ts";
+import {
+  getLifterAnimationConfig,
+  getLineoutLiftSequenceDurationMs,
+  LINEOUT_LIFT_ANIMATION
+} from "../src/ui/LineoutLiftAnimation.ts";
 import { resolveRugbyPlayerAssetSet } from "../src/ui/RugbyPlayerAssetResolver.ts";
 
 const outcomeTitleKeys: Record<LineoutOutcome, string> = {
@@ -289,4 +294,19 @@ test("opponent jersey colors are swapped only when both primary colors are too s
     ),
     { primary: 0x2563eb, secondary: 0xfacc15 }
   );
+});
+
+test("lifters approach the jumper before using their dedicated lifting poses", () => {
+  assert.deepEqual(getLifterAnimationConfig(3, 4), {
+    pose: "lifter_front",
+    approachOffsetY: -7
+  });
+  assert.deepEqual(getLifterAnimationConfig(5, 4), {
+    pose: "hand",
+    approachOffsetY: 7
+  });
+  assert.equal(getLifterAnimationConfig(2, 4), undefined);
+  assert.equal(LINEOUT_LIFT_ANIMATION.hookerReleaseDelayMs, LINEOUT_LIFT_ANIMATION.approachDurationMs);
+  assert.equal(LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs, 120);
+  assert.equal(getLineoutLiftSequenceDurationMs(), 710);
 });
