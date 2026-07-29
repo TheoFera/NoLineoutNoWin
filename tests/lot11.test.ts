@@ -299,11 +299,11 @@ test("opponent jersey colors are swapped only when both primary colors are too s
 test("lifters approach the jumper before using their dedicated lifting poses", () => {
   assert.deepEqual(getLifterAnimationConfig(3, 4), {
     pose: "lifter_front",
-    approachOffsetY: -7
+    approachOffsetY: -10
   });
   assert.deepEqual(getLifterAnimationConfig(5, 4), {
     pose: "hand",
-    approachOffsetY: 7
+    approachOffsetY: 10
   });
   assert.equal(getLifterAnimationConfig(2, 4), undefined);
   assert.equal(LINEOUT_LIFT_ANIMATION.hookerReleaseDelayMs, LINEOUT_LIFT_ANIMATION.approachDurationMs);

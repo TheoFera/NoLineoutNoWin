@@ -579,6 +579,7 @@ export class LineoutScene extends Phaser.Scene {
         }
       );
       token.setData("lineoutPosition", position);
+      token.setTargetable(canBeLineoutJumper(player));
       this.syncPlayerTokenDepth(token);
       this.bindMatchDefenseToken(token);
       this.attackTokens.push(token);
@@ -1047,6 +1048,7 @@ export class LineoutScene extends Phaser.Scene {
     targetToken?: PlayerToken
   ): void {
     const targetPosition = targetToken?.getData("lineoutPosition") as LineoutPosition | undefined;
+    const activeSupportTokens: PlayerToken[] = [];
 
     supportTokens.forEach((token) => {
       const supportPosition = token.getData("lineoutPosition") as LineoutPosition | undefined;
@@ -1059,18 +1061,20 @@ export class LineoutScene extends Phaser.Scene {
         return;
       }
 
-      const originalY = token.y;
+      activeSupportTokens.push(token);
+      const approachedY = token.y + animationConfig.approachOffsetY;
       this.tweens.add({
         targets: token,
-        y: originalY + animationConfig.approachOffsetY,
+        y: approachedY,
         duration: LINEOUT_LIFT_ANIMATION.approachDurationMs,
         ease: "Sine.easeInOut",
         onUpdate: () => {
           this.syncPlayerTokenDepth(token);
         },
         onComplete: () => {
+          token.y = approachedY;
+          this.syncPlayerTokenDepth(token);
           token.setPose(animationConfig.pose);
-          this.animateLifterSupport(token, originalY);
         }
       });
     });
@@ -1096,37 +1100,11 @@ export class LineoutScene extends Phaser.Scene {
           targetToken.y = originalTargetY;
           this.syncPlayerTokenDepth(targetToken);
           targetToken.resetPose();
+          activeSupportTokens.forEach((token) => {
+            token.resetPose();
+          });
         }
       });
-    });
-  }
-
-  private animateLifterSupport(token: PlayerToken, originalY: number): void {
-    this.tweens.add({
-      targets: token,
-      y: token.y - LINEOUT_LIFT_ANIMATION.supportLiftHeightPixels,
-      duration: LINEOUT_LIFT_ANIMATION.supportLiftDurationMs,
-      yoyo: true,
-      ease: "Sine.easeInOut",
-      onUpdate: () => {
-        this.syncPlayerTokenDepth(token);
-      },
-      onComplete: () => {
-        token.resetPose();
-        this.tweens.add({
-          targets: token,
-          y: originalY,
-          duration: LINEOUT_LIFT_ANIMATION.supportReturnDurationMs,
-          ease: "Sine.easeInOut",
-          onUpdate: () => {
-            this.syncPlayerTokenDepth(token);
-          },
-          onComplete: () => {
-            token.y = originalY;
-            this.syncPlayerTokenDepth(token);
-          }
-        });
-      }
     });
   }
 
