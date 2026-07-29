@@ -23,6 +23,7 @@ import { createEmptyUsage } from "../rules/PlayerProgression";
 import type { MatchSimulationAction, MatchStateData } from "../models/Match";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
@@ -156,11 +157,12 @@ export class MatchScene extends Phaser.Scene {
     const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
     const roundedPossession = Math.round(match.possession);
     const roundedOccupation = Math.round(match.occupation);
+    const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
 
     this.add.rectangle(98, 42, 196, 76, match.home.colors.primary, 0.98)
       .setStrokeStyle(3, match.home.colors.secondary, 1);
-    this.add.rectangle(292, 42, 196, 76, match.away.colors.primary, 0.98)
-      .setStrokeStyle(3, match.away.colors.secondary, 1);
+    this.add.rectangle(292, 42, 196, 76, opponentColors.primary, 0.98)
+      .setStrokeStyle(3, opponentColors.secondary, 1);
     this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
 
     this.add.text(72, 20, match.home.name.toUpperCase(), {
@@ -285,17 +287,12 @@ export class MatchScene extends Phaser.Scene {
       font: "bold 12px Arial",
       color: "#fde68a"
     }).setOrigin(0.5);
-    const ownerColor = match.ballOwner === "player"
-      ? match.home.colors.primary
-      : match.away.colors.primary;
-    const ownerSecondaryColor = match.ballOwner === "player"
-      ? match.home.colors.secondary
-      : match.away.colors.secondary;
+    const ownerColors = this.getDisplayedTeamColors(match, match.ballOwner);
     const ballX = fieldLeft + fieldWidth * (match.ballPositionMeters / 100);
     const ballY = fieldY + Phaser.Math.Clamp(match.ballLateralPosition ?? 0, -1, 1)
       * LINEOUT_BALANCE.match.visualSimulation.passVerticalDistancePixels;
-    this.simulationBall = this.add.ellipse(ballX, ballY, 18, 12, ownerColor, 1)
-      .setStrokeStyle(3, ownerSecondaryColor, 1);
+    this.simulationBall = this.add.ellipse(ballX, ballY, 18, 12, ownerColors.primary, 1)
+      .setStrokeStyle(3, ownerColors.secondary, 1);
     this.ballPositionText = this.add.text(195, 494, t("match.ballPosition")
       .replace("{meters}", String(Math.round(match.ballPositionMeters))), {
       font: UI.font.body,
@@ -560,9 +557,20 @@ export class MatchScene extends Phaser.Scene {
     match: MatchStateData,
     owner: MatchStateData["ballOwner"]
   ): void {
-    const team = owner === "player" ? match.home : match.away;
-    this.simulationBall?.setFillStyle(team.colors.primary, 1);
-    this.simulationBall?.setStrokeStyle(3, team.colors.secondary, 1);
+    const colors = this.getDisplayedTeamColors(match, owner);
+    this.simulationBall?.setFillStyle(colors.primary, 1);
+    this.simulationBall?.setStrokeStyle(3, colors.secondary, 1);
+  }
+
+  private getDisplayedTeamColors(
+    match: MatchStateData,
+    owner: MatchStateData["ballOwner"]
+  ) {
+    if (owner === "player") {
+      return match.home.colors;
+    }
+
+    return getContrastingOpponentColors(match.home.colors, match.away.colors);
   }
 
   private setSimulationBallLooseStyle(): void {

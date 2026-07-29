@@ -18,6 +18,11 @@ import {
 import { getDistanceToNearestTryLine } from "../src/rules/MatchSimulator.ts";
 import { createDefaultPlayerTeam } from "../src/rules/TeamFactory.ts";
 import { loadGame, saveGame } from "../src/systems/SaveSystem.ts";
+import {
+  JERSEY_COLOR_SIMILARITY_THRESHOLD,
+  areJerseyColorsTooSimilar,
+  getContrastingOpponentColors
+} from "../src/ui/JerseyColorContrast.ts";
 import { resolveRugbyPlayerAssetSet } from "../src/ui/RugbyPlayerAssetResolver.ts";
 
 const outcomeTitleKeys: Record<LineoutOutcome, string> = {
@@ -261,4 +266,27 @@ test("rugby player poses fall back through medium_standard before stand_front", 
     bodyShape: "medium_standard",
     pose: "stand_front"
   });
+});
+
+test("opponent jersey colors are swapped only when both primary colors are too similar", () => {
+  assert.equal(JERSEY_COLOR_SIMILARITY_THRESHOLD, 100);
+  assert.equal(areJerseyColorsTooSimilar(0x000000, 0x640000), true);
+  assert.equal(areJerseyColorsTooSimilar(0x000000, 0x650000), false);
+  assert.equal(areJerseyColorsTooSimilar(0xdc2626, 0x8b1111), true);
+  assert.equal(areJerseyColorsTooSimilar(0xdc2626, 0x2563eb), false);
+
+  assert.deepEqual(
+    getContrastingOpponentColors(
+      { primary: 0xdc2626, secondary: 0xffffff },
+      { primary: 0x8b1111, secondary: 0xfacc15 }
+    ),
+    { primary: 0xfacc15, secondary: 0x8b1111 }
+  );
+  assert.deepEqual(
+    getContrastingOpponentColors(
+      { primary: 0xdc2626, secondary: 0xffffff },
+      { primary: 0x2563eb, secondary: 0xfacc15 }
+    ),
+    { primary: 0x2563eb, secondary: 0xfacc15 }
+  );
 });

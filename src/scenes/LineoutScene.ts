@@ -31,6 +31,7 @@ import type { Combination, LineoutPosition } from "../models/Combination";
 import type { LineoutResult } from "../models/Lineout";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
 import type { FieldPlayer, Hooker } from "../models/Player";
+import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
 import { PlayerToken } from "../ui/PlayerToken";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
@@ -219,11 +220,12 @@ export class LineoutScene extends Phaser.Scene {
 
     const minute = this.currentMatchLineout?.minute ?? match.minute;
     const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
+    const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
 
     this.add.rectangle(98, 42, 196, 76, match.home.colors.primary, 0.98)
       .setStrokeStyle(3, match.home.colors.secondary, 1);
-    this.add.rectangle(292, 42, 196, 76, match.away.colors.primary, 0.98)
-      .setStrokeStyle(3, match.away.colors.secondary, 1);
+    this.add.rectangle(292, 42, 196, 76, opponentColors.primary, 0.98)
+      .setStrokeStyle(3, opponentColors.secondary, 1);
     this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
 
     this.add.text(72, 20, match.home.name.toUpperCase(), {
@@ -1099,18 +1101,19 @@ export class LineoutScene extends Phaser.Scene {
   private getLineoutKit(side: "us" | "opponent"): Kit {
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
-    const jerseyPrimary = side === "us"
-      ? save.playerTeam.colors.primary
-      : (match?.away.colors.primary ?? UI.colors.defense);
-    const secondaryColor = side === "us"
-      ? save.playerTeam.colors.secondary
-      : (match?.away.colors.secondary ?? jerseyPrimary);
+    const opponentColors = match?.away.colors ?? {
+      primary: UI.colors.defense,
+      secondary: UI.colors.defense
+    };
+    const displayedColors = side === "us"
+      ? save.playerTeam.colors
+      : getContrastingOpponentColors(save.playerTeam.colors, opponentColors);
 
     return {
-      jerseyPrimary,
-      shortsPrimary: secondaryColor,
-      socksPrimary: jerseyPrimary,
-      detailsSecondary: secondaryColor
+      jerseyPrimary: displayedColors.primary,
+      shortsPrimary: displayedColors.secondary,
+      socksPrimary: displayedColors.primary,
+      detailsSecondary: displayedColors.secondary
     };
   }
 
