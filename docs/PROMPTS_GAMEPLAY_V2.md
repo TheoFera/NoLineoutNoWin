@@ -3,15 +3,8 @@
 ## Prompt 1 — Préparation sans coder
 
 ```text
-Lis AGENTS.md et les documents suivants :
-- docs/CDC_NORMALISE.md
-- docs/ARCHITECTURE.md
-- docs/DECISIONS_TECHNIQUES.md
-- docs/GAMEPLAY_TOUCHE_V2.md
-- docs/IA_TOUCHE_V2.md
-- docs/GENERATION_EQUIPES_V2.md
-- docs/SIMULATION_MATCH_V2.md
-- docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md
+Lis AGENTS.md et docs/SOMMAIRE_CODEX.md.
+À partir du sommaire, lis uniquement les documents des domaines réellement concernés.
 
 Mission documentaire uniquement :
 1. analyse le code actuel et indique où chaque règle V2 doit être implémentée ;
@@ -21,13 +14,16 @@ Mission documentaire uniquement :
 5. ne change pas l’interface ;
 6. n’invente aucune règle absente des documents.
 
-À la fin, exécute npm run check et fournis un rapport court et précis.
+À la fin, fournis un rapport court et précis.
+Comme aucun code n'est modifié, n'exécute aucune commande de validation.
 ```
 
 ## Prompt type pour un lot
 
 ```text
-Lis AGENTS.md et tous les documents V2.
+Lis AGENTS.md, docs/SOMMAIRE_CODEX.md, le lot demandé dans
+`docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md` et uniquement le document métier
+associé à ce lot.
 
 Travaille uniquement sur le Lot [NUMÉRO ET NOM] décrit dans
 `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`.
@@ -47,24 +43,25 @@ Contraintes :
 - ne recrée pas `targetZone` ;
 - conserve la compatibilité avec le parcours actuel lorsque cela ne contredit pas V2.
 
-Ajoute les tests exigés par le plan.
+N'ajoute et n'exécute aucun test sauf si je le demande explicitement.
 
 À la fin :
 - exécute npm run check ;
-- exécute les tests ;
+- relis le diff ;
 - corrige toutes les erreurs ;
 - liste les fichiers modifiés ;
 - liste les critères d’acceptation validés ;
 - indique explicitement ce qui reste non implémenté.
+- ne lance ni build, ni simulation, ni serveur local, ni navigateur, ni contrôle visuel.
 ```
 
-## Prompt d’audit après chaque lot
+## Prompt d’audit ciblé sur demande
 
 ```text
 Audite le Lot [NUMÉRO] sans ajouter de nouvelle fonctionnalité.
 
 Compare l’implémentation avec :
-- les documents V2 ;
+- le document V2 du domaine concerné ;
 - `src/config/LineoutBalance.ts` ;
 - les critères d’acceptation du lot.
 
@@ -78,7 +75,8 @@ Cherche en priorité :
 - régression sur le parcours actuel.
 
 Corrige uniquement les écarts constatés.
-Exécute ensuite npm run check et les tests.
+Exécute ensuite npm run check.
+Ne lance ni test, ni build, ni simulation, ni serveur local, ni navigateur.
 ```
 
 ## Prompt final d’intégration
@@ -98,3 +96,6 @@ Effectue un audit d’intégration complet :
 Ne modifie pas l’équilibrage pour masquer un bug logique.
 ```
 
+Ce dernier prompt est volontairement coûteux. Ne l'utiliser que pour une
+validation finale explicitement souhaitée, jamais après une modification
+ordinaire.

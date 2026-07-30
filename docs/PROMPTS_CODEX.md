@@ -6,15 +6,15 @@ Les prompts dédiés au nouveau gameplay de touche sont regroupés dans
 ## Prompt de lancement
 
 ```text
-Lis AGENTS.md, docs/CDC_NORMALISE.md et docs/ARCHITECTURE.md.
-Explique-moi en 10 lignes maximum l'architecture du projet et les règles métier non négociables.
+Lis AGENTS.md et docs/SOMMAIRE_CODEX.md, puis uniquement le document lié à ma demande.
+Explique-moi en 10 lignes maximum les règles utiles à cette demande.
 Ne modifie aucun fichier pour l'instant.
 ```
 
 ## Prompt Lot 1 — Vérification du squelette
 
 ```text
-Lis AGENTS.md, docs/CDC_NORMALISE.md et docs/PLAN_DEVELOPPEMENT_CODEX.md.
+Lis AGENTS.md, docs/SOMMAIRE_CODEX.md et les sections utiles de docs/CDC_NORMALISE.md.
 Travaille sur le Lot 1 uniquement.
 Objectif : vérifier que le squelette compile et que le parcours minimal fonctionne : menu → entraînement → touche → résultat.
 Contraintes :
@@ -24,7 +24,8 @@ Contraintes :
 - talonneur = throwing ;
 - textes visibles via t(key) quand c'est un texte stable d'interface ;
 - garde les règles dans src/rules et l'affichage dans src/scenes.
-À la fin, exécute npm run check puis npm run build, corrige les erreurs et résume les fichiers modifiés.
+À la fin, relis le diff, exécute npm run check et résume les fichiers modifiés.
+Ne lance ni build, ni test, ni serveur local, ni navigateur.
 ```
 
 ## Prompt Lot 2 — Création du club
@@ -39,7 +40,8 @@ Remplace ClubCreationScene par une vraie création de club mobile :
 - retour menu possible.
 Respecte Phaser 3 + TypeScript. N'ajoute pas de framework HTML externe.
 Tous les textes stables doivent passer par le système de traduction.
-Exécute npm run check et npm run build à la fin.
+Relis le diff et exécute npm run check à la fin.
+Ne lance ni test, ni serveur local, ni navigateur.
 ```
 
 ## Prompt Lot 3 — Combinaisons offensives
@@ -54,7 +56,8 @@ Crée un vrai écran d'entraînement offensif pour modifier les combinaisons :
 - supprimer tout raisonnement en front/middle/back ;
 - une combinaison ne cible pas une zone, elle définit une organisation.
 Ne code pas encore le championnat.
-Exécute npm run check et npm run build à la fin.
+Relis le diff et exécute npm run check à la fin.
+Ne lance ni test, ni serveur local, ni navigateur.
 ```
 
 ## Prompt Lot 4 — Touches offensives complètes
@@ -69,7 +72,8 @@ Améliore LineoutScene et LineoutResolver pour les touches offensives :
 - animation simple du saut ou de la réception ;
 - résultat simple affiché : Ballon gagné / gagné difficilement / perdu / faute.
 Le moteur peut calculer des événements internes, mais ne noie pas l'interface.
-Exécute npm run check et npm run build à la fin.
+Relis le diff et exécute npm run check à la fin.
+Ne lance ni test, ni serveur local, ni navigateur.
 ```
 
 ## Prompt Lot 5 — Touches défensives
@@ -86,21 +90,23 @@ Ajoute les touches défensives :
 - 1 ou 2 positions devant = contre possible mais réduit ;
 - derrière la cible = pas de contre direct.
 Ne crée pas de stat Lecture.
-Exécute npm run check et npm run build à la fin.
+Relis le diff et exécute npm run check à la fin.
+Ne lance ni test, ni serveur local, ni navigateur.
 ```
 
-## Prompt de revue globale après chaque lot
+## Prompt de revue ciblée sur demande
 
 ```text
-Fais une revue de cohérence du projet après le dernier lot.
+Fais une revue de cohérence ciblée sur les fichiers du dernier lot.
 Vérifie :
 - pas de targetZone ;
 - pas de stat joueur interdite ;
 - textes d'interface stables traduits ;
 - logique métier hors des scènes quand possible ;
 - aucun fichier devenu trop gros ;
-- npm run check et npm run build passent.
+- npm run check passe.
 Ne modifie que les corrections nécessaires.
+Ne lance ni test, ni build, ni serveur local, ni navigateur.
 ```
 
 ## Prompt anti-dérapage

@@ -46,6 +46,7 @@ export const LINEOUT_BALANCE = {
     },
     handsCorrectionBaseline: 70,
     handsCorrectionWeight: 0.5,
+    successThreshold: 50,
     blockReceptionSuccessThreshold: 50,
     blockReceptionCleanMarginExclusive: 10
   },
@@ -100,7 +101,12 @@ export const LINEOUT_BALANCE = {
       oneBehind: -15,
       furtherAway: 0
     },
-    highBallCascadeOffset: 3,
+    secondaryRecovery: {
+      firstBehindOffset: 2,
+      secondBehindOffset: 3,
+      lowTwoAheadModifier: -30,
+      groundDistancePenaltyPerPosition: 10
+    },
     looseBallThrowingTeamProbability: 0.5
   },
   generation: {

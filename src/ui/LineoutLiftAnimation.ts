@@ -3,12 +3,17 @@ import type { PoseName } from "./RugbyPlayerTypes";
 
 export const LINEOUT_LIFT_ANIMATION = {
   approachDurationMs: 70,
-  approachDistancePixels: 10,
-  jumperLiftDurationMs: 220,
+  approachDistancePixels: 16,
+  defaultJumpQuality: 50,
+  minimumJumperLiftHeightPixels: 0,
+  maximumJumperLiftHeightPixels: 44,
+  slowestJumperLiftDurationMs: 360,
+  fastestJumperLiftDurationMs: 150,
   jumperHoldDurationMs: 120,
-  jumperLiftHeightPixels: 28,
-  ballFlightDurationMs: 320,
+  lifterReturnDurationMs: 120,
+  ballFlightDurationMs: 410,
   hookerReleaseDelayMs: 70,
+  hookerLiftPoseWidthScale: 1.16,
   resultDelayMs: 80
 } as const;
 
@@ -16,6 +21,35 @@ export type LifterAnimationConfig = {
   pose: PoseName;
   approachOffsetY: number;
 };
+
+export type LineoutJumpAnimationMetrics = {
+  heightPixels: number;
+  liftDurationMs: number;
+};
+
+export function getLineoutJumpAnimationMetrics(
+  jumpQuality: number
+): LineoutJumpAnimationMetrics {
+  const normalizedQuality = Math.min(100, Math.max(0, jumpQuality));
+  const qualityRatio = normalizedQuality / 100;
+
+  return {
+    heightPixels: Math.round(
+      LINEOUT_LIFT_ANIMATION.minimumJumperLiftHeightPixels
+      + (
+        LINEOUT_LIFT_ANIMATION.maximumJumperLiftHeightPixels
+        - LINEOUT_LIFT_ANIMATION.minimumJumperLiftHeightPixels
+      ) * qualityRatio
+    ),
+    liftDurationMs: Math.round(
+      LINEOUT_LIFT_ANIMATION.slowestJumperLiftDurationMs
+      - (
+        LINEOUT_LIFT_ANIMATION.slowestJumperLiftDurationMs
+        - LINEOUT_LIFT_ANIMATION.fastestJumperLiftDurationMs
+      ) * qualityRatio
+    )
+  };
+}
 
 export function getLifterAnimationConfig(
   supportPosition: LineoutPosition,
@@ -38,13 +72,18 @@ export function getLifterAnimationConfig(
   return undefined;
 }
 
-export function getLineoutLiftSequenceDurationMs(): number {
+export function getLineoutLiftSequenceDurationMs(
+  shouldJump = true,
+  jumpQuality: number = LINEOUT_LIFT_ANIMATION.defaultJumpQuality
+): number {
+  const jumpMetrics = getLineoutJumpAnimationMetrics(jumpQuality);
   const jumperDuration = LINEOUT_LIFT_ANIMATION.approachDurationMs
-    + LINEOUT_LIFT_ANIMATION.jumperLiftDurationMs * 2
-    + LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs;
+    + jumpMetrics.liftDurationMs * 2
+    + LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs
+    + LINEOUT_LIFT_ANIMATION.lifterReturnDurationMs;
 
   return Math.max(
     LINEOUT_LIFT_ANIMATION.ballFlightDurationMs,
-    jumperDuration
+    shouldJump ? jumperDuration : 0
   ) + LINEOUT_LIFT_ANIMATION.resultDelayMs;
 }

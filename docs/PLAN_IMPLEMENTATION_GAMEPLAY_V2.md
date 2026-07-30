@@ -4,12 +4,13 @@ Version : 2026-07-15
 
 ## Règle de travail
 
-Un lot à la fois. Ne jamais commencer le lot suivant avant :
+Un lot à la fois.
 
-- `npm run check` réussi ;
-- tests du lot réussis ;
-- audit du lot effectué ;
-- commit ou sauvegarde réalisé.
+- Codex lit uniquement le document métier correspondant au lot.
+- Après une modification TypeScript, Codex exécute `npm run check`.
+- Les listes de tests ci-dessous décrivent les validations utiles, mais Codex ne les crée ou ne les exécute que sur demande explicite de l'utilisateur.
+- Aucun audit global, build, simulation statistique, serveur local ou contrôle visuel n'est automatique.
+- L'utilisateur décide quand un lot est suffisamment validé pour passer au suivant.
 
 ## Lot 0 — Audit et modèles
 
@@ -206,4 +207,3 @@ Rapports obligatoires :
 - efficacité de chaque position ;
 - effet de l’IA et de sa préparation ;
 - impact des touches sur le score final.
-

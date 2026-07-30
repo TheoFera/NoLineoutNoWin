@@ -15,9 +15,11 @@ import {
   countAssignedPlayers,
   findCombinationTargetOption,
   getActiveOffensiveCombinations,
+  getCombinationDisplayName,
   getCombinationTargetPositions,
   getPlayersAssignedToCombination,
   getUnassignedCombinationPlayers,
+  isCombinationValidForMatch,
   normalizeOffensiveCombinations,
   replaceCombinationLayout
 } from "../rules/CombinationRules";
@@ -35,8 +37,23 @@ import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
 import {
   getLifterAnimationConfig,
   getLineoutLiftSequenceDurationMs,
+  getLineoutJumpAnimationMetrics,
   LINEOUT_LIFT_ANIMATION
 } from "../ui/LineoutLiftAnimation";
+import {
+  applyConstantBallTravelSpeed,
+  buildLineoutBallAnimationPlan,
+  getBallAnimationTargetOffset,
+  getBallTravelDurationMs,
+  getHandPoseBallOffset,
+  getLineoutAnimationTargetType,
+  getLineoutAnimationTrajectory,
+  getLineoutAnimationThrowQuality,
+  LINEOUT_THROW_ANIMATION,
+  sampleThrowHorizontalOffset,
+  type BallAnimationPhase,
+  type BallAnimationWaypoint
+} from "../ui/LineoutThrowAnimation";
 import { PlayerToken } from "../ui/PlayerToken";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
@@ -44,31 +61,50 @@ import type { Kit, PoseName } from "../ui/RugbyPlayerTypes";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 import { Modal } from "../ui/Modal";
+import { MatchScoreOverlay } from "../ui/MatchScoreOverlay";
+import { LineoutCombinationOverlay } from "../ui/LineoutCombinationOverlay";
+import { MatchStatsOverlay } from "../ui/MatchStatsOverlay";
+import {
+  formatMatchMinute,
+  MATCH_SCORE_OVERLAY_LAYOUT
+} from "../ui/MatchScoreOverlayLayout";
+import { PlayerStatsOverlay } from "../ui/PlayerStatsOverlay";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
 import { MATH_RANDOM_SOURCE } from "../utils/Random";
 
 const SCREEN_WIDTH = 390;
 const SCREEN_HEIGHT = 844;
-const HEADER_HEIGHT = Math.round(SCREEN_HEIGHT * 0.2);
-const FIELD_TOP = HEADER_HEIGHT;
-const FIELD_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT;
-const PLAYER_FIELD_WIDTH_RATIO = 0.1;
-const PLAYER_FIELD_HEIGHT_RATIO = 0.13;
+const FIELD_TOP = 0;
+const FIELD_HEIGHT = SCREEN_HEIGHT;
+const PLAYER_FIELD_WIDTH_RATIO = 0.125;
+const PLAYER_FIELD_HEIGHT_RATIO = 0.14;
 const PLAYER_DEPTH_BASE = 100;
 const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
 const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
-const PLAYER_INSPECTOR_DEPTH = 1000;
 const RUGBY_DASH_WIDTH = 18;
 const RUGBY_DASH_GAP = 12;
+const TRAINING_FIFTEEN_LINE_Y = FIELD_TOP + 160;
+const TRAINING_FIVE_METER_LINE_Y = SCREEN_HEIGHT - 196;
+const TRAINING_TOUCH_LINE_Y = SCREEN_HEIGHT - 82;
+const TRAINING_SLOT_START_Y = SCREEN_HEIGHT - 206;
+const TRAINING_HOOKER_Y = 744;
+const TRAINING_HOOKER_FEET_OFFSET = 34;
+const TRAINING_THROW_START_OFFSET = 24;
+
+type SecondaryAttemptMode = "smallJump" | "jumperOnGround" | "hand";
+
+type SecondaryBallWaypoint = BallAnimationWaypoint & {
+  position: LineoutPosition;
+};
 
 export type LineoutSceneData = {
   mode: "training" | "match";
   combinationId?: string;
+  combinationConfirmed?: boolean;
 };
 
 type LineoutLayout = {
-  headerHeight: number;
   fieldTop: number;
   fieldBottom: number;
   fieldWidth: number;
@@ -105,9 +141,14 @@ type DragState = {
   homeY: number;
 };
 
+type LineoutBallGameObject =
+  | Phaser.GameObjects.Ellipse
+  | Phaser.GameObjects.Image;
+
 export class LineoutScene extends Phaser.Scene {
   private mode: "training" | "match" = "training";
   private selectedCombinationId?: string;
+  private combinationConfirmed = false;
   private selectedCombination!: Combination;
   private allCombinations: Combination[] = [];
   private selectedTargetId: string | null = null;
@@ -126,10 +167,7 @@ export class LineoutScene extends Phaser.Scene {
   private opponentCombination: Combination | null = null;
   private dragState: DragState | null = null;
   private inspectedPlayer: FieldPlayer | null = null;
-  private inspectorPanel?: Phaser.GameObjects.Container;
-  private inspectorNameText?: Phaser.GameObjects.Text;
-  private inspectorStatsText?: Phaser.GameObjects.Text;
-  private inspectorRoleText?: Phaser.GameObjects.Text;
+  private inspectorPanel?: PlayerStatsOverlay;
   private statusText?: Phaser.GameObjects.Text;
   private statusClearTimer?: Phaser.Time.TimerEvent;
   private hookerSprite?: RugbyPlayer;
@@ -151,11 +189,15 @@ export class LineoutScene extends Phaser.Scene {
   init(data: LineoutSceneData): void {
     this.mode = data.mode ?? "training";
     this.selectedCombinationId = data.combinationId;
+    this.combinationConfirmed = data.combinationConfirmed ?? false;
   }
 
   preload(): void {
     if (!this.textures.exists("lineout-pitch-background")) {
       this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
+    }
+    if (this.mode === "match" && !this.textures.exists("lineout-ball")) {
+      this.load.image("lineout-ball", "assets/sprites/ball.png");
     }
   }
 
@@ -170,7 +212,19 @@ export class LineoutScene extends Phaser.Scene {
 
     const visibleCombinations = this.mode === "match"
       ? getActiveOffensiveCombinations(this.allCombinations, save.offensiveRepertoire)
+        .filter(isCombinationValidForMatch)
+        .map((combination) => rebuildPlayableCombinationTargets(
+          combination,
+          save.playerTeam.hooker,
+          save.playerTeam.lineoutPlayers
+        ))
+        .filter((combination) => (combination.targetOptions?.length ?? 0) > 0)
       : this.allCombinations;
+
+    if (this.mode === "match" && visibleCombinations.length === 0) {
+      navigateTo(this, "MatchScene");
+      return;
+    }
 
     this.selectedCombination = visibleCombinations.find((combination) => combination.id === this.selectedCombinationId)
       ?? visibleCombinations[0]
@@ -184,11 +238,16 @@ export class LineoutScene extends Phaser.Scene {
     this.primeSlotOccupancy(save.playerTeam.lineoutPlayers);
     const layout = this.getLayout();
     this.renderBackground(layout);
-    this.renderHeader(layout);
-    this.renderPlayerInspector(layout);
+    this.renderHeader();
+    this.renderPlayerInspector();
     this.renderPitch(layout);
     this.renderLineout(save.playerTeam.lineoutPlayers, layout);
-    this.renderActions(layout);
+    if (this.shouldShowCombinationSelection()) {
+      this.renderMatchStatsOverlay();
+      this.renderCombinationSelectionOverlay(visibleCombinations);
+    } else {
+      this.renderActions(layout);
+    }
   }
 
   update(): void {
@@ -210,10 +269,9 @@ export class LineoutScene extends Phaser.Scene {
       .setDisplaySize(layout.fieldWidth, layout.fieldHeight);
   }
 
-  private renderHeader(layout: LineoutLayout): void {
+  private renderHeader(): void {
     if (this.mode !== "training") {
       this.renderMatchScoreboard();
-      this.renderMatchStats(layout);
     }
   }
 
@@ -224,89 +282,25 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     const minute = this.currentMatchLineout?.minute ?? match.minute;
-    const periodKey = minute < 40 ? "match.period.firstHalf" : "match.period.secondHalf";
     const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
-
-    this.add.rectangle(98, 42, 196, 76, match.home.colors.primary, 0.98)
-      .setStrokeStyle(3, match.home.colors.secondary, 1);
-    this.add.rectangle(292, 42, 196, 76, opponentColors.primary, 0.98)
-      .setStrokeStyle(3, opponentColors.secondary, 1);
-    this.add.rectangle(195, 42, 86, 76, 0x09131c, 1).setStrokeStyle(2, 0x1f2937);
-
-    this.add.text(72, 20, match.home.name.toUpperCase(), {
-      font: "bold 11px Arial",
-      color: UI.colors.text,
-      wordWrap: { width: 105 }
-    }).setOrigin(0, 0.5);
-    this.add.text(72, 55, String(match.ourScore), { font: "bold 28px Arial", color: UI.colors.text }).setOrigin(0, 0.5);
-    this.add.text(318, 20, match.away.name.toUpperCase(), {
-      font: "bold 11px Arial",
-      color: UI.colors.text,
-      align: "right",
-      wordWrap: { width: 105 }
-    }).setOrigin(1, 0.5);
-    this.add.text(318, 55, String(match.opponentScore), { font: "bold 28px Arial", color: UI.colors.text }).setOrigin(1, 0.5);
-
-    this.add.text(195, 34, this.formatMinute(minute), { font: "bold 22px Arial", color: "#fbbf24" }).setOrigin(0.5);
-    this.add.text(195, 62, t(periodKey), { font: "bold 11px Arial", color: "#84cc16" }).setOrigin(0.5);
+    new MatchScoreOverlay(this, {
+      homeName: match.home.name,
+      awayName: match.away.name,
+      homeScore: match.ourScore,
+      awayScore: match.opponentScore,
+      minuteLabel: formatMatchMinute(minute),
+      homeColors: match.home.colors,
+      awayColors: opponentColors
+    });
   }
 
-  private renderMatchStats(layout: LineoutLayout): void {
-    const match = GameStore.getMatch();
-    if (!match) {
-      return;
-    }
-    const roundedPossession = Math.round(match.possession);
-    const roundedOccupation = Math.round(match.occupation);
-
-    this.add.rectangle(78, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
-    this.add.rectangle(195, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
-    this.add.rectangle(312, 110, 116, 44, 0x07111a, 0.96).setStrokeStyle(1, 0x334155);
-
-    this.add.text(78, 96, t("match.possession").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(54, 114, `${roundedPossession}%`, { font: "bold 15px Arial", color: "#60a5fa" }).setOrigin(0.5);
-    this.add.text(102, 114, `${100 - roundedPossession}%`, { font: "bold 15px Arial", color: "#ef4444" }).setOrigin(0.5);
-    this.add.rectangle(78, 130, 82, 6, 0x1e293b);
-    this.add.rectangle(78 - 41 + (82 * match.possession) / 200, 130, (82 * match.possession) / 100, 5, 0x2563eb).setOrigin(0, 0.5);
-    this.add.rectangle(78 + (82 * match.possession) / 200, 130, (82 * (100 - match.possession)) / 100, 5, 0xdc2626).setOrigin(0, 0.5);
-
-    this.add.text(195, 96, t("match.occupation").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 118, `${roundedOccupation}%`, { font: "bold 18px Arial", color: "#84cc16" }).setOrigin(0.5);
-    this.add.text(312, 96, t("match.zone").toUpperCase(), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(312, 118, t(`match.zone.${this.currentMatchLineout?.pitchZone ?? "middle"}`), {
-      font: "bold 12px Arial",
-      color: "#f8fafc",
-      align: "center",
-      wordWrap: { width: 92 }
-    }).setOrigin(0.5);
-  }
-
-  private renderPlayerInspector(layout: LineoutLayout): void {
-    const panelY = 92;
-    const panelHeight = 98;
-    const panel = this.add.rectangle(195, panelY, 344, panelHeight, 0x07111a, 0.94).setStrokeStyle(2, 0x334155);
-
-    this.inspectorNameText = this.add.text(28, panelY - 26, t("lineout.playerPanel.empty"), {
-      font: "bold 18px Arial",
-      color: UI.colors.text
-    }).setOrigin(0, 0.5);
-    this.inspectorRoleText = this.add.text(28, panelY + 2, "", {
-      font: "bold 12px Arial",
-      color: "#fde68a"
-    }).setOrigin(0, 0.5);
-    this.inspectorStatsText = this.add.text(28, panelY + 28, "", {
-      font: "12px Arial",
-      color: UI.colors.muted
-    }).setOrigin(0, 0.5);
-    this.inspectorPanel = this.add.container(0, 0, [
-      panel,
-      this.inspectorNameText,
-      this.inspectorRoleText,
-      this.inspectorStatsText
-    ])
-      .setDepth(PLAYER_INSPECTOR_DEPTH)
-      .setVisible(this.mode === "training");
-    this.statusText = this.add.text(195, this.mode === "training" ? panelY + 44 : layout.fieldTop + 18, "", {
+  private renderPlayerInspector(): void {
+    this.inspectorPanel = new PlayerStatsOverlay(
+      this,
+      GameStore.getSave().playerTeam.colors
+    ).setVisible(this.mode === "training");
+    const matchStatusY = MATCH_SCORE_OVERLAY_LAYOUT.y + MATCH_SCORE_OVERLAY_LAYOUT.height + 14;
+    this.statusText = this.add.text(195, matchStatusY, "", {
       font: "bold 11px Arial",
       color: "#fca5a5",
       align: "center",
@@ -372,7 +366,12 @@ export class LineoutScene extends Phaser.Scene {
     const hookerNumber = isOpponentThrow
       ? (match?.away.hooker.number ?? 2)
       : save.playerTeam.hooker.number;
-    const hookerFeetY = layout.hookerY + 34;
+    const hookerFeetOffset = Math.round(
+      TRAINING_HOOKER_FEET_OFFSET
+      * layout.playerHeight
+      / Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
+    );
+    const hookerFeetY = layout.hookerY + hookerFeetOffset;
     const hookerKit = this.getLineoutKit(hookerSide);
 
     this.hookerSprite = new RugbyPlayer(
@@ -546,6 +545,40 @@ export class LineoutScene extends Phaser.Scene {
     });
   }
 
+  private renderMatchStatsOverlay(): void {
+    const match = GameStore.getMatch();
+    if (!match || !this.currentMatchLineout) {
+      return;
+    }
+
+    const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
+    new MatchStatsOverlay(this, {
+      possessionLabel: t("match.possession"),
+      occupationLabel: t("match.occupation"),
+      zoneLabel: t("match.zone"),
+      zoneValue: t(`match.zone.${this.currentMatchLineout.pitchZone}`),
+      possession: Math.round(match.possession),
+      occupation: Math.round(match.occupation),
+      homeColors: match.home.colors,
+      awayColors: opponentColors
+    });
+  }
+
+  private renderCombinationSelectionOverlay(combinations: Combination[]): void {
+    new LineoutCombinationOverlay(this, combinations, {
+      title: t("match.chooseCombination"),
+      getCombinationName: (combination) => getCombinationDisplayName(combination, t),
+      getPlayersLabel: (count) => t("match.comboPlayers").replace("{count}", String(count)),
+      onSelect: (combination) => {
+        this.scene.restart({
+          mode: "match",
+          combinationId: combination.id,
+          combinationConfirmed: true
+        } satisfies LineoutSceneData);
+      }
+    });
+  }
+
   private renderDefensiveLineout(layout: LineoutLayout): void {
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
@@ -676,9 +709,6 @@ export class LineoutScene extends Phaser.Scene {
 
   private renderActions(layout: LineoutLayout): void {
     if (this.mode === "match") {
-      new UIButton(this, 195, layout.navigationY, 180, 40, t("button.back"), () => navigateTo(this, "MatchScene"), {
-        variant: "secondary"
-      });
       return;
     }
 
@@ -850,7 +880,8 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
-    if (!targetToken || !this.findSelectedTargetOption()) {
+    const targetOption = this.findSelectedTargetOption();
+    if (!targetToken || !targetOption) {
       this.flashStatus(t("lineout.status.selectTarget"));
       return;
     }
@@ -901,6 +932,8 @@ export class LineoutScene extends Phaser.Scene {
       this.attackTokens,
       this.defenseTokens,
       this.opponentDefensiveJumpPosition ?? undefined,
+      getLineoutAnimationTargetType(result, targetOption.type),
+      result,
       () => {
       this.isResolving = false;
       this.showResult(result);
@@ -980,6 +1013,13 @@ export class LineoutScene extends Phaser.Scene {
       this.defenseTokens,
       this.attackTokens,
       this.selectedTargetPosition ?? undefined,
+      getLineoutAnimationTargetType(
+        result,
+        this.opponentCombination?.targetOptions?.find(
+          (option) => option.id === this.opponentTargetOptionId
+        )?.type ?? "jumpBlock"
+      ),
+      result,
       () => {
       this.isResolving = false;
       this.showResult(result);
@@ -993,9 +1033,12 @@ export class LineoutScene extends Phaser.Scene {
     lineTokens: PlayerToken[],
     defendingTokens: PlayerToken[],
     defendingJumpPosition: LineoutPosition | undefined,
+    targetOptionType: "jumpBlock" | "directCatch",
+    result: LineoutResult,
     onComplete: () => void
   ): void {
     const layout = this.getLayout();
+    const trajectory = getLineoutAnimationTrajectory(result);
     const targetToken = lineTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === targetPosition)
       ?? lineTokens[0];
     const supportTokens = lineTokens.filter((token) => {
@@ -1003,11 +1046,43 @@ export class LineoutScene extends Phaser.Scene {
       return position === targetPosition - 1 || position === targetPosition + 1;
     });
     const startX = this.getHookerX(throwingSide, layout);
-    const startY = layout.hookerY - 24;
-    const targetX = targetToken?.x ?? layout.attackX;
-    const targetY = (targetToken?.y ?? this.positionY(4, layout)) - 18;
-    const strokeColor = throwingSide === "us" ? 0x1d4ed8 : UI.colors.defense;
-    const ball = this.add.ellipse(startX, startY, 16, 24, 0xf8fafc).setStrokeStyle(2, strokeColor);
+    const throwStartOffset = Math.round(
+      TRAINING_THROW_START_OFFSET
+      * layout.playerHeight
+      / Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
+    );
+    const startY = layout.hookerY - throwStartOffset;
+    const shouldTargetJump = Boolean(
+      targetOptionType === "jumpBlock"
+      && targetToken
+      && canBeLineoutJumper(targetToken.player)
+    );
+    const targetJumpQuality = this.getAnimationJumpQuality(
+      result,
+      "attackJumpQuality"
+    );
+    const lowFailedJumpRecovery = trajectory === "low"
+      && targetOptionType === "jumpBlock"
+      && result.resolution?.details.attackJumpSucceeded === false;
+    const targetAnimationJumpQuality = lowFailedJumpRecovery ? 0 : targetJumpQuality;
+    const targetJumpMetrics = getLineoutJumpAnimationMetrics(targetAnimationJumpQuality);
+    const targetBaseY = targetToken?.y ?? this.positionY(4, layout);
+    const targetHandsX = targetToken?.x ?? layout.attackX;
+    const targetHandsOffset = getBallAnimationTargetOffset(
+      lowFailedJumpRecovery ? "low" : "precise",
+      lowFailedJumpRecovery ? false : shouldTargetJump,
+      layout.playerHeight,
+      0,
+      targetJumpMetrics.heightPixels
+    );
+    const targetHandsY = targetBaseY + targetHandsOffset.y;
+    const horizontalOffset = sampleThrowHorizontalOffset(
+      getLineoutAnimationThrowQuality(result),
+      MATH_RANDOM_SOURCE
+    );
+    const ball: LineoutBallGameObject = this.mode === "match"
+      ? this.add.image(startX, startY, "lineout-ball").setDisplaySize(17, 24)
+      : this.add.ellipse(startX, startY, 16, 24, 0xf8fafc);
     ball.setDepth(this.getPlayerDepth(startY) + PLAYER_LABEL_DEPTH_OFFSET);
     const defendingTargetToken = defendingJumpPosition
       ? defendingTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === defendingJumpPosition)
@@ -1019,91 +1094,558 @@ export class LineoutScene extends Phaser.Scene {
       })
       : [];
 
+    this.hookerSprite?.setScale(1, 1);
     this.hookerSprite?.setPose("hooker_throw_back");
     this.time.delayedCall(LINEOUT_LIFT_ANIMATION.hookerReleaseDelayMs, () => {
       this.hookerSprite?.setPose("lifter_front");
+      this.hookerSprite?.setScale(LINEOUT_LIFT_ANIMATION.hookerLiftPoseWidthScale, 1);
     });
-    this.animateJumpGroup(supportTokens, targetToken);
-    this.animateJumpGroup(defendingSupportTokens, defendingTargetToken);
+    const shouldDefenderJump = Boolean(
+      defendingTargetToken
+      && canBeLineoutJumper(defendingTargetToken.player)
+    );
+    const defenderJumpQuality = this.getAnimationJumpQuality(
+      result,
+      "defenseJumpQuality"
+    );
+    const defenderJumpMetrics = getLineoutJumpAnimationMetrics(defenderJumpQuality);
+    const defendingHandsY = defendingTargetToken
+      ? defendingTargetToken.y + getBallAnimationTargetOffset(
+        "precise",
+        shouldDefenderJump,
+        layout.playerHeight,
+        0,
+        defenderJumpMetrics.heightPixels
+      ).y
+      : undefined;
+    const defendingHandsX = defendingTargetToken?.x;
+    const recoveryPosition = this.getAnimationRecoveryPosition(result);
+    const recoveryUsesDefendingTeam = result.resolution?.outcome === "knockOn"
+      ? result.resolution.offendingTeam === "defendingTeam"
+      : result.resolution?.ballTeam === "defendingTeam";
+    const recoveryTokens = recoveryUsesDefendingTeam ? defendingTokens : lineTokens;
+    const recoveryToken = recoveryPosition
+      ? recoveryTokens.find(
+        (token) => token.getData("lineoutPosition") === recoveryPosition
+      )
+      : undefined;
+    const recoveryKind = result.resolution?.details.recoveryKind;
+    const secondaryVisitedPositions = this.getAnimationPositionList(
+      result,
+      "cascadeVisitedPositions"
+    );
+    const secondaryWaypoints: SecondaryBallWaypoint[] = [];
+    if (
+      (secondaryVisitedPositions.length > 0 || recoveryKind === "out15m")
+      && (trajectory === "precise" || trajectory === "high")
+    ) {
+      secondaryWaypoints.push({
+        position: targetPosition,
+        x: layout.hookerX,
+        y: trajectory === "high"
+          ? targetHandsY - LINEOUT_THROW_ANIMATION.highBallClearancePixels
+          : targetHandsY
+      });
+    }
+    secondaryWaypoints.push(...secondaryVisitedPositions.map((position) => {
+      const mode = this.getSecondaryAttemptMode(result, targetPosition, position);
+      const isRecoveryPosition = recoveryKind === "secondary"
+        && position === recoveryPosition;
+      return {
+        position,
+        x: isRecoveryPosition && recoveryToken ? recoveryToken.x : layout.hookerX,
+        y: this.positionY(position, layout)
+          + this.getSecondaryBallOffsetY(mode, layout.playerHeight, trajectory)
+      };
+    }));
+    const recoveryMode = recoveryPosition
+      ? this.getSecondaryAttemptMode(result, targetPosition, recoveryPosition)
+      : undefined;
+    const recoveryHandsY = recoveryToken
+      ? recoveryToken.y + (
+        recoveryKind === "ground"
+          ? getHandPoseBallOffset(layout.playerHeight).y
+          : recoveryMode
+            ? this.getSecondaryBallOffsetY(recoveryMode, layout.playerHeight, trajectory)
+            : getBallAnimationTargetOffset(
+              "precise",
+              false,
+              layout.playerHeight,
+              0
+            ).y
+      )
+      : undefined;
+    const recoveryHandsX = recoveryToken?.x;
+    const groundPosition = this.getAnimationDetailPosition(result, "groundPosition");
+    const groundPointFeetY = groundPosition
+      ? this.positionY(groundPosition, layout)
+      : undefined;
+    const usCampX = this.mode === "training"
+      ? layout.hookerX - 75
+      : layout.attackX - 20;
+    const opponentCampX = this.mode === "training"
+      ? layout.hookerX + 75
+      : (layout.defenseX ?? layout.hookerX + 55) + 20;
+    const plan = buildLineoutBallAnimationPlan({
+      result,
+      corridorX: layout.hookerX,
+      throwingCampX: throwingSide === "us" ? usCampX : opponentCampX,
+      defendingCampX: throwingSide === "us" ? opponentCampX : usCampX,
+      targetHandsX,
+      targetHandsY,
+      targetGroundY: targetBaseY,
+      defendingHandsX,
+      defendingHandsY,
+      defendingGroundY: defendingTargetToken?.y,
+      recoveryHandsX,
+      recoveryHandsY,
+      recoveryGroundY: recoveryToken?.y,
+      secondaryPath: secondaryWaypoints,
+      groundPointX: groundPosition ? layout.hookerX : undefined,
+      groundPointFeetY,
+      slotGap: layout.slotGap,
+      horizontalOffset
+    });
+    const phases = applyConstantBallTravelSpeed(
+      startX,
+      startY,
+      plan.phases
+    );
+    const targetFollowsFrontAttempts = trajectory === "low"
+      && secondaryWaypoints.length > 0
+      && recoveryKind !== "secondary";
+    const targetArrivalDurationMs = targetFollowsFrontAttempts
+      ? phases
+        .slice(0, secondaryWaypoints.length + 1)
+        .reduce((total, phase) => total + phase.durationMs, 0)
+      : getBallTravelDurationMs(
+        startX,
+        startY,
+        targetHandsX,
+        targetHandsY
+      );
+    const defendingArrivalDurationMs = defendingHandsX !== undefined
+      && defendingHandsY !== undefined
+      ? getBallTravelDurationMs(
+        startX,
+        startY,
+        defendingHandsX,
+        defendingHandsY
+      )
+      : targetArrivalDurationMs;
+    const retainedToken = plan.retainedBy === "target"
+      ? targetToken
+      : plan.retainedBy === "defending"
+        ? defendingTargetToken
+        : plan.retainedBy === "recovery"
+          ? recoveryToken
+          : undefined;
+    const targetCanAttempt = !(targetOptionType === "directCatch" && trajectory === "high");
+    if (targetCanAttempt) {
+      this.animateJumpGroup(
+        lowFailedJumpRecovery ? [] : supportTokens,
+        targetToken,
+        shouldTargetJump,
+        targetArrivalDurationMs,
+        Boolean(retainedToken && retainedToken === targetToken),
+        targetAnimationJumpQuality
+      );
+    }
+    this.animateJumpGroup(
+      defendingSupportTokens,
+      defendingTargetToken,
+      shouldDefenderJump,
+      defendingArrivalDurationMs,
+      Boolean(retainedToken && retainedToken === defendingTargetToken),
+      defenderJumpQuality
+    );
+    this.animateSecondaryRecoveryAttempts(
+      result,
+      targetPosition,
+      lineTokens,
+      defendingTokens,
+      secondaryWaypoints,
+      phases,
+      retainedToken
+    );
+
+    this.playBallAnimationPhases(ball, phases, () => {
+      if (retainedToken) {
+        this.retainBallInPlayerHands(ball, retainedToken, layout.playerHeight);
+        return;
+      }
+      if (plan.leavesScreen) {
+        ball.destroy();
+      }
+    });
+    const ballDuration = phases.reduce(
+      (total, phase) => total + phase.durationMs,
+      plan.holdDurationMs
+    );
+    const targetJumpAnimationDelayMs = shouldTargetJump
+      ? Math.max(
+        0,
+        targetArrivalDurationMs
+        - LINEOUT_LIFT_ANIMATION.approachDurationMs
+        - targetJumpMetrics.liftDurationMs
+      )
+      : 0;
+    const defenderJumpAnimationDelayMs = shouldDefenderJump
+      ? Math.max(
+        0,
+        defendingArrivalDurationMs
+        - LINEOUT_LIFT_ANIMATION.approachDurationMs
+        - defenderJumpMetrics.liftDurationMs
+      )
+      : 0;
+    const jumpSequenceDurationMs = Math.max(
+      shouldTargetJump
+        ? targetJumpAnimationDelayMs
+          + getLineoutLiftSequenceDurationMs(true, targetAnimationJumpQuality)
+        : 0,
+      shouldDefenderJump
+        ? defenderJumpAnimationDelayMs
+          + getLineoutLiftSequenceDurationMs(true, defenderJumpQuality)
+        : 0
+    );
+    this.time.delayedCall(
+      Math.max(ballDuration, jumpSequenceDurationMs),
+      onComplete
+    );
+  }
+
+  private playBallAnimationPhases(
+    ball: LineoutBallGameObject,
+    phases: readonly BallAnimationPhase[],
+    onComplete: () => void,
+    phaseIndex = 0
+  ): void {
+    const phase = phases[phaseIndex];
+    if (!phase) {
+      onComplete();
+      return;
+    }
 
     this.tweens.add({
       targets: ball,
-      x: targetX,
-      y: targetY,
-      angle: 18,
-      duration: LINEOUT_LIFT_ANIMATION.ballFlightDurationMs,
-      ease: "Sine.easeOut",
+      x: phase.x,
+      y: phase.y,
+      angle: phase.angle,
+      duration: phase.durationMs,
+      ease: phase.ease,
       onUpdate: () => {
         ball.setDepth(this.getPlayerDepth(ball.y) + PLAYER_LABEL_DEPTH_OFFSET);
       },
       onComplete: () => {
-        ball.destroy();
+        this.playBallAnimationPhases(ball, phases, onComplete, phaseIndex + 1);
       }
     });
-    this.time.delayedCall(getLineoutLiftSequenceDurationMs(), onComplete);
+  }
+
+  private animateSecondaryRecoveryAttempts(
+    result: LineoutResult,
+    targetPosition: LineoutPosition,
+    throwingTokens: PlayerToken[],
+    defendingTokens: PlayerToken[],
+    waypoints: readonly SecondaryBallWaypoint[],
+    phases: readonly BallAnimationPhase[],
+    retainedToken: PlayerToken | undefined
+  ): void {
+    const throwingPositions = new Set(
+      this.getAnimationPositionList(result, "cascadeThrowingAttemptPositions")
+    );
+    const defendingPositions = new Set(
+      this.getAnimationPositionList(result, "cascadeDefendingAttemptPositions")
+    );
+    let arrivalDurationMs = 0;
+
+    waypoints.forEach((waypoint, index) => {
+      arrivalDurationMs += phases[index]?.durationMs ?? 0;
+      const mode = this.getSecondaryAttemptMode(
+        result,
+        targetPosition,
+        waypoint.position
+      );
+      const animationDelayMs = Math.max(
+        0,
+        arrivalDurationMs - LINEOUT_THROW_ANIMATION.secondaryAttemptDurationMs / 2
+      );
+
+      if (throwingPositions.has(waypoint.position)) {
+        const token = throwingTokens.find(
+          (candidate) => candidate.getData("lineoutPosition") === waypoint.position
+        );
+        if (token) {
+          this.animateSecondaryRecoveryToken(
+            token,
+            mode,
+            animationDelayMs,
+            token === retainedToken
+          );
+        }
+      }
+      if (defendingPositions.has(waypoint.position)) {
+        const token = defendingTokens.find(
+          (candidate) => candidate.getData("lineoutPosition") === waypoint.position
+        );
+        if (token) {
+          this.animateSecondaryRecoveryToken(
+            token,
+            mode,
+            animationDelayMs,
+            token === retainedToken
+          );
+        }
+      }
+    });
+  }
+
+  private animateSecondaryRecoveryToken(
+    token: PlayerToken,
+    mode: SecondaryAttemptMode,
+    delayMs: number,
+    retainsBall: boolean
+  ): void {
+    this.time.delayedCall(delayMs, () => {
+      token.setPose(mode === "hand" ? "hand" : "jumper");
+
+      if (mode !== "smallJump") {
+        if (!retainsBall) {
+          this.time.delayedCall(
+            LINEOUT_THROW_ANIMATION.secondaryAttemptDurationMs,
+            () => token.resetPose()
+          );
+        }
+        return;
+      }
+
+      const originalY = token.y;
+      const halfDuration = Math.round(
+        LINEOUT_THROW_ANIMATION.secondaryAttemptDurationMs / 2
+      );
+      this.tweens.add({
+        targets: token,
+        y: originalY - LINEOUT_THROW_ANIMATION.secondaryJumpHeightPixels,
+        duration: halfDuration,
+        yoyo: true,
+        ease: "Sine.easeOut",
+        onUpdate: () => this.syncPlayerTokenDepth(token),
+        onComplete: () => {
+          token.y = originalY;
+          this.syncPlayerTokenDepth(token);
+          if (retainsBall) {
+            token.setPose("hand");
+          } else {
+            token.resetPose();
+          }
+        }
+      });
+    });
+  }
+
+  private getSecondaryAttemptMode(
+    result: LineoutResult,
+    targetPosition: LineoutPosition,
+    attemptPosition: LineoutPosition
+  ): SecondaryAttemptMode {
+    const trajectory = getLineoutAnimationTrajectory(result);
+    if (trajectory === "high" && attemptPosition >= targetPosition + 4) {
+      return "hand";
+    }
+    if (
+      trajectory === "low"
+      && result.resolution?.details.targetOptionType === "jumpBlock"
+      && result.resolution.details.attackJumpSucceeded === false
+    ) {
+      return "jumperOnGround";
+    }
+    return "smallJump";
+  }
+
+  private getSecondaryBallOffsetY(
+    mode: SecondaryAttemptMode,
+    playerHeight: number,
+    trajectory: ReturnType<typeof getLineoutAnimationTrajectory>
+  ): number {
+    if (mode === "hand") {
+      return getHandPoseBallOffset(playerHeight).y;
+    }
+    const attemptedTrajectory = trajectory === "low" ? "low" : "precise";
+    const baseOffset = getBallAnimationTargetOffset(
+      attemptedTrajectory,
+      false,
+      playerHeight,
+      0
+    ).y;
+    return mode === "smallJump"
+      ? baseOffset - LINEOUT_THROW_ANIMATION.secondaryJumpHeightPixels
+      : baseOffset;
+  }
+
+  private getAnimationPositionList(
+    result: LineoutResult,
+    detailKey: string
+  ): LineoutPosition[] {
+    const rawValue = result.resolution?.details[detailKey];
+    if (typeof rawValue !== "string" || rawValue.length === 0) {
+      return [];
+    }
+    return rawValue
+      .split(",")
+      .map(Number)
+      .filter((position): position is LineoutPosition => (
+        Number.isInteger(position) && position >= 1 && position <= 7
+      ));
+  }
+
+  private getAnimationDetailPosition(
+    result: LineoutResult,
+    detailKey: string
+  ): LineoutPosition | undefined {
+    const position = result.resolution?.details[detailKey];
+    return typeof position === "number"
+      && Number.isInteger(position)
+      && position >= 1
+      && position <= 7
+      ? position as LineoutPosition
+      : undefined;
+  }
+
+  private getAnimationRecoveryPosition(result: LineoutResult): LineoutPosition | undefined {
+    return this.getAnimationDetailPosition(result, "cascadeRecoveryPosition");
+  }
+
+  private getAnimationJumpQuality(
+    result: LineoutResult,
+    detailKey: "attackJumpQuality" | "defenseJumpQuality"
+  ): number {
+    const quality = result.resolution?.details[detailKey];
+    return typeof quality === "number" && Number.isFinite(quality)
+      ? Phaser.Math.Clamp(quality, 0, 100)
+      : LINEOUT_LIFT_ANIMATION.defaultJumpQuality;
+  }
+
+  private retainBallInPlayerHands(
+    ball: LineoutBallGameObject,
+    token: PlayerToken,
+    playerHeight: number
+  ): void {
+    const handsOffset = getHandPoseBallOffset(playerHeight);
+    token.setPose("hand");
+    token.add(ball);
+    ball
+      .setPosition(handsOffset.x, handsOffset.y)
+      .setAngle(0);
   }
 
   private animateJumpGroup(
     supportTokens: PlayerToken[],
-    targetToken?: PlayerToken
+    targetToken: PlayerToken | undefined,
+    shouldJump: boolean,
+    ballArrivalDurationMs: number,
+    retainBall: boolean,
+    jumpQuality: number
   ): void {
-    const targetPosition = targetToken?.getData("lineoutPosition") as LineoutPosition | undefined;
-    const activeSupportTokens: PlayerToken[] = [];
-
-    supportTokens.forEach((token) => {
-      const supportPosition = token.getData("lineoutPosition") as LineoutPosition | undefined;
-      if (targetPosition === undefined || supportPosition === undefined) {
-        return;
-      }
-
-      const animationConfig = getLifterAnimationConfig(supportPosition, targetPosition);
-      if (!animationConfig) {
-        return;
-      }
-
-      activeSupportTokens.push(token);
-      const approachedY = token.y + animationConfig.approachOffsetY;
-      this.tweens.add({
-        targets: token,
-        y: approachedY,
-        duration: LINEOUT_LIFT_ANIMATION.approachDurationMs,
-        ease: "Sine.easeInOut",
-        onUpdate: () => {
-          this.syncPlayerTokenDepth(token);
-        },
-        onComplete: () => {
-          token.y = approachedY;
-          this.syncPlayerTokenDepth(token);
-          token.setPose(animationConfig.pose);
-        }
-      });
-    });
-
     if (!targetToken) {
       return;
     }
+    if (!shouldJump) {
+      const handPoseDelayMs = Math.max(
+        LINEOUT_LIFT_ANIMATION.approachDurationMs,
+        ballArrivalDurationMs
+      );
+      this.time.delayedCall(handPoseDelayMs, () => {
+        targetToken.setPose("hand");
+      });
+      if (!retainBall) {
+        this.time.delayedCall(
+          handPoseDelayMs + LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs,
+          () => targetToken.resetPose()
+        );
+      }
+      return;
+    }
 
-    const originalTargetY = targetToken.y;
-    this.time.delayedCall(LINEOUT_LIFT_ANIMATION.approachDurationMs, () => {
-      targetToken.setPose("jumper");
-      this.tweens.add({
-        targets: targetToken,
-        y: originalTargetY - LINEOUT_LIFT_ANIMATION.jumperLiftHeightPixels,
-        duration: LINEOUT_LIFT_ANIMATION.jumperLiftDurationMs,
-        hold: LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs,
-        yoyo: true,
-        ease: "Sine.easeOut",
-        onUpdate: () => {
-          this.syncPlayerTokenDepth(targetToken);
-        },
-        onComplete: () => {
-          targetToken.y = originalTargetY;
-          this.syncPlayerTokenDepth(targetToken);
-          targetToken.resetPose();
-          activeSupportTokens.forEach((token) => {
-            token.resetPose();
-          });
+    const jumpMetrics = getLineoutJumpAnimationMetrics(jumpQuality);
+    const jumpAnimationDelayMs = Math.max(
+      0,
+      ballArrivalDurationMs
+      - LINEOUT_LIFT_ANIMATION.approachDurationMs
+      - jumpMetrics.liftDurationMs
+    );
+    this.time.delayedCall(jumpAnimationDelayMs, () => {
+      const targetPosition = targetToken.getData("lineoutPosition") as LineoutPosition | undefined;
+      const activeSupportTokens: PlayerToken[] = [];
+      const originalSupportY = new Map<PlayerToken, number>();
+
+      supportTokens.forEach((token) => {
+        const supportPosition = token.getData("lineoutPosition") as LineoutPosition | undefined;
+        if (targetPosition === undefined || supportPosition === undefined) {
+          return;
         }
+
+        const animationConfig = getLifterAnimationConfig(supportPosition, targetPosition);
+        if (!animationConfig) {
+          return;
+        }
+
+        activeSupportTokens.push(token);
+        originalSupportY.set(token, token.y);
+        const approachedY = token.y + animationConfig.approachOffsetY;
+        this.tweens.add({
+          targets: token,
+          y: approachedY,
+          duration: LINEOUT_LIFT_ANIMATION.approachDurationMs,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            this.syncPlayerTokenDepth(token);
+          },
+          onComplete: () => {
+            token.y = approachedY;
+            this.syncPlayerTokenDepth(token);
+            token.setPose(animationConfig.pose);
+          }
+        });
+      });
+
+      const originalTargetY = targetToken.y;
+      this.time.delayedCall(LINEOUT_LIFT_ANIMATION.approachDurationMs, () => {
+        targetToken.setPose("jumper");
+        this.tweens.add({
+          targets: targetToken,
+          y: originalTargetY - jumpMetrics.heightPixels,
+          duration: jumpMetrics.liftDurationMs,
+          hold: LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs,
+          yoyo: true,
+          ease: "Sine.easeOut",
+          onUpdate: () => {
+            this.syncPlayerTokenDepth(targetToken);
+          },
+          onComplete: () => {
+            targetToken.y = originalTargetY;
+            this.syncPlayerTokenDepth(targetToken);
+            if (retainBall) {
+              targetToken.setPose("hand");
+            } else {
+              targetToken.resetPose();
+            }
+            activeSupportTokens.forEach((token) => {
+              this.tweens.add({
+                targets: token,
+                y: originalSupportY.get(token) ?? token.y,
+                duration: LINEOUT_LIFT_ANIMATION.lifterReturnDurationMs,
+                ease: "Sine.easeInOut",
+                onUpdate: () => {
+                  this.syncPlayerTokenDepth(token);
+                },
+                onComplete: () => {
+                  this.syncPlayerTokenDepth(token);
+                  token.resetPose();
+                }
+              });
+            });
+          }
+        });
       });
     });
   }
@@ -1182,9 +1724,12 @@ export class LineoutScene extends Phaser.Scene {
 
   private showHookerInspector(hooker: Hooker): void {
     this.inspectedPlayer = null;
-    this.inspectorNameText?.setText(`${t("team.numberPrefix")}${hooker.number} - ${hooker.nickname}`);
-    this.inspectorRoleText?.setText(t("lineout.hookerLabel"));
-    this.inspectorStatsText?.setText(`${t("team.throwing")} ${hooker.throwing}`);
+    this.inspectorPanel?.setPlayerData({
+      name: `${t("team.numberPrefix")}${hooker.number} · ${hooker.nickname}`,
+      role: t("lineout.hookerLabel"),
+      stats: [{ label: t("team.throwing"), value: hooker.throwing }],
+      colors: this.getPlayerInspectorColors(hooker.id)
+    });
     this.inspectorPanel?.setVisible(true);
   }
 
@@ -1195,14 +1740,11 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private refreshPlayerInspector(): void {
-    if (!this.inspectorNameText || !this.inspectorStatsText || !this.inspectorRoleText) {
+    if (!this.inspectorPanel) {
       return;
     }
 
     if (!this.inspectedPlayer) {
-      this.inspectorNameText.setText(t("lineout.playerPanel.empty"));
-      this.inspectorRoleText.setText("");
-      this.inspectorStatsText.setText("");
       return;
     }
 
@@ -1214,13 +1756,27 @@ export class LineoutScene extends Phaser.Scene {
       roles.push(t("lineout.role.lifter"));
     }
 
-    this.inspectorNameText.setText(`${t("team.numberPrefix")}${this.inspectedPlayer.number} - ${this.inspectedPlayer.nickname}`);
-    this.inspectorRoleText.setText(roles.join(" · "));
-    this.inspectorStatsText.setText(
-      `${t("team.stat.jump")} ${this.inspectedPlayer.jump} · `
-      + `${t("team.stat.lift")} ${this.inspectedPlayer.lift} · `
-      + `${t("team.stat.hands")} ${this.inspectedPlayer.hands}`
-    );
+    this.inspectorPanel.setPlayerData({
+      name: `${t("team.numberPrefix")}${this.inspectedPlayer.number} · ${this.inspectedPlayer.nickname}`,
+      role: roles.join(" • "),
+      stats: [
+        { label: t("team.stat.jump"), value: this.inspectedPlayer.jump },
+        { label: t("team.stat.lift"), value: this.inspectedPlayer.lift },
+        { label: t("team.stat.hands"), value: this.inspectedPlayer.hands }
+      ],
+      colors: this.getPlayerInspectorColors(this.inspectedPlayer.id)
+    });
+  }
+
+  private getPlayerInspectorColors(playerId: string) {
+    const save = GameStore.getSave();
+    const match = GameStore.getMatch();
+    const belongsToOpponent = match?.away.hooker.id === playerId
+      || match?.away.fieldPlayers.some((player) => player.id === playerId);
+
+    return belongsToOpponent && match
+      ? getContrastingOpponentColors(save.playerTeam.colors, match.away.colors)
+      : save.playerTeam.colors;
   }
 
   private flashStatus(message: string): void {
@@ -1520,7 +2076,8 @@ export class LineoutScene extends Phaser.Scene {
   private showResult(result: LineoutResult): void {
     const presentation = buildLineoutResultPresentation(result);
     const continueMatch = () => this.scene.start("MatchScene");
-    new Modal(this, t(presentation.titleKey), t(presentation.summaryKey), continueMatch, {
+    const summary = presentation.summaryKeys.map((key) => t(key)).join(" ");
+    new Modal(this, t(presentation.titleKey), summary, continueMatch, {
       primaryLabel: t("button.continue"),
       secondaryAction: {
         label: t("lineout.result.details"),
@@ -1564,23 +2121,23 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private getLayout(): LineoutLayout {
+    const trainingPlayerWidth = Math.round(SCREEN_WIDTH * PLAYER_FIELD_WIDTH_RATIO);
+    const trainingPlayerHeight = Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO);
     const common = {
-      headerHeight: HEADER_HEIGHT,
       fieldTop: FIELD_TOP,
       fieldBottom: SCREEN_HEIGHT,
       fieldWidth: SCREEN_WIDTH,
       fieldHeight: FIELD_HEIGHT,
-      playerWidth: Math.round(SCREEN_WIDTH * PLAYER_FIELD_WIDTH_RATIO),
-      playerHeight: Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
+      playerWidth: trainingPlayerWidth,
+      playerHeight: trainingPlayerHeight
     };
-    const slotRectHalfHeight = (common.playerHeight + 8) / 2;
-    const slotBottomOffset = 4;
-    const topSlotLift = 10;
 
     if (this.mode === "training") {
-      const fifteenLineY = FIELD_TOP + 56;
-      const fiveMeterLineY = SCREEN_HEIGHT - 196;
-      const slotStartY = SCREEN_HEIGHT - 202 - slotBottomOffset;
+      const slotRectHalfHeight = (trainingPlayerHeight + 8) / 2;
+      const topSlotLift = 10;
+      const fifteenLineY = TRAINING_FIFTEEN_LINE_Y;
+      const fiveMeterLineY = TRAINING_FIVE_METER_LINE_Y;
+      const slotStartY = TRAINING_SLOT_START_Y;
       const topSlotTargetY = fifteenLineY - topSlotLift + slotRectHalfHeight;
       const slotGap = Math.round((slotStartY - topSlotTargetY) / 6);
       const reserveY = slotStartY - slotGap * 6;
@@ -1590,10 +2147,10 @@ export class LineoutScene extends Phaser.Scene {
         attackX: 195,
         reserveX: 292,
         hookerX: 195,
-        hookerY: 744,
+        hookerY: TRAINING_HOOKER_Y,
         fifteenLineY,
         fiveMeterLineY,
-        touchLineY: SCREEN_HEIGHT - 82,
+        touchLineY: TRAINING_TOUCH_LINE_Y,
         slotStartY,
         slotGap,
         reserveY,
@@ -1601,22 +2158,41 @@ export class LineoutScene extends Phaser.Scene {
       };
     }
 
-    const fifteenLineY = FIELD_TOP + 70;
-    const fiveMeterLineY = SCREEN_HEIGHT - 196;
-    const slotStartY = SCREEN_HEIGHT - 202 - slotBottomOffset;
+    // Le match reprend exactement la géométrie de l'entraînement, puis l'agrandit
+    // jusqu'au bas de l'écran rendu disponible par l'absence des boutons.
+    const matchFifteenLineY = FIELD_TOP + 170;
+    const trainingHookerFeetY = TRAINING_HOOKER_Y + TRAINING_HOOKER_FEET_OFFSET;
+    const matchHookerFeetY = SCREEN_HEIGHT - 4;
+    const matchScale = (matchHookerFeetY - matchFifteenLineY)
+      / (trainingHookerFeetY - TRAINING_FIFTEEN_LINE_Y);
+    const scaleMatchY = (trainingY: number): number => (
+      matchFifteenLineY
+      + (trainingY - TRAINING_FIFTEEN_LINE_Y) * matchScale
+    );
+    const playerWidth = Math.round(trainingPlayerWidth * matchScale);
+    const playerHeight = Math.round(trainingPlayerHeight * matchScale);
+    const slotRectHalfHeight = (playerHeight + 8 * matchScale) / 2;
+    const topSlotLift = 10 * matchScale;
+    const fifteenLineY = matchFifteenLineY;
+    const fiveMeterLineY = Math.round(scaleMatchY(TRAINING_FIVE_METER_LINE_Y));
+    const touchLineY = Math.round(scaleMatchY(TRAINING_TOUCH_LINE_Y));
+    const slotStartY = Math.round(scaleMatchY(TRAINING_SLOT_START_Y));
+    const hookerY = Math.round(scaleMatchY(TRAINING_HOOKER_Y));
     const topSlotTargetY = fifteenLineY - topSlotLift + slotRectHalfHeight;
     const slotGap = Math.round((slotStartY - topSlotTargetY) / 6);
 
     return {
       ...common,
+      playerWidth,
+      playerHeight,
       attackX: 140,
       defenseX: 250,
       reserveX: 0,
       hookerX: 195,
-      hookerY: 744,
+      hookerY,
       fifteenLineY,
       fiveMeterLineY,
-      touchLineY: SCREEN_HEIGHT - 82,
+      touchLineY,
       slotStartY,
       slotGap,
       reserveY: 0,
@@ -1655,9 +2231,6 @@ export class LineoutScene extends Phaser.Scene {
     this.dragState = null;
     this.inspectedPlayer = null;
     this.inspectorPanel = undefined;
-    this.inspectorNameText = undefined;
-    this.inspectorStatsText = undefined;
-    this.inspectorRoleText = undefined;
     this.statusText = undefined;
     this.hookerSprite = undefined;
     this.userSlotIndicators = [];
@@ -1669,8 +2242,10 @@ export class LineoutScene extends Phaser.Scene {
     return this.mode === "match" && this.currentMatchLineout?.throwingSide === "opponent";
   }
 
-  private formatMinute(minute: number): string {
-    const clampedMinute = Phaser.Math.Clamp(Math.round(minute), 0, 99);
-    return `${String(clampedMinute).padStart(2, "0")}:00`;
+  private shouldShowCombinationSelection(): boolean {
+    return this.mode === "match"
+      && !this.isDefensiveMatch()
+      && !this.combinationConfirmed;
   }
+
 }

@@ -1,10 +1,12 @@
-# Checklist de relecture après chaque passage Codex
+# Checklist manuelle de fin de jalon
+
+Cette checklist est destinée à une validation volontaire avant une livraison ou un jalon important. Codex ne l'exécute pas automatiquement après chaque intervention.
 
 ## Compilation
 
 - [ ] `npm run check` passe.
-- [ ] `npm run build` passe.
-- [ ] Le jeu démarre avec `npm run dev`.
+- [ ] `npm run build` passe si une livraison est préparée.
+- [ ] Le jeu démarre avec `npm run dev` si l'utilisateur souhaite effectuer un test manuel.
 
 ## Gameplay
 

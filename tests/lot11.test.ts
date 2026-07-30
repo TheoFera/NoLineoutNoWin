@@ -18,6 +18,7 @@ import {
 import { getDistanceToNearestTryLine } from "../src/rules/MatchSimulator.ts";
 import { createDefaultPlayerTeam } from "../src/rules/TeamFactory.ts";
 import { loadGame, saveGame } from "../src/systems/SaveSystem.ts";
+import { createSeededRandom } from "../src/utils/Random.ts";
 import {
   JERSEY_COLOR_SIMILARITY_THRESHOLD,
   areJerseyColorsTooSimilar,
@@ -28,6 +29,19 @@ import {
   getLineoutLiftSequenceDurationMs,
   LINEOUT_LIFT_ANIMATION
 } from "../src/ui/LineoutLiftAnimation.ts";
+import {
+  formatMatchMinute,
+  MATCH_SCORE_OVERLAY_DEPTH,
+  MATCH_SCORE_OVERLAY_LAYOUT,
+  PLAYER_STATS_OVERLAY_DEPTH
+} from "../src/ui/MatchScoreOverlayLayout.ts";
+import {
+  getBallAnimationTargetOffset,
+  getLineoutAnimationTargetType,
+  getLineoutAnimationThrowQuality,
+  getLineoutAnimationTrajectory,
+  sampleThrowHorizontalOffset
+} from "../src/ui/LineoutThrowAnimation.ts";
 import { resolveRugbyPlayerAssetSet } from "../src/ui/RugbyPlayerAssetResolver.ts";
 
 const outcomeTitleKeys: Record<LineoutOutcome, string> = {
@@ -299,14 +313,82 @@ test("opponent jersey colors are swapped only when both primary colors are too s
 test("lifters approach the jumper before using their dedicated lifting poses", () => {
   assert.deepEqual(getLifterAnimationConfig(3, 4), {
     pose: "lifter_front",
-    approachOffsetY: -10
+    approachOffsetY: -16
   });
   assert.deepEqual(getLifterAnimationConfig(5, 4), {
     pose: "hand",
-    approachOffsetY: 10
+    approachOffsetY: 16
   });
   assert.equal(getLifterAnimationConfig(2, 4), undefined);
   assert.equal(LINEOUT_LIFT_ANIMATION.hookerReleaseDelayMs, LINEOUT_LIFT_ANIMATION.approachDurationMs);
   assert.equal(LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs, 120);
+  assert.equal(LINEOUT_LIFT_ANIMATION.ballFlightDurationMs, 410);
+  assert.equal(LINEOUT_LIFT_ANIMATION.hookerLiftPoseWidthScale, 1.16);
   assert.equal(getLineoutLiftSequenceDurationMs(), 710);
+  assert.equal(getLineoutLiftSequenceDurationMs(false), 490);
+});
+
+test("match score overlay keeps mobile margins and formats the rugby minute", () => {
+  assert.ok(MATCH_SCORE_OVERLAY_LAYOUT.x > 0);
+  assert.ok(MATCH_SCORE_OVERLAY_LAYOUT.y > 0);
+  assert.ok(MATCH_SCORE_OVERLAY_LAYOUT.width < 390);
+  assert.equal(
+    MATCH_SCORE_OVERLAY_LAYOUT.x * 2 + MATCH_SCORE_OVERLAY_LAYOUT.width,
+    390
+  );
+  assert.equal(formatMatchMinute(14), "14'");
+  assert.equal(formatMatchMinute(14.9), "14'");
+  assert.equal(formatMatchMinute(-2), "0'");
+  assert.ok(PLAYER_STATS_OVERLAY_DEPTH > MATCH_SCORE_OVERLAY_DEPTH);
+});
+
+test("ball animation follows the resolved throw type and trajectory", () => {
+  const resolved = result("cleanWin");
+  if (!resolved.resolution) {
+    throw new Error("Expected a resolution");
+  }
+  resolved.resolution.details.targetOptionType = "directCatch";
+  resolved.resolution.details.trajectory = "high";
+  resolved.resolution.details.throwQuality = 42.5;
+
+  assert.equal(getLineoutAnimationTargetType(resolved, "jumpBlock"), "directCatch");
+  assert.equal(getLineoutAnimationTrajectory(resolved), "high");
+  assert.equal(getLineoutAnimationThrowQuality(resolved), 42.5);
+
+  const preciseJump = getBallAnimationTargetOffset("precise", true, 70, 0);
+  const preciseDirect = getBallAnimationTargetOffset("precise", false, 70, 0);
+  const lowJump = getBallAnimationTargetOffset("low", true, 70, 0);
+  const highJump = getBallAnimationTargetOffset("high", true, 70, 0);
+  const notStraight = getBallAnimationTargetOffset("notStraight", true, 70, -56);
+
+  assert.ok(highJump.y < preciseJump.y);
+  assert.ok(preciseJump.y < lowJump.y);
+  assert.ok(preciseJump.y < preciseDirect.y);
+  assert.equal(notStraight.x, -56);
+  assert.equal(preciseJump.x, 0);
+});
+
+test("throw quality controls a bounded gaussian horizontal variation around the hooker", () => {
+  for (let seed = 1; seed <= 100; seed += 1) {
+    assert.equal(sampleThrowHorizontalOffset(100, createSeededRandom(seed)), 0);
+
+    const straightAtThreshold = sampleThrowHorizontalOffset(50, createSeededRandom(seed));
+    assert.ok(Math.abs(straightAtThreshold) < 10);
+
+    const barelyNotStraight = sampleThrowHorizontalOffset(49, createSeededRandom(seed));
+    const maximumAt49 = 25.01 + (150 - 25.01) * (1 / 50);
+    assert.ok(Math.abs(barelyNotStraight) > 25);
+    assert.ok(Math.abs(barelyNotStraight) <= maximumAt49);
+
+    const worstThrow = sampleThrowHorizontalOffset(0, createSeededRandom(seed));
+    assert.ok(Math.abs(worstThrow) > 25);
+    assert.ok(Math.abs(worstThrow) <= 150);
+  }
+
+  const variedStraightThrows = new Set(
+    Array.from({ length: 20 }, (_, index) => (
+      sampleThrowHorizontalOffset(75, createSeededRandom(index + 1))
+    ))
+  );
+  assert.ok(variedStraightThrows.size > 1);
 });

@@ -40,10 +40,11 @@ Puis ouvrir, tester et générer l'application dans Android Studio.
 ## Documents importants
 
 - `AGENTS.md` : instructions permanentes pour Codex.
+- `docs/SOMMAIRE_CODEX.md` : routage rapide vers le seul document utile à la tâche.
 - `docs/CDC_NORMALISE.md` : cahier des charges nettoyé.
 - `docs/PLAN_DEVELOPPEMENT_CODEX.md` : ordre de développement conseillé.
 - `docs/PROMPTS_CODEX.md` : prompts prêts à copier dans Codex.
-- `docs/CHECKLIST_RELECTURE.md` : contrôle qualité après chaque lot.
+- `docs/CHECKLIST_RELECTURE.md` : contrôle manuel avant un jalon ou une livraison.
 
 ## Règles métier clés
 

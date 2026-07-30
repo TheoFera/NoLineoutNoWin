@@ -30,6 +30,15 @@ export class ChampionshipScene extends Phaser.Scene {
       : null;
     const nextOpponentName = nextOpponentRecord?.name ?? t("championship.finished");
     const visibleStandings = this.buildVisibleStandings(standings, nextOpponentId);
+    const standingsPanelCenterX = 195;
+    const standingsPanelWidth = 338;
+    const teamNameX = 62;
+    const contentSideInset = teamNameX - (standingsPanelCenterX - standingsPanelWidth / 2);
+    const goalAverageColumnCenterX = standingsPanelCenterX + standingsPanelWidth / 2 - contentSideInset - 6;
+    const pointsColumnCenterX = goalAverageColumnCenterX - 46;
+    const nextMatchBadgeCenterX = pointsColumnCenterX - 60;
+    const standingsHeaderY = 288;
+    const firstStandingRowY = 318;
 
     this.renderChampionshipBackground();
     this.add.text(195, 160, `${t("championship.season")} ${save.season} - ${divisionLabel}`, {
@@ -39,9 +48,9 @@ export class ChampionshipScene extends Phaser.Scene {
       wordWrap: { width: 300 }
     }).setOrigin(0.5);
     renderMenuPanel(this, {
-      x: 195,
+      x: standingsPanelCenterX,
       y: 456,
-      width: 338,
+      width: standingsPanelWidth,
       height: 396,
       accentColor: 0x2f73d1,
       fillColor: 0x071326
@@ -58,13 +67,20 @@ export class ChampionshipScene extends Phaser.Scene {
       wordWrap: { width: 300 }
     }).setOrigin(0.5);
 
+    const tableHeaderStyle = { font: "bold 10px Arial", color: UI.colors.muted };
+    this.add.text(32, standingsHeaderY, t("championship.tableRank"), tableHeaderStyle).setOrigin(0, 0.5);
+    this.add.text(teamNameX, standingsHeaderY, t("championship.tableClub"), tableHeaderStyle).setOrigin(0, 0.5);
+    this.add.text(pointsColumnCenterX, standingsHeaderY, t("championship.tablePoints"), tableHeaderStyle).setOrigin(0.5);
+    this.add.text(goalAverageColumnCenterX, standingsHeaderY, t("championship.goalAverageShort"), tableHeaderStyle).setOrigin(0.5);
+    this.add.rectangle(standingsPanelCenterX, standingsHeaderY + 14, 322, 2, 0xf8fafc, 0.25);
+
     visibleStandings.forEach((record, index) => {
-      const y = 304 + index * 40;
+      const y = firstStandingRowY + index * 40;
       const isPlayerTeam = record.teamId === "player_team";
       const isNextOpponent = record.teamId === nextOpponentId;
       const rank = standings.findIndex((item) => item.teamId === record.teamId) + 1;
       const nameColor = isPlayerTeam ? "#fde68a" : UI.colors.text;
-      const pointsColor = isNextOpponent ? "#bfdbfe" : UI.colors.text;
+      const statisticsColor = isNextOpponent ? "#bfdbfe" : UI.colors.text;
       const goalAverage = getGoalAverage(record);
       const formattedGoalAverage = goalAverage > 0 ? `+${goalAverage}` : String(goalAverage);
 
@@ -75,13 +91,19 @@ export class ChampionshipScene extends Phaser.Scene {
         this.add.rectangle(28, y, 6, 24, 0x60a5fa, 0.95);
       }
       this.add.text(32, y, `${rank}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(62, y, record.name, { font: UI.font.body, color: nameColor }).setOrigin(0, 0.5);
-      this.add.text(260, y, `${t("championship.goalAverageShort")} ${formattedGoalAverage}`, { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
-      this.add.text(302, y, `${record.leaguePoints} pts`, { font: UI.font.small, color: pointsColor }).setOrigin(0.5);
+      this.add.text(teamNameX, y, record.name, { font: UI.font.body, color: nameColor }).setOrigin(0, 0.5);
+      this.add.text(goalAverageColumnCenterX, y, formattedGoalAverage, {
+        font: UI.font.small,
+        color: statisticsColor
+      }).setOrigin(0.5);
+      this.add.text(pointsColumnCenterX, y, `${record.leaguePoints}`, {
+        font: UI.font.small,
+        color: statisticsColor
+      }).setOrigin(0.5);
 
       if (isNextOpponent) {
-        this.add.rectangle(324, y, 42, 16, 0x1d4ed8, 1).setStrokeStyle(1, 0xbfdbfe, 0.9);
-        this.add.text(324, y, t("championship.nextMatchShort"), {
+        this.add.rectangle(nextMatchBadgeCenterX, y, 42, 16, 0x1d4ed8, 1).setStrokeStyle(1, 0xbfdbfe, 0.9);
+        this.add.text(nextMatchBadgeCenterX, y, t("championship.nextMatchShort"), {
           font: "bold 9px Arial",
           color: UI.colors.text
         }).setOrigin(0.5);

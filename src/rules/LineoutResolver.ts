@@ -87,8 +87,8 @@ export function adaptResolutionForPerspective(
       "fault",
       "not_straight",
       perspective === "throwing"
-        ? "lineout.explanation.fault"
-        : "lineout.explanation.opponentNotStraight",
+        ? "lineout.explanation.attackNotStraight"
+        : "lineout.explanation.defenseNotStraight",
       calculationScore,
       calculationDetails,
       resolution
@@ -96,12 +96,30 @@ export function adaptResolutionForPerspective(
   }
 
   if (resolution.outcome === "knockOn") {
+    if (resolution.details.recoveryKind === "secondary") {
+      const explanationKeys = [
+        getRecoveryCauseKey(perspective, input, resolution),
+        getSecondaryKnockOnFinalKey(resolution, weOffended)
+      ];
+      return legacyResult(
+        weOffended ? "fault" : "won_dirty",
+        "knock_on",
+        explanationKeys[0],
+        calculationScore,
+        calculationDetails,
+        resolution,
+        {
+          explanationKeys,
+          presentationTitleKey: weOffended
+            ? "lineout.presentation.title.secondaryKnockOn"
+            : "lineout.presentation.title.opponentKnockOn"
+        }
+      );
+    }
     return legacyResult(
       weOffended ? "fault" : "won_dirty",
       "knock_on",
-      weOffended
-        ? "lineout.explanation.ourKnockOn"
-        : "lineout.explanation.opponentKnockOn",
+      getKnockOnExplanationKey(perspective, weOffended, input),
       calculationScore,
       calculationDetails,
       resolution
@@ -109,20 +127,94 @@ export function adaptResolutionForPerspective(
   }
 
   if (resolution.outcome === "looseBall") {
+    if (resolution.details.recoveryKind === "out15m") {
+      const explanationKeys = [
+        getRecoveryCauseKey(perspective, input, resolution),
+        weHaveBall
+          ? "lineout.explanation.final.userOutFifteen"
+          : "lineout.explanation.final.opponentOutFifteen"
+      ];
+      return legacyResult(
+        weHaveBall ? "won_dirty" : "lost",
+        weHaveBall ? "dirty_catch" : "stolen",
+        explanationKeys[0],
+        calculationScore,
+        calculationDetails,
+        resolution,
+        {
+          explanationKeys,
+          presentationTitleKey: resolution.details.trajectory === "high"
+            ? "lineout.presentation.title.highBall"
+            : "lineout.presentation.title.beyondFifteen"
+        }
+      );
+    }
     const highBallLoose = resolution.primaryReason === "lineout.reason.highBallLoose";
     return legacyResult(
       weHaveBall ? "won_dirty" : "lost",
       weHaveBall ? "dirty_catch" : "stolen",
       highBallLoose
-        ? (weHaveBall
-          ? "lineout.explanation.highBallLooseWon"
-          : "lineout.explanation.highBallLooseLost")
-        : (weHaveBall
-          ? "lineout.explanation.looseBallWon"
-          : "lineout.explanation.looseBallLost"),
+        ? getHighBallExplanationKey(perspective, weHaveBall)
+        : getLooseBallExplanationKey(perspective, weHaveBall, input),
       calculationScore,
       calculationDetails,
       resolution
+    );
+  }
+
+  if (
+    resolution.details.recoveryKind === "secondary"
+    || resolution.details.recoveryKind === "ground"
+  ) {
+    const groundRecovery = resolution.details.recoveryKind === "ground";
+    const explanationKeys = [
+      getRecoveryCauseKey(perspective, input, resolution),
+      groundRecovery
+        ? weHaveBall
+          ? "lineout.explanation.final.userGround"
+          : "lineout.explanation.final.opponentGround"
+        : getSecondaryRecoveryFinalKey(resolution, weHaveBall)
+    ];
+    return legacyResult(
+      weHaveBall ? "won_dirty" : "lost",
+      weHaveBall ? "dirty_catch" : "stolen",
+      explanationKeys[0],
+      calculationScore,
+      calculationDetails,
+      resolution,
+      {
+        explanationKeys,
+        presentationTitleKey: groundRecovery
+          ? weHaveBall
+            ? "lineout.presentation.title.groundRecovered"
+            : "lineout.presentation.title.groundLost"
+          : weHaveBall
+            ? "lineout.presentation.title.recovered"
+            : perspective === "throwing"
+              ? "lineout.presentation.title.ballLost"
+              : "lineout.presentation.title.lost"
+      }
+    );
+  }
+
+  const targetCatchKey = getContextualTargetCatchKey(perspective, input, resolution);
+  if (targetCatchKey) {
+    const clean = resolution.outcome === "cleanWin" || resolution.outcome === "cleanSteal";
+    return legacyResult(
+      weHaveBall ? clean ? "won" : "won_dirty" : "lost",
+      weHaveBall ? clean ? "clean_catch" : "dirty_catch" : "stolen",
+      targetCatchKey,
+      calculationScore,
+      calculationDetails,
+      resolution,
+      {
+        explanationKeys: [targetCatchKey],
+        presentationTitleKey: perspective === "throwing"
+          ? clean
+            ? "lineout.presentation.title.won"
+            : "lineout.presentation.title.wonScrappy"
+          : "lineout.presentation.title.lost"
+      }
     );
   }
 
@@ -134,10 +226,10 @@ export function adaptResolutionForPerspective(
       perspective === "defending"
         ? clean
           ? "lineout.explanation.defenseStolen"
-          : "lineout.explanation.defenseContested"
+          : "lineout.explanation.defenseDeflected"
         : clean
-          ? "lineout.explanation.clean"
-          : "lineout.explanation.dirty",
+          ? "lineout.explanation.attackClean"
+          : "lineout.explanation.attackScrappy",
       calculationScore,
       calculationDetails,
       resolution
@@ -148,12 +240,151 @@ export function adaptResolutionForPerspective(
     "lost",
     "stolen",
     perspective === "defending"
-      ? "lineout.explanation.defenseBeaten"
-      : "lineout.explanation.lost",
+      ? resolution.outcome === "cleanWin"
+        ? "lineout.explanation.defenseCleanLost"
+        : "lineout.explanation.defenseScrappyLost"
+      : resolution.outcome === "cleanSteal"
+        ? "lineout.explanation.attackStolen"
+        : "lineout.explanation.attackDeflected",
     calculationScore,
     calculationDetails,
     resolution
   );
+}
+
+function getHighBallExplanationKey(
+  perspective: "throwing" | "defending",
+  weHaveBall: boolean
+): string {
+  if (perspective === "defending") {
+    return weHaveBall
+      ? "lineout.explanation.defenseHighBallWon"
+      : "lineout.explanation.defenseHighBallLost";
+  }
+  return weHaveBall
+    ? "lineout.explanation.attackHighBallWon"
+    : "lineout.explanation.attackHighBallLost";
+}
+
+function getKnockOnExplanationKey(
+  perspective: "throwing" | "defending",
+  weOffended: boolean,
+  input: LineoutResolutionInput
+): string {
+  if (perspective === "defending") {
+    return weOffended
+      ? "lineout.explanation.defenseOurKnockOn"
+      : "lineout.explanation.defenseOpponentKnockOn";
+  }
+
+  if (!weOffended) {
+    return "lineout.explanation.attackOpponentKnockOn";
+  }
+
+  return input.targetOption.type === "directCatch"
+    ? "lineout.explanation.attackDirectKnockOn"
+    : "lineout.explanation.attackJumperKnockOn";
+}
+
+function getLooseBallExplanationKey(
+  perspective: "throwing" | "defending",
+  weHaveBall: boolean,
+  input: LineoutResolutionInput
+): string {
+  const directCatch = input.targetOption.type === "directCatch";
+  if (perspective === "defending") {
+    if (directCatch) {
+      return weHaveBall
+        ? "lineout.explanation.defenseDirectLooseWon"
+        : "lineout.explanation.defenseDirectLooseLost";
+    }
+    return weHaveBall
+      ? "lineout.explanation.defenseLooseWon"
+      : "lineout.explanation.defenseLooseLost";
+  }
+
+  if (directCatch) {
+    return weHaveBall
+      ? "lineout.explanation.attackDirectLooseWon"
+      : "lineout.explanation.attackDirectLooseLost";
+  }
+  return weHaveBall
+    ? "lineout.explanation.attackLooseWon"
+    : "lineout.explanation.attackLooseLost";
+}
+
+function getRecoveryCauseKey(
+  perspective: "throwing" | "defending",
+  input: LineoutResolutionInput,
+  resolution: LineoutResolution
+): string {
+  const perspectiveKey = perspective === "throwing" ? "attack" : "defense";
+  const trajectory = getResolvedTrajectory(resolution);
+  if (input.targetOption.type === "directCatch") {
+    return `lineout.explanation.cause.${perspectiveKey}.direct.${trajectory}`;
+  }
+  const jumpKey = resolution.details.attackJumpSucceeded === true ? "success" : "failed";
+  return `lineout.explanation.cause.${perspectiveKey}.jump.${trajectory}.${jumpKey}`;
+}
+
+function getSecondaryRecoveryFinalKey(
+  resolution: LineoutResolution,
+  weHaveBall: boolean
+): string {
+  const positionKey = isRecoveryInFrontOfTarget(resolution) ? "Front" : "Behind";
+  const receptionKey = resolution.details.cascadeReceptionType === "duel" ? "Duel" : "Solo";
+  return `lineout.explanation.final.${weHaveBall ? "user" : "opponent"}${positionKey}${receptionKey}`;
+}
+
+function getSecondaryKnockOnFinalKey(
+  resolution: LineoutResolution,
+  weOffended: boolean
+): string {
+  const positionKey = isRecoveryInFrontOfTarget(resolution) ? "Front" : "Behind";
+  const receptionKey = resolution.details.cascadeReceptionType === "duel" ? "Duel" : "Solo";
+  return `lineout.explanation.final.${weOffended ? "user" : "opponent"}${positionKey}${receptionKey}KnockOn`;
+}
+
+function getContextualTargetCatchKey(
+  perspective: "throwing" | "defending",
+  input: LineoutResolutionInput,
+  resolution: LineoutResolution
+): string | null {
+  const targetCatchReasons = new Set([
+    "lineout.reason.blockReceptionClean",
+    "lineout.reason.blockReceptionScrappy",
+    "lineout.reason.directReceptionClean",
+    "lineout.reason.directReceptionScrappy"
+  ]);
+  if (
+    !targetCatchReasons.has(resolution.primaryReason)
+    && resolution.details.recoveryKind !== "target"
+  ) {
+    return null;
+  }
+
+  const perspectiveKey = perspective === "throwing" ? "attack" : "defense";
+  const trajectory = getResolvedTrajectory(resolution);
+  if (input.targetOption.type === "directCatch") {
+    return `lineout.explanation.target.${perspectiveKey}.direct.${trajectory}`;
+  }
+  if (trajectory === "low" && resolution.details.attackJumpSucceeded === false) {
+    return `lineout.explanation.target.${perspectiveKey}.jump.low.failed`;
+  }
+  return `lineout.explanation.target.${perspectiveKey}.jump.${trajectory}.success`;
+}
+
+function isRecoveryInFrontOfTarget(resolution: LineoutResolution): boolean {
+  const recoveryPosition = resolution.details.cascadeRecoveryPosition;
+  const targetPosition = resolution.details.targetPosition;
+  return typeof recoveryPosition === "number"
+    && typeof targetPosition === "number"
+    && recoveryPosition < targetPosition;
+}
+
+function getResolvedTrajectory(resolution: LineoutResolution): "precise" | "low" | "high" {
+  const trajectory = resolution.details.trajectory;
+  return trajectory === "low" || trajectory === "high" ? trajectory : "precise";
 }
 
 function toAssignments(players: Array<FieldPlayer | null>): LineoutAssignments {
@@ -270,7 +501,11 @@ function legacyResult(
   explanationKey: string,
   calculationScore: number,
   calculationDetails: LineoutResult["calculationDetails"],
-  resolution: LineoutResolution
+  resolution: LineoutResolution,
+  presentation?: {
+    explanationKeys?: string[];
+    presentationTitleKey?: string;
+  }
 ): LineoutResult {
   return {
     displayedResult,
@@ -278,6 +513,12 @@ function legacyResult(
     possessionDelta: 0,
     occupationDelta: 0,
     explanationKey,
+    ...(presentation?.explanationKeys
+      ? { explanationKeys: presentation.explanationKeys }
+      : {}),
+    ...(presentation?.presentationTitleKey
+      ? { presentationTitleKey: presentation.presentationTitleKey }
+      : {}),
     calculationScore,
     calculationDetails,
     resolution

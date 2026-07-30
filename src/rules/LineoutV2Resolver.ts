@@ -22,16 +22,19 @@ import {
 } from "./LineoutJumpResolver.ts";
 import {
   getRecoveryPlacements,
-  resolveHighBallCascade,
+  resolveGroundRecovery,
   resolveLooseBall,
+  resolveRecoverySequence,
   resolveSoloReception,
   testKnockOn,
-  type HighBallCascadeResult,
+  type RecoveryAttempt,
+  type RecoverySequenceResult,
   type SoloReceptionResult
 } from "./LineoutReceptionResolver.ts";
 import { resolveLineoutThrow, type LineoutThrowResult } from "./LineoutThrowResolver.ts";
 
 const JUMPING = LINEOUT_BALANCE.jumping;
+const RECOVERY = LINEOUT_BALANCE.directCatch.secondaryRecovery;
 
 type ResolutionDetails = LineoutResolution["details"];
 
@@ -92,17 +95,39 @@ function resolveDirectCatch(
 ): LineoutResolution {
   const directCatcherPosition = context.input.targetOption.roles.directCatcherPosition
     ?? context.input.targetOption.targetPosition;
+  const trajectory = context.throwResult.trajectory.trajectory;
+  context.details.directCatcherPosition = directCatcherPosition;
+  context.details.receiverId = receiver.id;
+
+  if (trajectory === "high") {
+    return resolveHighRecoveryPath(context, directCatcherPosition);
+  }
+
+  if (trajectory === "low") {
+    const frontRecovery = attemptSecondaryRecovery(
+      context,
+      lowFrontAttempts(directCatcherPosition, true)
+    );
+    if (frontRecovery) return frontRecovery;
+    context.details.recoveryKind = "target";
+  }
+
   const placements = getRecoveryPlacements(
     directCatcherPosition,
     context.input.defendingAssignments
   );
   const reception = resolveSoloReception(receiver, placements, context.input.rng);
   addSoloReceptionDetails(context.details, reception, "targetReception");
-  context.details.directCatcherPosition = directCatcherPosition;
-  context.details.receiverId = receiver.id;
   context.details.receiverPlacements = placements.join(",");
 
-  return resolveOffensiveReception(context, reception);
+  const directResult = resolveSuccessfulOffensiveReception(context, reception);
+  if (directResult) return directResult;
+
+  if (trajectory === "precise") {
+    return resolvePreciseRecoveryPath(context, directCatcherPosition);
+  }
+
+  return resolveGroundBall(context, directCatcherPosition, false);
 }
 
 function resolveJumpBlock(
@@ -112,6 +137,9 @@ function resolveJumpBlock(
 ): LineoutResolution {
   const attackingJump = calculateAttackingJump(context.input, attackingJumper);
   addJumpDetails(context.details, attackingJump, "attackJump");
+  const attackingJumpSucceeded = attackingJump.possible
+    && attackingJump.quality >= JUMPING.successThreshold;
+  context.details.attackJumpSucceeded = attackingJumpSucceeded;
 
   const defensivePosition = context.input.defensiveJumpPosition;
   const defendingJumper = defensivePosition
@@ -169,7 +197,22 @@ function resolveJumpBlock(
   );
   addBlockReceptionDetails(context.details, blockReception);
 
-  if (attackingJump.possible && blockReception.score >= JUMPING.blockReceptionSuccessThreshold) {
+  if (trajectory === "low") {
+    const frontRecovery = attemptSecondaryRecovery(
+      context,
+      lowFrontAttempts(
+        context.input.targetOption.targetPosition,
+        attackingJumpSucceeded
+      )
+    );
+    if (frontRecovery) return frontRecovery;
+    context.details.recoveryKind = "target";
+  }
+
+  if (
+    attackingJumpSucceeded
+    && blockReception.score >= JUMPING.blockReceptionSuccessThreshold
+  ) {
     const clean = isCleanReception(blockReception.score);
     return offensiveWin(
       context,
@@ -178,17 +221,34 @@ function resolveJumpBlock(
     );
   }
 
-  if (trajectory === "high") {
-    const cascade = resolveHighBallCascade(
-      context.input.targetOption.targetPosition,
-      context.input.attackingAssignments,
-      context.input.defendingAssignments,
-      context.input.rng
-    );
-    return resolveCascade(context, cascade);
+  if (trajectory === "precise") {
+    return resolvePreciseRecoveryPath(context, context.input.targetOption.targetPosition);
   }
 
-  return looseBall(context, "lineout.reason.blockReceptionMissed");
+  if (trajectory === "high") {
+    return resolveHighRecoveryPath(context, context.input.targetOption.targetPosition);
+  }
+
+  if (!attackingJumpSucceeded) {
+    const placements = getRecoveryPlacements(
+      context.input.targetOption.targetPosition,
+      context.input.defendingAssignments
+    );
+    const individualRecovery = resolveSoloReception(
+      attackingJumper,
+      placements,
+      context.input.rng
+    );
+    addSoloReceptionDetails(context.details, individualRecovery, "failedJumpRecovery");
+    const recovered = resolveSuccessfulOffensiveReception(context, individualRecovery);
+    if (recovered) return recovered;
+  }
+
+  return resolveGroundBall(
+    context,
+    context.input.targetOption.targetPosition,
+    !attackingJumpSucceeded
+  );
 }
 
 function calculateAttackingJump(
@@ -270,15 +330,15 @@ function resolveCleanDefensiveCatch(
   return defensiveTurnover(context, true, reason);
 }
 
-function resolveOffensiveReception(
+function resolveSuccessfulOffensiveReception(
   context: ResolutionContext,
   reception: SoloReceptionResult
-): LineoutResolution {
+): LineoutResolution | null {
   if (reception.outcome === "knockOn") {
     return knockOnResolution(context, "throwingTeam", "lineout.reason.attackingKnockOn");
   }
   if (reception.outcome === "missed") {
-    return looseBall(context, "lineout.reason.directReceptionMissed");
+    return null;
   }
   const clean = isCleanReception(reception.score);
   return offensiveWin(
@@ -288,24 +348,44 @@ function resolveOffensiveReception(
   );
 }
 
-function resolveCascade(
+function resolvePreciseRecoveryPath(
   context: ResolutionContext,
-  cascade: HighBallCascadeResult
+  targetPosition: LineoutPosition
 ): LineoutResolution {
-  context.details.cascadeOutcome = cascade.outcome;
-  context.details.cascadeBallTeam = cascade.ballTeam;
-  context.details.cascadeVisitedPositions = cascade.visitedPositions.join(",");
-  if (cascade.recoveryPosition) context.details.cascadeRecoveryPosition = cascade.recoveryPosition;
-  if (cascade.recoveryPlayerId) context.details.cascadeRecoveryPlayerId = cascade.recoveryPlayerId;
+  const recovery = attemptSecondaryRecovery(context, behindAttempts(targetPosition, false));
+  if (recovery) return recovery;
 
-  if (cascade.outcome === "looseBall") {
-    return createResolution(
-      "looseBall",
-      cascade.ballTeam,
-      "continuousPlay",
-      "lineout.reason.highBallLoose",
-      context.details
-    );
+  const finalRawPosition = targetPosition + RECOVERY.secondBehindOffset;
+  if (finalRawPosition > LINEOUT_BALANCE.positions.maximum) {
+    return resolveBallBeyondFifteenMetres(context);
+  }
+
+  return resolveGroundBall(context, finalRawPosition as LineoutPosition, false);
+}
+
+function resolveHighRecoveryPath(
+  context: ResolutionContext,
+  targetPosition: LineoutPosition
+): LineoutResolution {
+  const recovery = attemptSecondaryRecovery(context, behindAttempts(targetPosition, true));
+  return recovery ?? resolveBallBeyondFifteenMetres(context);
+}
+
+function attemptSecondaryRecovery(
+  context: ResolutionContext,
+  attempts: readonly RecoveryAttempt[]
+): LineoutResolution | null {
+  const cascade = resolveRecoverySequence(
+    attempts,
+    availableSecondaryAssignments(context, "throwingTeam"),
+    availableSecondaryAssignments(context, "defendingTeam"),
+    context.input.rng
+  );
+  addRecoverySequenceDetails(context.details, cascade);
+  context.details.recoveryKind = "secondary";
+
+  if (cascade.outcome === "missed") {
+    return null;
   }
   if (cascade.outcome === "knockOn") {
     return knockOnResolution(
@@ -324,23 +404,178 @@ function resolveCascade(
     return offensiveWin(
       context,
       clean,
-      clean ? "lineout.reason.highBallRecoveredClean" : "lineout.reason.highBallRecoveredScrappy"
+      clean
+        ? "lineout.reason.secondaryRecoveredClean"
+        : "lineout.reason.secondaryRecoveredScrappy"
     );
   }
   return defensiveTurnover(
     context,
     clean,
-    clean ? "lineout.reason.highBallStolenClean" : "lineout.reason.highBallStolenScrappy"
+    clean
+      ? "lineout.reason.secondaryStolenClean"
+      : "lineout.reason.secondaryStolenScrappy"
   );
 }
 
-function getCascadeWinningScore(cascade: HighBallCascadeResult): number {
+function getCascadeWinningScore(cascade: RecoverySequenceResult): number {
   const reception = cascade.reception;
   if (!reception) return JUMPING.blockReceptionSuccessThreshold;
   if ("score" in reception) return reception.score;
   return cascade.ballTeam === "throwingTeam"
     ? reception.throwingScore ?? JUMPING.blockReceptionSuccessThreshold
     : reception.defendingScore ?? JUMPING.blockReceptionSuccessThreshold;
+}
+
+function resolveGroundBall(
+  context: ResolutionContext,
+  groundPosition: LineoutPosition,
+  useEqualTeamProbability: boolean
+): LineoutResolution {
+  const ground = resolveGroundRecovery(
+    groundPosition,
+    availableSecondaryAssignments(context, "throwingTeam"),
+    availableSecondaryAssignments(context, "defendingTeam"),
+    context.input.rng,
+    useEqualTeamProbability
+  );
+  context.details.recoveryKind = "ground";
+  context.details.groundPosition = groundPosition;
+  context.details.groundEqualTeamProbability = useEqualTeamProbability;
+  context.details.cascadeBallTeam = ground.ballTeam;
+  if (ground.recoveryPosition) {
+    context.details.cascadeRecoveryPosition = ground.recoveryPosition;
+  }
+  if (ground.recoveryPlayerId) {
+    context.details.cascadeRecoveryPlayerId = ground.recoveryPlayerId;
+  }
+  if (ground.throwingCandidatePosition) {
+    context.details.groundThrowingCandidatePosition = ground.throwingCandidatePosition;
+  }
+  if (ground.throwingCandidatePlayerId) {
+    context.details.groundThrowingCandidatePlayerId = ground.throwingCandidatePlayerId;
+  }
+  if (ground.throwingScore !== null) {
+    context.details.groundThrowingScore = ground.throwingScore;
+  }
+  if (ground.defendingCandidatePosition) {
+    context.details.groundDefendingCandidatePosition = ground.defendingCandidatePosition;
+  }
+  if (ground.defendingCandidatePlayerId) {
+    context.details.groundDefendingCandidatePlayerId = ground.defendingCandidatePlayerId;
+  }
+  if (ground.defendingScore !== null) {
+    context.details.groundDefendingScore = ground.defendingScore;
+  }
+
+  return ground.ballTeam === "throwingTeam"
+    ? offensiveWin(context, false, "lineout.reason.groundRecoveredByThrowingTeam")
+    : defensiveTurnover(context, false, "lineout.reason.groundRecoveredByDefendingTeam");
+}
+
+function resolveBallBeyondFifteenMetres(context: ResolutionContext): LineoutResolution {
+  context.details.recoveryKind = "out15m";
+  context.details.ballExitedFifteenMetres = true;
+  return createResolution(
+    "looseBall",
+    resolveLooseBall(context.input.rng),
+    "continuousPlay",
+    "lineout.reason.highBallLoose",
+    context.details
+  );
+}
+
+function lowFrontAttempts(
+  targetPosition: LineoutPosition,
+  penalizeTwoPositionsAhead: boolean
+): RecoveryAttempt[] {
+  const attempts: RecoveryAttempt[] = [];
+  const twoAhead = targetPosition - 2;
+  const oneAhead = targetPosition - 1;
+  if (twoAhead >= LINEOUT_BALANCE.positions.minimum) {
+    attempts.push({
+      position: twoAhead as LineoutPosition,
+      scoreModifier: penalizeTwoPositionsAhead
+        ? RECOVERY.lowTwoAheadModifier
+        : 0
+    });
+  }
+  if (oneAhead >= LINEOUT_BALANCE.positions.minimum) {
+    attempts.push({ position: oneAhead as LineoutPosition });
+  }
+  return attempts;
+}
+
+function behindAttempts(
+  targetPosition: LineoutPosition,
+  continueToEndOfLineout: boolean
+): RecoveryAttempt[] {
+  const lastRawPosition = continueToEndOfLineout
+    ? LINEOUT_BALANCE.positions.maximum
+    : targetPosition + RECOVERY.secondBehindOffset;
+  const attempts: RecoveryAttempt[] = [];
+  for (
+    let rawPosition = targetPosition + RECOVERY.firstBehindOffset;
+    rawPosition <= Math.min(lastRawPosition, LINEOUT_BALANCE.positions.maximum);
+    rawPosition += 1
+  ) {
+    attempts.push({ position: rawPosition as LineoutPosition });
+  }
+  return attempts;
+}
+
+function availableSecondaryAssignments(
+  context: ResolutionContext,
+  team: LineoutResolutionTeam
+): LineoutAssignments {
+  const source = team === "throwingTeam"
+    ? context.input.attackingAssignments
+    : context.input.defendingAssignments;
+  const excluded = new Set<LineoutPosition>();
+
+  if (team === "throwingTeam") {
+    const { frontLifterPosition, rearLifterPosition } = context.input.targetOption.roles;
+    if (frontLifterPosition) excluded.add(frontLifterPosition);
+    if (rearLifterPosition) excluded.add(rearLifterPosition);
+  } else if (context.input.defensiveJumpPosition) {
+    const front = adjacentPosition(context.input.defensiveJumpPosition, -1);
+    const rear = adjacentPosition(context.input.defensiveJumpPosition, 1);
+    if (front) excluded.add(front);
+    if (rear) excluded.add(rear);
+  }
+
+  const available: LineoutAssignments = {};
+  for (
+    let rawPosition = LINEOUT_BALANCE.positions.minimum;
+    rawPosition <= LINEOUT_BALANCE.positions.maximum;
+    rawPosition += 1
+  ) {
+    const position = rawPosition as LineoutPosition;
+    if (!excluded.has(position) && source[position]) {
+      available[position] = source[position];
+    }
+  }
+  return available;
+}
+
+function addRecoverySequenceDetails(
+  details: ResolutionDetails,
+  cascade: RecoverySequenceResult
+): void {
+  details.cascadeOutcome = cascade.outcome;
+  details.cascadeVisitedPositions = cascade.visitedPositions.join(",");
+  details.cascadeThrowingAttemptPositions = cascade.throwingAttemptPositions.join(",");
+  details.cascadeDefendingAttemptPositions = cascade.defendingAttemptPositions.join(",");
+  if (cascade.ballTeam) details.cascadeBallTeam = cascade.ballTeam;
+  if (cascade.recoveryPosition) {
+    details.cascadeRecoveryPosition = cascade.recoveryPosition;
+  }
+  if (cascade.recoveryPlayerId) {
+    details.cascadeRecoveryPlayerId = cascade.recoveryPlayerId;
+  }
+  if (cascade.reception) {
+    details.cascadeReceptionType = "score" in cascade.reception ? "solo" : "duel";
+  }
 }
 
 function isCleanReception(score: number): boolean {
@@ -388,16 +623,6 @@ function knockOnResolution(
     reason,
     context.details,
     offendingTeam
-  );
-}
-
-function looseBall(context: ResolutionContext, reason: string): LineoutResolution {
-  return createResolution(
-    "looseBall",
-    resolveLooseBall(context.input.rng),
-    "continuousPlay",
-    reason,
-    context.details
   );
 }
 
@@ -495,6 +720,7 @@ function addSoloReceptionDetails(
   details[`${prefix}Hands`] = reception.hands;
   details[`${prefix}RandomScore`] = reception.randomScore;
   details[`${prefix}PlacementModifier`] = reception.placementModifier;
+  details[`${prefix}SituationalModifier`] = reception.situationalModifier;
   if (reception.knockOnRisk) {
     addKnockOnDetails(details, reception.knockOnRisk, `${prefix}KnockOn`);
   }

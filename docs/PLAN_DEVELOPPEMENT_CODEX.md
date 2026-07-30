@@ -4,22 +4,21 @@ Pour le nouveau gameplay de touche, suivre le plan détaillé dans
 `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`. Les lots V2 prévalent sur les lots
 historiques ci-dessous lorsqu'ils concernent la même mécanique.
 
-L'objectif est de faire coder le jeu par Codex en plusieurs lots courts. Chaque lot doit être testable avant de passer au suivant.
+L'objectif est de faire coder le jeu par Codex en plusieurs lots courts.
 
 ## Méthode générale
 
 Pour chaque lot :
 
-1. Créer un commit Git avant de demander le travail.
-2. Donner à Codex un prompt précis.
-3. Laisser Codex modifier les fichiers.
-4. Demander à Codex d'exécuter :
-   - `npm run check`
-   - `npm run build`
-5. Tester manuellement dans le navigateur avec `npm run dev`.
-6. Relire les fichiers modifiés.
-7. Corriger avant de passer au lot suivant.
-8. Faire un commit Git.
+1. Donner à Codex un prompt précis et limité à un seul objectif.
+2. Laisser Codex lire uniquement les fichiers et le document métier concernés.
+3. Demander à Codex de relire son diff.
+4. Pour du code TypeScript, exécuter `npm run check`.
+5. Réserver `npm run build` aux livraisons et aux changements de configuration, de dépendances, d'assets, de point d'entrée ou de Capacitor.
+6. L'utilisateur effectue les tests fonctionnels au moment qu'il choisit.
+7. Ne demander un test visuel dans le navigateur que lorsqu'un problème visuel précis doit être contrôlé.
+
+Codex ne lance pas de serveur de développement, de navigateur, de test automatisé, de simulation statistique ni d'audit global sans demande explicite.
 
 ## Lot 0 — Installation
 
@@ -49,7 +48,6 @@ Fichiers prioritaires :
 Critère de sortie :
 
 - `npm run check` passe.
-- `npm run build` passe.
 - Le jeu démarre sur le menu d'accueil.
 - Sans sauvegarde, `Jouer` mène à la création du club.
 - Avec sauvegarde, `Continuer` mène directement à l'entraînement jouable.

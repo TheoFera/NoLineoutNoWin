@@ -21,19 +21,16 @@ Ne pas remplacer automatiquement :
 - `PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`
 - `PROMPTS_GAMEPLAY_V2.md`
 
-## Ajout recommandé dans l’AGENTS.md existant
+## Routage actuel dans l’AGENTS.md
 
-Ajouter sans supprimer les instructions déjà présentes :
+Le dépôt utilise maintenant `docs/SOMMAIRE_CODEX.md` pour éviter de charger
+toute la documentation à chaque demande. Une tâche ordinaire ne doit lire que
+le document du domaine modifié.
 
 ```md
 ## Sources de vérité Gameplay V2
 
-Lire avant toute modification du gameplay :
-- docs/GAMEPLAY_TOUCHE_V2.md
-- docs/IA_TOUCHE_V2.md
-- docs/GENERATION_EQUIPES_V2.md
-- docs/SIMULATION_MATCH_V2.md
-- docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md
+Lire uniquement le document du domaine modifié, selon docs/SOMMAIRE_CODEX.md.
 
 En cas de contradiction sur le nouveau gameplay de touche, les documents V2 prévalent.
 
@@ -64,9 +61,5 @@ Il est préférable de demander à Codex de :
 
 1. Copier les six nouveaux fichiers dans `docs/`.
 2. Ajouter le bloc ci-dessus dans `AGENTS.md`.
-3. Lancer le « Prompt 1 — Préparation sans coder ».
-4. Lire et valider le rapport de Codex.
-5. Lancer le Lot 0.
-6. Auditer le Lot 0.
-7. Continuer lot par lot.
-
+3. Utiliser le sommaire pour sélectionner le document du lot.
+4. Continuer lot par lot, avec une validation proportionnée.

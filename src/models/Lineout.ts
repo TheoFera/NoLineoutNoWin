@@ -74,6 +74,8 @@ export type LineoutResult = {
   possessionDelta: number;
   occupationDelta: number;
   explanationKey: string;
+  explanationKeys?: string[];
+  presentationTitleKey?: string;
   calculationScore: number;
   calculationDetails: Array<{
     labelKey: string;

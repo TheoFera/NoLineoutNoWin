@@ -6,26 +6,21 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 
 1. Ne jamais tout réécrire sans raison.
 2. Avancer par petites étapes vérifiables.
-3. Avant chaque modification importante, lire :
-   - `docs/CDC_NORMALISE.md`
-   - `docs/ARCHITECTURE.md`
-   - `docs/PLAN_DEVELOPPEMENT_CODEX.md`
-   - `docs/GAMEPLAY_TOUCHE_V2.md`
-   - `docs/IA_TOUCHE_V2.md`
-   - `docs/SIMULATION_MATCH_V2.md`
-   - `docs/GENERATION_EQUIPES_V2.md`
-   - `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`
-   - `docs/INTEGRATION_GAMEPLAY_V2.md`
-4. Après chaque lot de travail, exécuter au minimum :
-   - le test du lot concerné, par exemple `npm run test:lot3`
-   - `npm run check`
-   - `npm run build`
-5. Ne pas commencer le lot suivant tant que les tests, le contrôle TypeScript, le build et l'audit du lot courant ne sont pas validés.
-6. Corriger les erreurs TypeScript avant d'ajouter une nouvelle fonctionnalité.
-7. Ne pas ajouter de framework non demandé.
-8. Ne pas ajouter de serveur, de compte utilisateur, de cloud, de pub ou d'achats intégrés dans la V1.
-9. Ne pas ajouter de stat joueur non prévue.
-10. Préserver les modifications déjà présentes dans le dépôt et limiter chaque intervention au périmètre demandé.
+3. Lire `docs/SOMMAIRE_CODEX.md`, puis uniquement les documents indiqués pour le domaine réellement modifié. Ne pas relire tous les documents V2 par défaut.
+4. Réutiliser les informations déjà lues dans la conversation tant que les fichiers n'ont pas changé.
+5. Inspecter d'abord les fichiers directement concernés. Ne pas auditer tout le dépôt sauf demande explicite.
+6. Validation proportionnée :
+   - modification de documentation uniquement : aucune commande ;
+   - modification TypeScript ordinaire : `npm run check` ;
+   - `npm run build` uniquement sur demande ou si la modification touche Vite, les dépendances, les points d'entrée, les assets, Capacitor ou une livraison ;
+   - ne jamais exécuter de tests automatisés, de simulations statistiques ou de tests Monte-Carlo sans demande explicite de l'utilisateur ;
+   - ne jamais lancer `npm run dev`, un navigateur, Playwright, Chrome, une capture d'écran ou un test visuel sans demande explicite de l'utilisateur.
+7. Ne pas effectuer automatiquement un second audit global après un lot. Relire le diff et les fichiers modifiés suffit, sauf demande contraire.
+8. Corriger les erreurs TypeScript liées au périmètre courant avant d'ajouter une nouvelle fonctionnalité.
+9. Ne pas ajouter de framework non demandé.
+10. Ne pas ajouter de serveur, de compte utilisateur, de cloud, de pub ou d'achats intégrés dans la V1.
+11. Ne pas ajouter de stat joueur non prévue.
+12. Préserver les modifications déjà présentes dans le dépôt et limiter chaque intervention au périmètre demandé.
 
 ## Sources de vérité du gameplay V2
 

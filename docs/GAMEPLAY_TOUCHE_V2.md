@@ -384,9 +384,12 @@ Le test d’en-avant est appliqué :
 
 Il n’est pas rejoué après un résultat déjà classé « ballon dévié et récupéré ».
 
-## 10. Réception directe et ballon trop haut
+## 10. Réception directe et récupérations secondaires
 
-Les deux situations utilisent la même règle de réception.
+Une première réception manquée ne devient pas automatiquement un `looseBall`.
+Le ballon poursuit sa trajectoire et les joueurs réellement placés sur son
+passage peuvent tenter de le capter. L’issue `looseBall` est réservée au ballon
+qui dépasse réellement la position 7 et sort au-delà de la ligne des 15 mètres.
 
 ### 10.1 Score de récupération seul
 
@@ -429,19 +432,129 @@ score = hands * 0.70 + uniform(0, 100) * 0.30;
 - Égalité : priorité au camp qui lançait.
 - Le vainqueur effectue ensuite son test d’en-avant.
 
-### 10.4 Cascade d’un ballon trop haut
+### 10.4 Joueurs autorisés à tenter une récupération secondaire
 
-Si le bloc ciblé ne récupère pas un ballon trop haut, commencer trois positions derrière la cible.
+- Un lifteur encore engagé dans le bloc de saut ne peut pas tenter la
+  récupération secondaire.
+- À un poste occupé par un seul joueur disponible, ce joueur effectue une
+  tentative individuelle.
+- À un poste occupé par un joueur disponible de chaque équipe, les deux joueurs
+  effectuent un duel de mains selon la règle de la section 10.3.
+- Toute récupération secondaire réussie est suivie du test d’en-avant de la
+  section 9.
 
-Exemple : cible en position 2 → positions 5, puis 6, puis 7.
+### 10.5 Ordre des tentatives selon la trajectoire
 
-À chaque poste :
+`P` désigne la position initialement visée.
 
-1. aucun joueur : continuer ;
-2. un seul joueur : récupération seule ;
-3. un joueur de chaque équipe : duel de récupération.
+| Trajectoire et saut | Ordre des tentatives | Si personne ne capte le ballon |
+|---|---|---|
+| Ballon précis, saut réussi | Le sauteur en `P`, puis `P+2`, puis `P+3` | Ballon au sol après `P+3`, sauf si `P+3` dépasse la position 7 |
+| Ballon précis, saut raté | `P+2`, puis `P+3` | Ballon au sol après `P+3`, sauf si `P+3` dépasse la position 7 |
+| Ballon trop bas, saut réussi | `P−2` avec un malus de `−30`, puis `P−1` sans malus, puis le sauteur en `P` avec le malus de trajectoire `−15` | Ballon au sol en `P` |
+| Ballon trop bas, saut raté | `P−2`, puis `P−1`, puis le sauteur initial en `P`, sous forme de tentatives individuelles | Ballon au sol en `P`, possession 50/50 |
+| Ballon trop haut, saut réussi | Le sauteur en `P` peut encore capter avec le malus de trajectoire `−25`. En cas d’échec : `P+2`, `P+3`, puis chaque position de `P+4` à `P+7` encore située dans l’alignement | Si le ballon dépasse la position 7 : `looseBall`, possession 50/50 |
+| Ballon trop haut, saut raté | Aucune tentative en `P` ni en `P+1`. Tentatives en `P+2`, `P+3`, puis de `P+4` jusqu’à la position 7 | Si le ballon dépasse la position 7 : `looseBall`, possession 50/50 |
 
-Si le ballon dépasse la position 7 sans être récupéré, appliquer l’issue `looseBall`.
+Un saut est réussi lorsque sa qualité atteint le seuil configurable de `50`.
+
+Pour une réception directe :
+
+- ballon précis : tentative du joueur visé, puis `P+2` et `P+3` s’il échoue ;
+- ballon trop bas : `P−2` avec `−30`, puis `P−1` sans malus, puis le joueur
+  visé en `P` ;
+- ballon trop haut : le joueur visé ne peut pas atteindre le ballon sans saut ;
+  les tentatives commencent en `P+2`, puis continuent jusqu’à la position 7.
+
+La position `P+1` ne tente jamais de capter un ballon qui poursuit sa
+trajectoire derrière la cible.
+
+### 10.6 Ballon au sol
+
+Quand le ballon reste dans l’alignement et tombe au sol, ce n’est pas un
+`looseBall`.
+
+Chaque équipe désigne son joueur disponible le plus proche du point de chute.
+Hors du cas « ballon trop bas et saut raté », leur score est :
+
+```ts
+scoreBallonAuSol =
+  hands * 0.70
+  + uniform(0, 100) * 0.30
+  - distanceEnPositions * 10;
+```
+
+Le meilleur score récupère le ballon. En cas d’égalité, le camp qui lançait est
+prioritaire.
+
+Pour un ballon trop bas associé à un saut raté, l’équipe qui récupère est tirée
+à 50/50, puis le joueur disponible le plus proche de cette équipe est désigné
+comme récupérateur.
+
+### 10.7 Consignes d’animation associées
+
+- En `P+2` et `P+3`, une tentative utilise la pose `jumper` avec un petit saut
+  vertical de `6 px`, qu’elle réussisse ou non.
+- Sur un ballon trop bas avec un saut réussi, les tentatives en `P−2` et `P−1`
+  utilisent également la pose `jumper` avec un saut de `6 px`.
+- Sur un ballon trop bas avec un saut raté, les tentatives en `P−2`, `P−1` et
+  `P` utilisent la pose `jumper` sans décoller du sol.
+- À partir de `P+4`, une tentative sur ballon trop haut utilise uniquement la
+  pose `hand`.
+- Une récupération réussie se termine avec la pose `hand` et le ballon reste
+  dans les mains du récupérateur jusqu’au changement de scène.
+- Un en-avant secondaire part des mains du fautif, avance horizontalement vers
+  le camp adverse, puis tombe au sol.
+- Un ballon qui dépasse la position 7 continue en ligne droite vers le haut et
+  sort de l’écran.
+- Un ballon tombé au sol reste visible ; s’il est ensuite récupéré, il termine
+  dans les mains du joueur désigné.
+
+### 10.8 Textes affichés après une récupération secondaire
+
+Le sous-texte est composé de deux informations obligatoires :
+
+1. la cause initiale : trajectoire précise, trop basse ou trop haute, réussite
+   du saut ou réception directe ;
+2. l’issue réelle : récupération devant, derrière, lors d’un duel, au sol,
+   en-avant ou dépassement de la ligne des 15 mètres.
+
+Un lancer trop haut et un saut raté sont deux événements indépendants. Le texte
+ne doit jamais déduire l’un à partir de l’autre.
+
+| Option et trajectoire | Cause à expliquer |
+|---|---|
+| Bloc, précis, saut réussi | Lancer à la bonne hauteur, saut réussi, ballon non capté |
+| Bloc, précis, saut raté | Lancer à la bonne hauteur, saut raté, ballon inaccessible |
+| Bloc, bas, saut réussi | Lancer trop bas, ballon présenté d’abord aux joueurs devant |
+| Bloc, bas, saut raté | Lancer trop bas et saut raté |
+| Bloc, haut, saut réussi | Lancer trop haut malgré un saut réussi |
+| Bloc, haut, saut raté | Lancer trop haut et saut raté |
+| Réception directe précise | Lancer à la bonne hauteur, joueur visé ne captant pas le ballon |
+| Réception directe basse | Lancer direct trop bas, joueurs devant servis en premier |
+| Réception directe haute | Lancer direct trop haut, ballon passant au-dessus du joueur non lifté |
+
+Les issues finales doivent ensuite préciser :
+
+- si la récupération se produit devant ou derrière la cible ;
+- si elle résulte d’une tentative individuelle ou d’un duel de mains ;
+- si le ballon tombe au sol avant d’être récupéré ;
+- quel camp récupère ;
+- quel camp commet l’en-avant et à qui revient la mêlée.
+
+Titres associés :
+
+| Situation | Titre |
+|---|---|
+| Récupération secondaire par l’équipe du joueur | `Touche récupérée` |
+| Perte en attaque après récupération secondaire adverse | `Perte du ballon` |
+| Touche adverse conservée quand le joueur défend | `Touche perdue` |
+| Récupération au sol par l’équipe du joueur | `Ballon récupéré au sol` |
+| Récupération au sol par l’adversaire | `Ballon perdu au sol` |
+| En-avant secondaire de l’équipe du joueur | `En-avant à la récupération` |
+| En-avant secondaire adverse | `En-avant adverse` |
+| Dépassement des 15 mètres après un lancer haut | `Ballon trop haut` |
+| Dépassement des 15 mètres après un lancer précis non capté | `Ballon au-delà des 15 mètres` |
 
 ## 11. Issues finales
 
@@ -476,7 +589,7 @@ interface LineoutResolution {
 | En-avant du camp qui lance | Défense | Mêlée |
 | En-avant de la défense | Camp qui lance | Mêlée |
 | Lancer pas droit | Défense | Mêlée |
-| Ballon libre non récupéré | 50 % lanceur / 50 % défense | Jeu continu |
+| Ballon sorti au-delà des 15 mètres sans être capté | 50 % lanceur / 50 % défense | Jeu continu |
 
 ## 12. Ordre obligatoire du résolveur
 
@@ -488,8 +601,10 @@ Choix de l’option de lancer
 → qualité du saut défensif
 → position relative du contre
 → duel ou interception éventuelle
-→ réception offensive si le contre échoue
+→ tentatives secondaires devant la cible si le ballon est trop bas
+→ réception offensive si le contre et les tentatives devant échouent
 → test d’en-avant éventuel
-→ cascade derrière si ballon trop haut
+→ récupérations secondaires derrière la cible si le ballon continue
+→ duel au sol ou sortie réelle au-delà des 15 mètres
 → issue finale et équipe en possession
 ```
