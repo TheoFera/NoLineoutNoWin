@@ -84,6 +84,7 @@ export type MatchStateData = {
   ballOwner: MatchBallOwner;
   ballPositionMeters: number;
   ballLateralPosition?: number; // -1 = touche haute, 0 = centre, 1 = touche basse
+  ballLateralDirection?: -1 | 0 | 1;
   possessionDurationMinutes?: number;
   playerPossessionTimeMinutes: number;
   opponentPossessionTimeMinutes: number;

@@ -13,6 +13,7 @@ export const LINEOUT_THROW_ANIMATION = {
   notStraightMinimumHorizontalOffsetPixels: 25.01,
   maximumHorizontalOffsetPixels: 150,
   gaussianMaximumStandardDeviations: 3,
+  flightAngleWaypointProgress: 0.55,
   preciseCatchHeightRatio: 0.82,
   handPoseBallHeightRatio: 0.54,
   playerTokenSpriteFeetOffsetPixels: 4,
@@ -21,12 +22,17 @@ export const LINEOUT_THROW_ANIMATION = {
   clearNotStraightOffsetPixels: 80,
   looseBallContinuationPositions: 1,
   groundBallCenterOffsetPixels: 12,
+  ballScreenMarginPixels: 10,
   highBallClearancePixels: 35,
   highBallExitY: -30,
   highBallExitDurationMs: 700,
   secondaryJumpHeightPixels: 6,
   secondaryAttemptDurationMs: 180,
   knockOnBouncePixels: 12,
+  volleyMinimumHorizontalDistancePixels: 100,
+  volleyMeanHorizontalDistancePixels: 130,
+  volleyMaximumHorizontalDistancePixels: 160,
+  volleyHorizontalDistanceStandardDeviationPixels: 10,
   flightDurationMs: 410,
   contactToCampDurationMs: 220,
   continuationDurationMs: 210,
@@ -80,6 +86,9 @@ export type LineoutBallAnimationPlanInput = {
   groundPointFeetY?: number;
   slotGap: number;
   horizontalOffset: number;
+  volleyHorizontalDistance: number;
+  volleyMinimumX: number;
+  volleyMaximumX: number;
 };
 
 export function getLineoutAnimationTrajectory(result: LineoutResult): LineoutTrajectory {
@@ -192,7 +201,7 @@ export function buildLineoutBallAnimationPlan(
         {
           x: opponentCampX,
           y: groundBallY,
-          angle: 160,
+          angle: 90,
           durationMs: LINEOUT_THROW_ANIMATION.knockOnDropDurationMs,
           ease: "Quad.easeIn"
         },
@@ -206,7 +215,7 @@ export function buildLineoutBallAnimationPlan(
         {
           x: opponentCampX,
           y: groundBallY,
-          angle: 235,
+          angle: 90,
           durationMs: LINEOUT_THROW_ANIMATION.knockOnBounceDurationMs,
           ease: "Quad.easeIn"
         }
@@ -302,13 +311,32 @@ export function buildLineoutBallAnimationPlan(
   }
 
   if (resolution.outcome === "scrappyWin") {
+    const wonInAir = resolution.details.targetOptionType === "jumpBlock"
+      && (
+        resolution.details.attackJumpSucceeded === true
+        || resolution.details.duelOutcome === "attackScrappy"
+      );
+    if (!wonInAir) {
+      return caughtFromPhases(
+        [...secondaryPhases, contactPhase(input.targetHandsX, input.targetHandsY)],
+        "target"
+      );
+    }
+
     const contactPhases = highRecovery
       ? highApproachPhases(input, recoveryHandsX, recoveryHandsY)
       : [...secondaryPhases, contactPhase(input.targetHandsX, input.targetHandsY)];
     const groundY = highRecovery ? recoveryGroundY : input.targetGroundY;
+    const contactX = highRecovery ? recoveryHandsX : input.targetHandsX;
     return volleyPlan(
       contactPhases,
-      input.throwingCampX,
+      getVolleyLandingX(
+        contactX,
+        input.throwingCampX,
+        input.volleyHorizontalDistance,
+        input.volleyMinimumX,
+        input.volleyMaximumX
+      ),
       recoveryHandsY,
       getGroundBallY(groundY)
     );
@@ -340,7 +368,13 @@ export function buildLineoutBallAnimationPlan(
     : [contactPhase(defendingHandsX, defendingHandsY)];
   return volleyPlan(
     contactPhases,
-    input.defendingCampX,
+    getVolleyLandingX(
+      defendingHandsX,
+      input.defendingCampX,
+      input.volleyHorizontalDistance,
+      input.volleyMinimumX,
+      input.volleyMaximumX
+    ),
     defendingHandsY,
     getGroundBallY(defendingGroundY)
   );
@@ -388,6 +422,17 @@ export function sampleThrowHorizontalOffset(
   return gaussian < 0 ? -magnitude : magnitude;
 }
 
+export function sampleVolleyHorizontalDistance(rng: RandomSource): number {
+  const gaussian = sampleStandardGaussian(rng);
+  return Math.round(clamp(
+    LINEOUT_THROW_ANIMATION.volleyMeanHorizontalDistancePixels
+      + gaussian
+      * LINEOUT_THROW_ANIMATION.volleyHorizontalDistanceStandardDeviationPixels,
+    LINEOUT_THROW_ANIMATION.volleyMinimumHorizontalDistancePixels,
+    LINEOUT_THROW_ANIMATION.volleyMaximumHorizontalDistancePixels
+  ));
+}
+
 export function applyConstantBallTravelSpeed(
   startX: number,
   startY: number,
@@ -406,6 +451,30 @@ export function applyConstantBallTravelSpeed(
     previousY = phase.y;
     return timedPhase;
   });
+}
+
+export function applyThrowFlightAngle(
+  startX: number,
+  startY: number,
+  horizontalOffset: number,
+  phases: readonly BallAnimationPhase[]
+): BallAnimationPhase[] {
+  const firstPhase = phases[0];
+  if (!firstPhase || Math.abs(horizontalOffset) < 0.01) {
+    return [...phases];
+  }
+
+  const progress = LINEOUT_THROW_ANIMATION.flightAngleWaypointProgress;
+  return [
+    {
+      x: startX + (firstPhase.x - startX) * progress + horizontalOffset,
+      y: startY + (firstPhase.y - startY) * progress,
+      angle: firstPhase.angle,
+      durationMs: LINEOUT_THROW_ANIMATION.flightDurationMs,
+      ease: "Linear"
+    },
+    ...phases
+  ];
 }
 
 export function getBallTravelDurationMs(
@@ -517,6 +586,22 @@ function volleyPlan(
   };
 }
 
+function getVolleyLandingX(
+  contactX: number,
+  campX: number,
+  horizontalDistance: number,
+  minimumX: number,
+  maximumX: number
+): number {
+  const direction = campX < contactX ? -1 : 1;
+  const distance = clamp(
+    horizontalDistance,
+    LINEOUT_THROW_ANIMATION.volleyMinimumHorizontalDistancePixels,
+    LINEOUT_THROW_ANIMATION.volleyMaximumHorizontalDistancePixels
+  );
+  return clamp(contactX + direction * distance, minimumX, maximumX);
+}
+
 function groundPlan(
   approachPhases: BallAnimationPhase[],
   groundX: number,
@@ -535,7 +620,7 @@ function groundPhase(x: number, y: number): BallAnimationPhase {
   return {
     x,
     y,
-    angle: 180,
+    angle: 90,
     durationMs: LINEOUT_THROW_ANIMATION.knockOnDropDurationMs,
     ease: "Quad.easeIn"
   };

@@ -503,12 +503,23 @@ comme récupérateur.
   pose `hand`.
 - Une récupération réussie se termine avec la pose `hand` et le ballon reste
   dans les mains du récupérateur jusqu’au changement de scène.
+- Un ballon gagné difficilement par un joueur qui n’a pas sauté reste dans ses
+  mains : il n’est pas volleyé.
+- Un ballon gagné difficilement en l’air est volleyé depuis les mains du
+  sauteur vers son propre camp. Son point de chute se trouve à au moins `100 px`
+  du sauteur sur l’axe horizontal. La distance visée moyenne est de `130 px`,
+  avec une variation gaussienne bornée entre `100 px` et `160 px`. Le point
+  final reste borné dans l’écran pour éviter une sortie latérale.
+- Le ballon volleyé ne redescend pas avec le sauteur et ne doit jamais tomber
+  simplement à ses pieds.
 - Un en-avant secondaire part des mains du fautif, avance horizontalement vers
   le camp adverse, puis tombe au sol.
 - Un ballon qui dépasse la position 7 continue en ligne droite vers le haut et
   sort de l’écran.
 - Un ballon tombé au sol reste visible ; s’il est ensuite récupéré, il termine
   dans les mains du joueur désigné.
+- Tant qu’il repose au sol, le sprite du ballon est tourné à `90°` afin d’être
+  affiché horizontalement.
 
 ### 10.8 Textes affichés après une récupération secondaire
 

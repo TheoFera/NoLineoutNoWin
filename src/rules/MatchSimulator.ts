@@ -130,12 +130,18 @@ export function advanceMatchSimulationWithTrace(
       endMinute - current.minute
     );
     const step = simulateStep(current, stepMinutes, randomSource);
-    const ballLateralPosition = resolveActionLateralPosition(
+    const lateralResolution = resolveActionLateralPosition(
       current.ballLateralPosition ?? 0,
+      current.ballLateralDirection ?? 0,
       step.action.kind,
-      actions.length
+      actions.length,
+      randomSource
     );
-    current = { ...step.state, ballLateralPosition };
+    current = {
+      ...step.state,
+      ballLateralPosition: lateralResolution.position,
+      ballLateralDirection: lateralResolution.direction
+    };
     frames.push(current);
     actions.push({ ...step.action, state: current });
   }
@@ -180,7 +186,13 @@ export function advanceToNextScheduledLineoutWithTrace(
     ? Math.sign(currentLateralPosition)
     : advanced.currentLineoutIndex % 2 === 0 ? -1 : 1;
   const ballLateralPosition = lineoutSide * 0.92;
-  const finalMatch = { ...advanced, ballPositionMeters, ballLateralPosition, lineouts };
+  const finalMatch = {
+    ...advanced,
+    ballPositionMeters,
+    ballLateralPosition,
+    ballLateralDirection: 0 as const,
+    lineouts
+  };
   return {
     match: finalMatch,
     frames: [...trace.frames, finalMatch],
@@ -463,15 +475,67 @@ function resolveMovement(
 
 function resolveActionLateralPosition(
   currentPosition: number,
+  previousDirection: -1 | 0 | 1,
   kind: MatchSimulationActionKind,
-  actionIndex: number
-): number {
+  actionIndex: number,
+  randomSource: RandomSource
+): { position: number; direction: -1 | 0 | 1 } {
   const current = clamp(currentPosition, -1, 1);
-  if (kind === "breakthrough" || kind === "score") return current;
-  if (kind === "ruck") return current * 0.55;
-  if (kind === "clearanceKick") return actionIndex % 2 === 0 ? -0.4 : 0.4;
+  if (kind === "breakthrough" || kind === "ruck") {
+    return { position: current, direction: previousDirection };
+  }
+  if (kind === "score" || kind === "turnover") {
+    return { position: current, direction: 0 };
+  }
+  if (kind === "clearanceKick") {
+    return {
+      position: actionIndex % 2 === 0 ? -0.4 : 0.4,
+      direction: 0
+    };
+  }
+
+  const visual = BALANCE.visualSimulation;
   const lanes = BALANCE.visualSimulation.passLateralLaneRatios;
-  return lanes[actionIndex % lanes.length];
+  const initialTarget = lanes[actionIndex % lanes.length];
+  const cannotContinue = (
+    previousDirection < 0 && current <= -visual.passSidelineTurnThreshold
+  ) || (
+    previousDirection > 0 && current >= visual.passSidelineTurnThreshold
+  );
+  const keepsDirection = previousDirection !== 0
+    && !cannotContinue
+    && randomFloat(0, 1, randomSource) < visual.passSameDirectionProbability;
+  const direction = previousDirection === 0
+    ? toLateralDirection(initialTarget - current, actionIndex)
+    : cannotContinue || !keepsDirection
+      ? invertLateralDirection(previousDirection)
+      : previousDirection;
+  const step = randomFloat(
+    visual.passLateralStepMinimum,
+    visual.passLateralStepMaximum,
+    randomSource
+  );
+  const position = clamp(
+    current + direction * step,
+    -visual.passMaximumLateralPosition,
+    visual.passMaximumLateralPosition
+  );
+
+  return {
+    position,
+    direction: toLateralDirection(position - current, actionIndex)
+  };
+}
+
+function toLateralDirection(value: number, actionIndex: number): -1 | 0 | 1 {
+  if (value < 0) return -1;
+  if (value > 0) return 1;
+  return actionIndex % 2 === 0 ? -1 : 1;
+}
+
+function invertLateralDirection(direction: -1 | 0 | 1): -1 | 0 | 1 {
+  if (direction === 0) return 0;
+  return direction === 1 ? -1 : 1;
 }
 
 function isInOwn22(match: MatchStateData, owner: MatchBallOwner): boolean {
@@ -548,6 +612,7 @@ function applyScore(
       0,
       BALANCE.pitchLengthMeters
     ),
+    ballLateralDirection: 0,
     ballOwner: receivingOwner,
     possessionDurationMinutes: 0,
     playerAttackingPressure: 0,

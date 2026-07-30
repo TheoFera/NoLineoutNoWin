@@ -42,6 +42,7 @@ import {
 } from "../ui/LineoutLiftAnimation";
 import {
   applyConstantBallTravelSpeed,
+  applyThrowFlightAngle,
   buildLineoutBallAnimationPlan,
   getBallAnimationTargetOffset,
   getBallTravelDurationMs,
@@ -51,6 +52,7 @@ import {
   getLineoutAnimationThrowQuality,
   LINEOUT_THROW_ANIMATION,
   sampleThrowHorizontalOffset,
+  sampleVolleyHorizontalDistance,
   type BallAnimationPhase,
   type BallAnimationWaypoint
 } from "../ui/LineoutThrowAnimation";
@@ -1080,6 +1082,9 @@ export class LineoutScene extends Phaser.Scene {
       getLineoutAnimationThrowQuality(result),
       MATH_RANDOM_SOURCE
     );
+    const volleyHorizontalDistance = sampleVolleyHorizontalDistance(
+      MATH_RANDOM_SOURCE
+    );
     const ball: LineoutBallGameObject = this.mode === "match"
       ? this.add.image(startX, startY, "lineout-ball").setDisplaySize(17, 24)
       : this.add.ellipse(startX, startY, 16, 24, 0xf8fafc);
@@ -1119,16 +1124,30 @@ export class LineoutScene extends Phaser.Scene {
       ).y
       : undefined;
     const defendingHandsX = defendingTargetToken?.x;
-    const recoveryPosition = this.getAnimationRecoveryPosition(result);
+    const recordedRecoveryPosition = this.getAnimationRecoveryPosition(result);
     const recoveryUsesDefendingTeam = result.resolution?.outcome === "knockOn"
       ? result.resolution.offendingTeam === "defendingTeam"
       : result.resolution?.ballTeam === "defendingTeam";
     const recoveryTokens = recoveryUsesDefendingTeam ? defendingTokens : lineTokens;
-    const recoveryToken = recoveryPosition
-      ? recoveryTokens.find(
-        (token) => token.getData("lineoutPosition") === recoveryPosition
-      )
-      : undefined;
+    const recordedRecoveryPlayerId = result.resolution?.details.cascadeRecoveryPlayerId;
+    const recoveryToken = typeof recordedRecoveryPlayerId === "string"
+      ? recoveryTokens.find((token) => token.player.id === recordedRecoveryPlayerId)
+        ?? recoveryTokens.find(
+          (token) => token.getData("lineoutPosition") === recordedRecoveryPosition
+        )
+      : recoveryTokens.find(
+        (token) => token.getData("lineoutPosition") === recordedRecoveryPosition
+      );
+    const recoveryTokenPosition = recoveryToken?.getData("lineoutPosition");
+    const recoveryPosition = recordedRecoveryPosition
+      ?? (
+        typeof recoveryTokenPosition === "number"
+        && Number.isInteger(recoveryTokenPosition)
+        && recoveryTokenPosition >= 1
+        && recoveryTokenPosition <= 7
+          ? recoveryTokenPosition as LineoutPosition
+          : undefined
+      );
     const recoveryKind = result.resolution?.details.recoveryKind;
     const secondaryVisitedPositions = this.getAnimationPositionList(
       result,
@@ -1204,26 +1223,36 @@ export class LineoutScene extends Phaser.Scene {
       groundPointX: groundPosition ? layout.hookerX : undefined,
       groundPointFeetY,
       slotGap: layout.slotGap,
-      horizontalOffset
+      horizontalOffset,
+      volleyHorizontalDistance,
+      volleyMinimumX: LINEOUT_THROW_ANIMATION.ballScreenMarginPixels,
+      volleyMaximumX: layout.fieldWidth
+        - LINEOUT_THROW_ANIMATION.ballScreenMarginPixels
     });
+    const angledPhases = trajectory === "notStraight"
+      ? plan.phases
+      : applyThrowFlightAngle(
+        startX,
+        startY,
+        horizontalOffset,
+        plan.phases
+      );
+    const flightAnglePhaseCount = angledPhases.length - plan.phases.length;
     const phases = applyConstantBallTravelSpeed(
       startX,
       startY,
-      plan.phases
+      angledPhases
     );
     const targetFollowsFrontAttempts = trajectory === "low"
       && secondaryWaypoints.length > 0
       && recoveryKind !== "secondary";
     const targetArrivalDurationMs = targetFollowsFrontAttempts
       ? phases
-        .slice(0, secondaryWaypoints.length + 1)
+        .slice(0, flightAnglePhaseCount + secondaryWaypoints.length + 1)
         .reduce((total, phase) => total + phase.durationMs, 0)
-      : getBallTravelDurationMs(
-        startX,
-        startY,
-        targetHandsX,
-        targetHandsY
-      );
+      : phases
+        .slice(0, flightAnglePhaseCount + 1)
+        .reduce((total, phase) => total + phase.durationMs, 0);
     const defendingArrivalDurationMs = defendingHandsX !== undefined
       && defendingHandsY !== undefined
       ? getBallTravelDurationMs(
@@ -1266,6 +1295,7 @@ export class LineoutScene extends Phaser.Scene {
       defendingTokens,
       secondaryWaypoints,
       phases,
+      flightAnglePhaseCount,
       retainedToken
     );
 
@@ -1349,6 +1379,7 @@ export class LineoutScene extends Phaser.Scene {
     defendingTokens: PlayerToken[],
     waypoints: readonly SecondaryBallWaypoint[],
     phases: readonly BallAnimationPhase[],
+    flightAnglePhaseCount: number,
     retainedToken: PlayerToken | undefined
   ): void {
     const throwingPositions = new Set(
@@ -1357,10 +1388,12 @@ export class LineoutScene extends Phaser.Scene {
     const defendingPositions = new Set(
       this.getAnimationPositionList(result, "cascadeDefendingAttemptPositions")
     );
-    let arrivalDurationMs = 0;
+    let arrivalDurationMs = phases
+      .slice(0, flightAnglePhaseCount)
+      .reduce((total, phase) => total + phase.durationMs, 0);
 
     waypoints.forEach((waypoint, index) => {
-      arrivalDurationMs += phases[index]?.durationMs ?? 0;
+      arrivalDurationMs += phases[flightAnglePhaseCount + index]?.durationMs ?? 0;
       const mode = this.getSecondaryAttemptMode(
         result,
         targetPosition,
