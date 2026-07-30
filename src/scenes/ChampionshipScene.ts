@@ -34,9 +34,10 @@ export class ChampionshipScene extends Phaser.Scene {
     const standingsPanelWidth = 338;
     const teamNameX = 62;
     const contentSideInset = teamNameX - (standingsPanelCenterX - standingsPanelWidth / 2);
-    const goalAverageColumnCenterX = standingsPanelCenterX + standingsPanelWidth / 2 - contentSideInset - 6;
-    const pointsColumnCenterX = goalAverageColumnCenterX - 46;
-    const nextMatchBadgeCenterX = pointsColumnCenterX - 60;
+    const goalAverageColumnBaseX = standingsPanelCenterX + standingsPanelWidth / 2 - contentSideInset - 6;
+    const goalAverageColumnCenterX = goalAverageColumnBaseX + 7;
+    const pointsColumnCenterX = goalAverageColumnBaseX - 46 + 9;
+    const nextMatchBadgeCenterX = goalAverageColumnBaseX - 46 - 60 + 18;
     const standingsHeaderY = 288;
     const firstStandingRowY = 318;
 
