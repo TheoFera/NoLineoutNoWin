@@ -42,7 +42,7 @@ import {
 } from "../ui/LineoutLiftAnimation";
 import {
   applyConstantBallTravelSpeed,
-  applyThrowFlightAngle,
+  applyThrowCorridorFlight,
   buildLineoutBallAnimationPlan,
   getBallAnimationTargetOffset,
   getBallTravelDurationMs,
@@ -1160,7 +1160,7 @@ export class LineoutScene extends Phaser.Scene {
     ) {
       secondaryWaypoints.push({
         position: targetPosition,
-        x: layout.hookerX,
+        x: layout.hookerX + horizontalOffset,
         y: trajectory === "high"
           ? targetHandsY - LINEOUT_THROW_ANIMATION.highBallClearancePixels
           : targetHandsY
@@ -1172,7 +1172,9 @@ export class LineoutScene extends Phaser.Scene {
         && position === recoveryPosition;
       return {
         position,
-        x: isRecoveryPosition && recoveryToken ? recoveryToken.x : layout.hookerX,
+        x: isRecoveryPosition && recoveryToken
+          ? recoveryToken.x
+          : layout.hookerX + horizontalOffset,
         y: this.positionY(position, layout)
           + this.getSecondaryBallOffsetY(mode, layout.playerHeight, trajectory)
       };
@@ -1220,7 +1222,9 @@ export class LineoutScene extends Phaser.Scene {
       recoveryHandsY,
       recoveryGroundY: recoveryToken?.y,
       secondaryPath: secondaryWaypoints,
-      groundPointX: groundPosition ? layout.hookerX : undefined,
+      groundPointX: groundPosition
+        ? layout.hookerX + horizontalOffset
+        : undefined,
       groundPointFeetY,
       slotGap: layout.slotGap,
       horizontalOffset,
@@ -1229,29 +1233,28 @@ export class LineoutScene extends Phaser.Scene {
       volleyMaximumX: layout.fieldWidth
         - LINEOUT_THROW_ANIMATION.ballScreenMarginPixels
     });
-    const angledPhases = trajectory === "notStraight"
+    const corridorPhases = trajectory === "notStraight"
       ? plan.phases
-      : applyThrowFlightAngle(
-        startX,
-        startY,
+      : applyThrowCorridorFlight(
+        layout.hookerX,
         horizontalOffset,
         plan.phases
       );
-    const flightAnglePhaseCount = angledPhases.length - plan.phases.length;
+    const corridorFlightPhaseCount = corridorPhases.length - plan.phases.length;
     const phases = applyConstantBallTravelSpeed(
       startX,
       startY,
-      angledPhases
+      corridorPhases
     );
     const targetFollowsFrontAttempts = trajectory === "low"
       && secondaryWaypoints.length > 0
       && recoveryKind !== "secondary";
     const targetArrivalDurationMs = targetFollowsFrontAttempts
       ? phases
-        .slice(0, flightAnglePhaseCount + secondaryWaypoints.length + 1)
+        .slice(0, corridorFlightPhaseCount + secondaryWaypoints.length + 1)
         .reduce((total, phase) => total + phase.durationMs, 0)
       : phases
-        .slice(0, flightAnglePhaseCount + 1)
+        .slice(0, corridorFlightPhaseCount + 1)
         .reduce((total, phase) => total + phase.durationMs, 0);
     const defendingArrivalDurationMs = defendingHandsX !== undefined
       && defendingHandsY !== undefined
@@ -1295,7 +1298,7 @@ export class LineoutScene extends Phaser.Scene {
       defendingTokens,
       secondaryWaypoints,
       phases,
-      flightAnglePhaseCount,
+      corridorFlightPhaseCount,
       retainedToken
     );
 
@@ -1379,7 +1382,7 @@ export class LineoutScene extends Phaser.Scene {
     defendingTokens: PlayerToken[],
     waypoints: readonly SecondaryBallWaypoint[],
     phases: readonly BallAnimationPhase[],
-    flightAnglePhaseCount: number,
+    corridorFlightPhaseCount: number,
     retainedToken: PlayerToken | undefined
   ): void {
     const throwingPositions = new Set(
@@ -1389,11 +1392,11 @@ export class LineoutScene extends Phaser.Scene {
       this.getAnimationPositionList(result, "cascadeDefendingAttemptPositions")
     );
     let arrivalDurationMs = phases
-      .slice(0, flightAnglePhaseCount)
+      .slice(0, corridorFlightPhaseCount)
       .reduce((total, phase) => total + phase.durationMs, 0);
 
     waypoints.forEach((waypoint, index) => {
-      arrivalDurationMs += phases[flightAnglePhaseCount + index]?.durationMs ?? 0;
+      arrivalDurationMs += phases[corridorFlightPhaseCount + index]?.durationMs ?? 0;
       const mode = this.getSecondaryAttemptMode(
         result,
         targetPosition,

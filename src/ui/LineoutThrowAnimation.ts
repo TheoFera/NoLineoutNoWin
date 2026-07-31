@@ -13,7 +13,6 @@ export const LINEOUT_THROW_ANIMATION = {
   notStraightMinimumHorizontalOffsetPixels: 25.01,
   maximumHorizontalOffsetPixels: 150,
   gaussianMaximumStandardDeviations: 3,
-  flightAngleWaypointProgress: 0.55,
   preciseCatchHeightRatio: 0.82,
   handPoseBallHeightRatio: 0.54,
   playerTokenSpriteFeetOffsetPixels: 4,
@@ -233,7 +232,7 @@ export function buildLineoutBallAnimationPlan(
         phases: [
           ...secondaryPhases,
           {
-            x: input.corridorX,
+            x: input.corridorX + input.horizontalOffset,
             y: LINEOUT_THROW_ANIMATION.highBallExitY,
             angle: 90,
             durationMs: LINEOUT_THROW_ANIMATION.highBallExitDurationMs,
@@ -453,22 +452,25 @@ export function applyConstantBallTravelSpeed(
   });
 }
 
-export function applyThrowFlightAngle(
-  startX: number,
-  startY: number,
+export function applyThrowCorridorFlight(
+  corridorX: number,
   horizontalOffset: number,
   phases: readonly BallAnimationPhase[]
 ): BallAnimationPhase[] {
   const firstPhase = phases[0];
-  if (!firstPhase || Math.abs(horizontalOffset) < 0.01) {
+  if (!firstPhase) {
     return [...phases];
   }
 
-  const progress = LINEOUT_THROW_ANIMATION.flightAngleWaypointProgress;
+  const flightX = corridorX + horizontalOffset;
+  if (Math.abs(firstPhase.x - flightX) < 0.01) {
+    return [...phases];
+  }
+
   return [
     {
-      x: startX + (firstPhase.x - startX) * progress + horizontalOffset,
-      y: startY + (firstPhase.y - startY) * progress,
+      x: flightX,
+      y: firstPhase.y,
       angle: firstPhase.angle,
       durationMs: LINEOUT_THROW_ANIMATION.flightDurationMs,
       ease: "Linear"

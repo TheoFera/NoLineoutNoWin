@@ -493,6 +493,15 @@ comme récupérateur.
 
 ### 10.7 Consignes d’animation associées
 
+- Le ballon quitte toujours le talonneur en suivant d’abord le couloir de
+  touche : il ne va jamais directement du talonneur jusqu’aux mains d’un joueur.
+- Pour un lancer droit de qualité supérieure ou égale à `50`, cette première
+  trajectoire reste presque verticale, avec une déviation horizontale
+  gaussienne bornée à environ `±10 px`.
+- Pour un lancer inférieur à `50`, la déviation horizontale est nettement plus
+  importante et dépend également du tirage gaussien.
+- Lorsqu’un joueur capte le ballon, celui-ci atteint d’abord la hauteur `Y` de
+  ses mains dans le couloir, puis se déplace latéralement jusqu’à ses mains.
 - En `P+2` et `P+3`, une tentative utilise la pose `jumper` avec un petit saut
   vertical de `6 px`, qu’elle réussisse ou non.
 - Sur un ballon trop bas avec un saut réussi, les tentatives en `P−2` et `P−1`
