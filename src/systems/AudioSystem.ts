@@ -5,11 +5,6 @@ const REFEREE_WHISTLE_URL = "whistle.mp3";
 
 let fallbackWhistle: HTMLAudioElement | undefined;
 
-export function playClick(scene: Phaser.Scene): void {
-  // À remplacer par un vrai son quand assets/sounds/click.mp3 existe.
-  scene.sound.stopByKey("click");
-}
-
 export function prepareGameAudio(scene: Phaser.Scene): void {
   const soundManager = scene.sound;
   if (

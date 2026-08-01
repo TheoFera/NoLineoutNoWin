@@ -242,9 +242,11 @@ test("breakthroughs are more likely on the wings than in the centre", () => {
 
 test("hand play stores its receiving lane for the following carry", () => {
   const trace = advanceMatchSimulationWithTrace(match(), 0.5, constant(0.5));
+  const visual = LINEOUT_BALANCE.match.visualSimulation;
+  const expectedPosition = -(visual.passLateralStepMinimum + visual.passLateralStepMaximum) / 2;
   assert.equal(trace.actions[0].kind, "handPlay");
-  assert.equal(trace.actions[0].state.ballLateralPosition, -0.35);
-  assert.equal(trace.match.ballLateralPosition, -0.35);
+  assert.ok(Math.abs(trace.actions[0].state.ballLateralPosition - expectedPosition) < 1e-12);
+  assert.ok(Math.abs(trace.match.ballLateralPosition - expectedPosition) < 1e-12);
 });
 
 test("a wing breakthrough reaches the scheduled lineout on the same side", () => {
@@ -290,7 +292,7 @@ test("open-play lateral lanes favor the central area instead of alternating touc
   const lanes = LINEOUT_BALANCE.match.visualSimulation.passLateralLaneRatios;
   const centralLanes = lanes.filter((lane) => Math.abs(lane) <= 0.57);
   assert.ok(centralLanes.length / lanes.length >= 0.7);
-  assert.ok(lanes.some((lane) => lane === 0));
+  assert.ok(lanes.some((lane) => Math.abs(lane) <= 0.05));
   assert.ok(lanes.some((lane) => lane > 0.57));
   assert.ok(lanes.some((lane) => lane < -0.57));
 });

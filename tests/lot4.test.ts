@@ -123,14 +123,14 @@ test("recovery placement is derived from exact relative positions", () => {
   assert.deepEqual(getRecoveryPlacements(5, opponents), ["twoAhead", "oneBehind"]);
 });
 
-test("high-ball cascade checks target plus three through position seven", () => {
+test("high-ball cascade starts two positions behind the target", () => {
   const result = resolveHighBallCascade(
     2,
     {},
     { 7: player("defender", 100) },
     sequenceSource([0, 0.99])
   );
-  assert.deepEqual(result.visitedPositions, [5, 6, 7]);
+  assert.deepEqual(result.visitedPositions, [4, 5, 6, 7]);
   assert.equal(result.outcome, "caught");
   assert.equal(result.ballTeam, "defendingTeam");
   assert.equal(result.recoveryPosition, 7);

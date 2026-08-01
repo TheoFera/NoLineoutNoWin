@@ -8,7 +8,7 @@ import type {
 } from "../models/PlayerProgression";
 import type { FieldPlayer, Hooker, Player } from "../models/Player";
 import type { Team } from "../models/Team";
-import { LINEOUT_BALANCE } from "../config/LineoutBalance";
+import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
 
 type StatProgressionResult = {
   value: number;

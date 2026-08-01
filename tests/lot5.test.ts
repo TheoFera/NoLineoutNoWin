@@ -213,7 +213,7 @@ test("a direct-catch knock-on gives the defending team a scrum", () => {
   assert.equal(result.offendingTeam, "throwingTeam");
 });
 
-test("a missed direct catch becomes a reproducible loose ball", () => {
+test("a missed direct catch inside the lineout is recovered from the ground", () => {
   const target = player("target", { hands: 0 });
   const result = resolveLineoutV2(resolutionInput({
     targetOption: directOption(1),
@@ -221,12 +221,12 @@ test("a missed direct catch becomes a reproducible loose ball", () => {
     randomValues: [0.99, 0.5, 0, 0, 0.49]
   }));
 
-  assert.equal(result.outcome, "looseBall");
+  assert.equal(result.outcome, "scrappyWin");
   assert.equal(result.ballTeam, "throwingTeam");
   assert.equal(result.restart, "continuousPlay");
 });
 
-test("a missed high block starts the recovery cascade three positions behind", () => {
+test("a missed high block starts the recovery cascade two positions behind", () => {
   const target = player("target", { jump: 0, hands: 0 });
   const recoveringDefender = player("recovering-defender", { hands: 100 });
   const result = resolveLineoutV2(resolutionInput({

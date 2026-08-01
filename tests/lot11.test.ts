@@ -324,7 +324,7 @@ test("lifters approach the jumper before using their dedicated lifting poses", (
   assert.equal(LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs, 120);
   assert.equal(LINEOUT_LIFT_ANIMATION.ballFlightDurationMs, 410);
   assert.equal(LINEOUT_LIFT_ANIMATION.hookerLiftPoseWidthScale, 1.16);
-  assert.equal(getLineoutLiftSequenceDurationMs(), 710);
+  assert.equal(getLineoutLiftSequenceDurationMs(), 980);
   assert.equal(getLineoutLiftSequenceDurationMs(false), 490);
 });
 

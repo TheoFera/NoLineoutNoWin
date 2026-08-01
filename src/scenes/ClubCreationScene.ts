@@ -32,7 +32,7 @@ export class ClubCreationScene extends Phaser.Scene {
   }
 
   init(data: Partial<ClubDraft> = {}): void {
-    this.initialClubName = data.clubName ?? t("club.defaultName");
+    this.initialClubName = data.clubName ?? "";
     this.selectedPrimaryColor = data.primaryColor ?? DEFAULT_PRIMARY_COLOR;
     this.selectedSecondaryColor = data.secondaryColor ?? DEFAULT_SECONDARY_COLOR;
     this.playerDrafts = data.players ? cloneTeamPlayerDrafts(data.players) : undefined;

@@ -1,5 +1,5 @@
 import type { FieldPlayer, Hooker } from "../models/Player";
-import { clamp } from "../utils/Clamp";
+import { clamp } from "../utils/Clamp.ts";
 
 export function progressTargetPlayer(player: FieldPlayer, cleanWin: boolean): FieldPlayer {
   return {

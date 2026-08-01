@@ -23,7 +23,7 @@
     "simulate:v2": "node --experimental-strip-types scripts/simulate-gameplay-v2.ts",
     "test": "npm run test:lot0 && npm run test:lot1 && npm run test:lot2 && npm run test:lot3 && npm run test:lot4 && npm run test:lot5 && npm run test:lot6 && npm run test:lot7 && npm run test:lot8 && npm run test:lot9 && npm run test:lot10 && npm run test:lot11 && npm run test:lot12",
     "preview": "vite preview --host 0.0.0.0",
-    "cap:init": "npx cap init \"No Lineout No Win\" fr.nolineout.nowin --web-dir=dist",
+    "cap:init": "npx cap init \"No Lineout No Win\" fr.partagetonjeu.nolineoutnowin --web-dir=dist",
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync android",
     "android": "npx cap open android",
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.0.0",
+    "@capacitor/cli": "^8.5.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0"
   }

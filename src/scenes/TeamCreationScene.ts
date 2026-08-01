@@ -111,7 +111,6 @@ export class TeamCreationScene extends Phaser.Scene {
     });
     this.renderBodyShapeDots();
     this.renderSkinToneSelectors();
-    this.renderHeadPlaceholder();
 
     this.errorText = this.add.text(195, 738, "", {
       font: UI.font.small,
@@ -229,19 +228,6 @@ export class TeamCreationScene extends Phaser.Scene {
       });
       return { ring, swatch };
     });
-  }
-
-  private renderHeadPlaceholder(): void {
-    this.add.rectangle(195, 696, 320, 50, UI.colors.panel, 0.88)
-      .setStrokeStyle(2, UI.colors.line, 0.55);
-    this.add.text(52, 696, t("teamCreation.head"), {
-      font: UI.font.subtitle,
-      color: UI.colors.muted
-    }).setOrigin(0, 0.5);
-    this.add.text(338, 696, t("teamCreation.comingSoon"), {
-      font: UI.font.body,
-      color: UI.colors.muted
-    }).setOrigin(1, 0.5);
   }
 
   private selectPlayer(index: number): void {

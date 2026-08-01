@@ -3,10 +3,10 @@ import {
   type BodyShapeName,
   type PlayerAppearance,
   type PlayerSkinToneId
-} from "../models/PlayerAppearance";
-import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation";
-import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation";
-import { PLAYER_NICKNAMES } from "./defaultNames";
+} from "../models/PlayerAppearance.ts";
+import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation.ts";
+import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation.ts";
+import { PLAYER_NICKNAMES } from "./defaultNames.ts";
 
 export const AVAILABLE_PLAYER_BODY_SHAPES = [
   "medium_standard",

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2732" height="2732" viewBox="0 0 2732 2732">
+  <rect width="2732" height="2732" fill="#08142c"/>
+  <circle cx="1366" cy="1120" r="560" fill="#102a4c" stroke="#f3c54d" stroke-width="24"/>
+  <g transform="translate(1366 1120) rotate(-28)">
+    <ellipse rx="330" ry="205" fill="#f8f1d8" stroke="#f3c54d" stroke-width="30"/>
+    <path d="M-270 0 C-150 -70 150 -70 270 0 C150 70 -150 70 -270 0Z" fill="none" stroke="#08142c" stroke-width="28"/>
+    <path d="M0 -68 V68 M-74 -46 V46 M74 -46 V46" stroke="#08142c" stroke-width="22" stroke-linecap="round"/>
+  </g>
+  <text x="1366" y="1880" fill="#ffffff" font-family="Arial, sans-serif" font-size="190" font-weight="700" text-anchor="middle">NO LINEOUT</text>
+  <text x="1366" y="2100" fill="#f3c54d" font-family="Arial, sans-serif" font-size="210" font-weight="700" text-anchor="middle">NO WIN</text>
+</svg>
