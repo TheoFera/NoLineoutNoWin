@@ -24,9 +24,29 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     const layout = MATCH_SCORE_OVERLAY_LAYOUT;
     super(scene, layout.x, layout.y);
 
-    const shadow = scene.add.graphics();
-    shadow.fillStyle(0x000000, 0.48);
-    shadow.fillRoundedRect(0, 5, layout.width, layout.height, 18);
+    const relief = scene.add.graphics();
+    relief.fillStyle(0x111827, 0.6);
+    relief.fillRoundedRect(
+      0,
+      layout.teamPanelY + 6,
+      layout.teamPanelWidth,
+      layout.teamPanelHeight,
+      18
+    );
+    relief.fillRoundedRect(
+      layout.width - layout.teamPanelWidth,
+      layout.teamPanelY + 6,
+      layout.teamPanelWidth,
+      layout.teamPanelHeight,
+      18
+    );
+    relief.fillRoundedRect(
+      layout.centerPanelX,
+      6,
+      layout.centerPanelWidth,
+      layout.height,
+      15
+    );
 
     const panels = scene.add.graphics();
     this.drawTeamPanel(panels, 0, data.homeColors);
@@ -80,7 +100,7 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     }).setOrigin(0.5);
 
     this.add([
-      shadow,
+      relief,
       panels,
       homeName,
       awayName,

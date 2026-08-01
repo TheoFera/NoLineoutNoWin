@@ -84,6 +84,28 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return this.bodyShape;
   }
 
+  getWorldPointFromSource(sourceX: number, sourceY: number): { x: number; y: number } {
+    const localX = (sourceX / this.bodyLayer.width - this.bodyLayer.originX)
+      * this.bodyLayer.displayWidth;
+    const localY = (sourceY / this.bodyLayer.height - this.bodyLayer.originY)
+      * this.bodyLayer.displayHeight;
+    return {
+      x: this.x + localX * this.scaleX,
+      y: this.y + localY * this.scaleY
+    };
+  }
+
+  getWorldPointAtHeightFromFeet(sourceX: number, heightFromFeet: number): { x: number; y: number } {
+    return this.getWorldPointFromSource(
+      sourceX,
+      this.bodyLayer.height - heightFromFeet
+    );
+  }
+
+  getVisualHeight(): number {
+    return this.bodyLayer.displayHeight * Math.abs(this.scaleY);
+  }
+
   private createLayer(scene: Phaser.Scene, layer: "body" | "jersey" | "shorts" | "socks" | "details"): Phaser.GameObjects.Image {
     return scene.add.image(0, 0, getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer)).setOrigin(0.5, 1);
   }

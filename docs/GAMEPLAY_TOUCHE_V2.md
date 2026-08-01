@@ -43,6 +43,12 @@ interface TargetOption {
 }
 ```
 
+Pour une option `directCatch` en position `P`, les positions `P−1` et `P−2`
+doivent être libres de tout joueur de l'équipe qui lance. Si un coéquipier
+occupe l'une de ces deux positions, le joueur en `P` ne peut pas être proposé
+comme réceptionneur direct. Cette restriction ne concerne pas les options
+`jumpBlock`.
+
 ## 3. Distance du lancer
 
 La distance normalisée va de `0` à `7` :
@@ -213,6 +219,13 @@ Le lifteur arrière est plus important que le lifteur avant.
 | Un seul lifteur | −20 |
 | Aucun lifteur | saut impossible |
 
+En défense, la présence d'au moins un lifteur derrière le sauteur est
+obligatoire. Un joueur qui n'a qu'un coéquipier devant lui ne peut jamais être
+désigné comme sauteur défensif. Il reste néanmoins sélectionnable pour effectuer
+une lecture au sol selon la section 8.5. Avec uniquement un lifteur derrière,
+le malus de `−20` s'applique ; avec un lifteur devant et un lifteur derrière, le
+bonus de `+10` s'applique.
+
 ### 6.3 Hasard du saut
 
 Même logique que pour le lancer, basée sur `qualiteBaseSaut` :
@@ -326,7 +339,34 @@ Pour un lancer précis ou trop haut : contre impossible.
 
 Le contre initial est impossible.
 
-### 8.5 Résultat d’une interception devant
+### 8.5 Lecture défensive d'une réception directe
+
+Lorsqu'un défenseur sélectionné ne possède aucun coéquipier derrière lui, il
+n'est pas désigné comme sauteur : son choix représente une lecture au sol.
+
+Cette lecture est récompensée uniquement lorsque :
+
+- l'attaque a choisi une option `directCatch` ;
+- le défenseur sélectionné se trouve exactement à la position visée ;
+- le ballon atteint effectivement cette position.
+
+Le réceptionneur offensif et le défenseur disputent alors un duel de mains. Le
+défenseur reçoit un bonus configurable de `+20` sur son score :
+
+```ts
+scoreAttaque = handsAttaquant * 0.70 + uniform(0, 100) * 0.30;
+scoreDefense = handsDefenseur * 0.70 + uniform(0, 100) * 0.30 + 20;
+```
+
+Le seuil d'éligibilité reste fixé à `50`. Si les deux joueurs atteignent le
+seuil, le meilleur score récupère le ballon ; en cas d'égalité, la priorité
+reste au camp qui lance. Le vainqueur effectue ensuite son test d'en-avant.
+
+Le bonus ne s'applique pas si la position lue est incorrecte ou si l'attaque a
+choisi un `jumpBlock`. Un joueur sans lifteur arrière ne participe jamais à un
+duel aérien, même s'il possède un coéquipier devant lui.
+
+### 8.6 Résultat d'une interception devant
 
 ```ts
 margeInterception = scoreContre - difficulte;

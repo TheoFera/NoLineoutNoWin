@@ -13,7 +13,7 @@ export function loadGame(): StoredSaveGame | null {
 
   try {
     const parsed = JSON.parse(raw) as StoredSaveGame;
-    if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) return null;
+    if (![1, 2, 3, 4].includes(parsed.version)) return null;
     return parsed;
   } catch {
     return null;

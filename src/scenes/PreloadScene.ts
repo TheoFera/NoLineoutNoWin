@@ -27,6 +27,7 @@ export class PreloadScene extends Phaser.Scene {
     this.drawProgressBar(progressBar, 0);
     this.load.on(Phaser.Loader.Events.PROGRESS, (progress: number) => this.drawProgressBar(progressBar, progress));
 
+    this.load.audio("referee-whistle", "whistle.mp3");
     preloadRugbyPlayerAssets(this.load);
   }
 

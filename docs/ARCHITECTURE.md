@@ -44,7 +44,9 @@ LineoutScene en mode training
 
 MatchScene
 → ResultScene en fin de match
-→ LineoutScene en mode training après validation du résultat
+→ PlayerProgressionScene après validation du résultat
+→ SeasonResultScene si la saison est terminée
+→ sinon LineoutScene en mode training
 ```
 
 Conséquences :
@@ -78,6 +80,7 @@ LineoutResolver.ts
 | `src/scenes/LineoutScene.ts` | écran de touche et entraînement jouable |
 | `src/scenes/MatchScene.ts` | gère l'avancement du match |
 | `src/scenes/ResultScene.ts` | affiche la fin de match |
+| `src/scenes/PlayerProgressionScene.ts` | présente les hausses de statistiques après le match |
 | `src/scenes/TeamScene.ts` | affiche l'équipe du joueur |
 | `src/scenes/ChampionshipScene.ts` | affiche le championnat |
 | `src/rules/LineoutResolver.ts` | calcul d'une touche |

@@ -139,17 +139,12 @@ export class ResultScene extends Phaser.Scene {
         });
     }
 
-    const championship = GameStore.getSave().championship;
-    const completesSeason = championship.nextRound === championship.totalRounds;
-    const continueLabel = completesSeason ? t("result.viewSeasonReview") : t("result.backTraining");
-    new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, continueLabel, () => {
-      const seasonSummary = GameStore.completeCurrentMatch();
-      if (seasonSummary) {
-        navigateTo(this, "SeasonResultScene", { summary: seasonSummary });
-        return;
-      }
-
-      navigateTo(this, "LineoutScene", { mode: "training" });
+    new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("result.viewProgression"), () => {
+      const completion = GameStore.completeCurrentMatch();
+      navigateTo(this, "PlayerProgressionScene", {
+        progressions: completion?.playerProgressions ?? [],
+        seasonSummary: completion?.seasonSummary ?? null
+      });
     });
   }
 

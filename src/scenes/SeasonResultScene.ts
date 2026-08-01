@@ -222,10 +222,10 @@ export class SeasonResultScene extends Phaser.Scene {
     const candidates: Array<DivisionChange & { changed: boolean }> = [
       {
         label: t("seasonResult.change.lineouts"),
-        previousValue: `${previousDivision.minLineouts}-${previousDivision.maxLineouts}`,
-        nextValue: `${nextDivision.minLineouts}-${nextDivision.maxLineouts}`,
-        changed: previousDivision.minLineouts !== nextDivision.minLineouts
-          || previousDivision.maxLineouts !== nextDivision.maxLineouts
+        previousValue: `${previousDivision.minimumMatchLineouts}-${previousDivision.maximumMatchLineouts}`,
+        nextValue: `${nextDivision.minimumMatchLineouts}-${nextDivision.maximumMatchLineouts}`,
+        changed: previousDivision.minimumMatchLineouts !== nextDivision.minimumMatchLineouts
+          || previousDivision.maximumMatchLineouts !== nextDivision.maximumMatchLineouts
       },
       {
         label: t("seasonResult.change.activeCombinations"),

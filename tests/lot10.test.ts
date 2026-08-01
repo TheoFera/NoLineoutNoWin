@@ -95,12 +95,12 @@ function resolution(
   };
 }
 
-test("one quota is drawn and both teams receive exactly the same number of throws", () => {
+test("one total is drawn and an even number is shared equally", () => {
   const division: Division = {
     id: "top_14",
     label: "Top 14",
-    minLineouts: 10,
-    maxLineouts: 14,
+    minimumMatchLineouts: 7,
+    maximumMatchLineouts: 12,
     offensiveCombinations: 5,
     opponentSkill: 94,
     adaptationAfterRepeats: 1
@@ -109,10 +109,10 @@ test("one quota is drawn and both teams receive exactly the same number of throw
   const playerThrows = schedule.lineouts.filter((event) => event.throwingSide === "us").length;
   const opponentThrows = schedule.lineouts.filter((event) => event.throwingSide === "opponent").length;
 
-  assert.equal(schedule.quotaPerTeam, 14);
+  assert.equal(schedule.totalLineouts, 12);
   assert.equal(schedule.maxMinute, 82);
   assert.equal(playerThrows, opponentThrows);
-  assert.equal(playerThrows, 14);
+  assert.equal(playerThrows, 6);
   for (let index = 1; index < schedule.lineouts.length; index += 1) {
     assert.ok(schedule.lineouts[index].minute - schedule.lineouts[index - 1].minute >= 3);
   }
@@ -216,6 +216,25 @@ test("open play can create a breakthrough between 10 and 40 metres", () => {
   assert.equal(trace.match.ballLateralPosition, 0.8);
 });
 
+test("an odd total gives one team exactly one additional throw", () => {
+  const division: Division = {
+    id: "regionale_2",
+    label: "Régionale 2",
+    minimumMatchLineouts: 5,
+    maximumMatchLineouts: 7,
+    offensiveCombinations: 3,
+    opponentSkill: 40,
+    adaptationAfterRepeats: 2
+  };
+  const schedule = generateMatchSchedule(division, constant(0.999));
+  const playerThrows = schedule.lineouts.filter((event) => event.throwingSide === "us").length;
+  const opponentThrows = schedule.lineouts.filter((event) => event.throwingSide === "opponent").length;
+
+  assert.equal(schedule.totalLineouts, 7);
+  assert.equal(playerThrows + opponentThrows, 7);
+  assert.equal(Math.abs(playerThrows - opponentThrows), 1);
+});
+
 test("breakthroughs are more likely on the wings than in the centre", () => {
   assert.ok(getBreakthroughProbability(0.5, 0.9) > getBreakthroughProbability(0.5, 0));
   assert.equal(getBreakthroughProbability(0.5, -0.9), getBreakthroughProbability(0.5, 0.9));
@@ -264,7 +283,7 @@ test("pitch zones and accelerated real duration use the exact field model", () =
   assert.equal(getPitchZoneFromPosition(50), "middle");
   assert.equal(getPitchZoneFromPosition(78), "their_22");
   assert.equal(getPitchZoneFromPosition(100), "their_22");
-  assert.ok(Math.abs(getRealSecondsForSimulatedMinutes(80) - 80 / 3) < 1e-12);
+  assert.ok(Math.abs(getRealSecondsForSimulatedMinutes(80) - 80 / 6) < 1e-12);
 });
 
 test("open-play lateral lanes favor the central area instead of alternating touchlines", () => {

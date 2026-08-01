@@ -14,10 +14,10 @@ Version : 2026-07-15
 Valeur initiale :
 
 ```ts
-simulatedMinutesPerRealSecond = 3;
+simulatedMinutesPerRealSecond = 6;
 ```
 
-Un match de 80 minutes dure donc environ 27 secondes réelles hors écrans de touche.
+Un match de 80 minutes dure donc environ 13 secondes réelles hors écrans de touche. Un intervalle de 12 minutes simulées entre deux touches dure environ 2 secondes réelles.
 
 La valeur doit être ajustable.
 
@@ -126,17 +126,17 @@ Une perte aléatoire ne peut pas intervenir pendant les 1,5 premières minutes s
 
 ## 8. Nombre de touches
 
-Tirer une seule valeur par équipe au début du match ; le joueur et l’IA ont exactement le même nombre de lancers.
+Tirer une seule valeur totale au début du match, puis répartir les lancers entre les deux équipes. Si le total est pair, les deux équipes ont le même nombre de lancers. S’il est impair, une équipe tirée aléatoirement dispose d’un lancer supplémentaire ; l’écart ne dépasse donc jamais une touche.
 
-| Division | Touches offensives par équipe |
+| Division | Touches par match |
 |---|---|
 | Régionale 3 | 4 à 6 |
-| Régionale 2 / Régionale 1 | 6 à 9 |
-| Fédérale 3 | 7 à 10 |
-| Fédérale 2 | 8 à 11 |
-| Fédérale 1 | 8 à 12 |
-| Nationale 2 / Nationale | 9 à 13 |
-| Pro D2 / Top 14 | 10 à 14 |
+| Régionale 2 / Régionale 1 | 5 à 7 |
+| Fédérale 3 | 5 à 8 |
+| Fédérale 2 | 6 à 9 |
+| Fédérale 1 | 6 à 10 |
+| Nationale 2 / Nationale | 7 à 11 |
+| Pro D2 / Top 14 | 7 à 12 |
 
 Contraintes :
 
@@ -162,7 +162,7 @@ type TouchCause =
   | "deflection";
 ```
 
-La cause détermine l’équipe qui lance. Le quota égal de lancers par équipe reste prioritaire : le générateur doit choisir une cause compatible avec le lanceur programmé.
+La cause détermine l’équipe qui lance. La répartition équilibrée des lancers reste prioritaire : le générateur doit choisir une cause compatible avec le lanceur programmé.
 
 ## 10. Résultat de la touche et état du match
 

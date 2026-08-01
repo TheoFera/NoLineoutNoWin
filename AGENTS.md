@@ -55,7 +55,7 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 - Une combinaison peut proposer plusieurs options de lancer, chacune désignant une cible réelle de l'alignement.
 - Les rôles d'une combinaison sont définis par option de lancer ; un même joueur peut changer de rôle d'une option à l'autre.
 - Les rôles aériens sont déduits des statistiques réelles des joueurs, jamais l'inverse.
-- Le joueur et l'IA disposent exactement du même nombre de touches offensives pendant un match ; ce nombre est tiré une seule fois selon la division.
+- Le nombre total de touches du match est tiré une seule fois selon la division. Il est réparti également entre le joueur et l'IA ; lorsque le total est impair, une équipe dispose d'une seule touche offensive supplémentaire, attribuée aléatoirement.
 - La possession et l'occupation cumulées sont calculées à partir du temps simulé ; elles ne sont pas modifiées directement comme des bonus abstraits.
 - Tous les textes visibles doivent passer par le système de traduction `t(key)`.
 - Les textes français visibles doivent être rédigés en français correct, avec les accents et les cédilles.

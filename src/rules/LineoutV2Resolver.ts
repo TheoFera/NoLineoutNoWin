@@ -22,6 +22,7 @@ import {
 } from "./LineoutJumpResolver.ts";
 import {
   getRecoveryPlacements,
+  resolveHandsDuel,
   resolveGroundRecovery,
   resolveLooseBall,
   resolveRecoverySequence,
@@ -29,9 +30,11 @@ import {
   testKnockOn,
   type RecoveryAttempt,
   type RecoverySequenceResult,
+  type HandsDuelResult,
   type SoloReceptionResult
 } from "./LineoutReceptionResolver.ts";
 import { resolveLineoutThrow, type LineoutThrowResult } from "./LineoutThrowResolver.ts";
+import { getDefensiveSelectionMode } from "./DefensiveLineoutSelection.ts";
 
 const JUMPING = LINEOUT_BALANCE.jumping;
 const RECOVERY = LINEOUT_BALANCE.directCatch.secondaryRecovery;
@@ -54,6 +57,10 @@ export function resolveLineoutV2(input: LineoutResolutionInput): LineoutResoluti
   });
   const details = createThrowDetails(input, throwResult);
   const context = { input, throwResult, details };
+  const defensiveSelectionMode = getCurrentDefensiveSelectionMode(input);
+  if (defensiveSelectionMode) {
+    details.defensiveSelectionMode = defensiveSelectionMode;
+  }
 
   if (throwResult.trajectory.trajectory === "notStraight") {
     return createResolution(
@@ -112,16 +119,48 @@ function resolveDirectCatch(
     context.details.recoveryKind = "target";
   }
 
-  const placements = getRecoveryPlacements(
-    directCatcherPosition,
-    context.input.defendingAssignments
-  );
-  const reception = resolveSoloReception(receiver, placements, context.input.rng);
-  addSoloReceptionDetails(context.details, reception, "targetReception");
-  context.details.receiverPlacements = placements.join(",");
+  const defensiveReader = getMatchedDefensiveReader(context.input, directCatcherPosition);
+  if (defensiveReader) {
+    const readDuel = resolveHandsDuel(
+      receiver,
+      defensiveReader,
+      context.input.rng,
+      0,
+      LINEOUT_BALANCE.directCatch.correctDefensiveReadBonus
+    );
+    addDirectReadDuelDetails(context.details, readDuel, defensiveReader);
 
-  const directResult = resolveSuccessfulOffensiveReception(context, reception);
-  if (directResult) return directResult;
+    if (readDuel.outcome === "knockOn" && readDuel.knockOnBy) {
+      return knockOnResolution(
+        context,
+        readDuel.knockOnBy,
+        readDuel.knockOnBy === "defendingTeam"
+          ? "lineout.reason.defendingKnockOn"
+          : "lineout.reason.attackingKnockOn"
+      );
+    }
+    if (readDuel.outcome === "caught" && readDuel.ballTeam === "defendingTeam") {
+      return defensiveTurnover(context, true, "lineout.reason.defensiveReadWon");
+    }
+    if (readDuel.outcome === "caught" && readDuel.ballTeam === "throwingTeam") {
+      return offensiveWin(
+        context,
+        isCleanReception(readDuel.throwingScore ?? 0),
+        "lineout.reason.defensiveReadBeaten"
+      );
+    }
+  } else {
+    const placements = getRecoveryPlacements(
+      directCatcherPosition,
+      context.input.defendingAssignments
+    );
+    const reception = resolveSoloReception(receiver, placements, context.input.rng);
+    addSoloReceptionDetails(context.details, reception, "targetReception");
+    context.details.receiverPlacements = placements.join(",");
+
+    const directResult = resolveSuccessfulOffensiveReception(context, reception);
+    if (directResult) return directResult;
+  }
 
   if (trajectory === "precise") {
     return resolvePreciseRecoveryPath(context, directCatcherPosition);
@@ -142,10 +181,15 @@ function resolveJumpBlock(
   context.details.attackJumpSucceeded = attackingJumpSucceeded;
 
   const defensivePosition = context.input.defensiveJumpPosition;
+  const defensiveSelectionMode = defensivePosition
+    ? getDefensiveSelectionMode(context.input.defendingAssignments, defensivePosition)
+    : undefined;
   const defendingJumper = defensivePosition
     ? context.input.defendingAssignments[defensivePosition]
     : undefined;
-  const defensiveJump = defendingJumper && defensivePosition
+  const defensiveJump = defendingJumper
+    && defensivePosition
+    && defensiveSelectionMode === "aerialCounter"
     ? calculateDefensiveJump(context.input, defendingJumper, defensivePosition)
     : undefined;
 
@@ -537,7 +581,13 @@ function availableSecondaryAssignments(
     const { frontLifterPosition, rearLifterPosition } = context.input.targetOption.roles;
     if (frontLifterPosition) excluded.add(frontLifterPosition);
     if (rearLifterPosition) excluded.add(rearLifterPosition);
-  } else if (context.input.defensiveJumpPosition) {
+  } else if (
+    context.input.defensiveJumpPosition
+    && getDefensiveSelectionMode(
+      context.input.defendingAssignments,
+      context.input.defensiveJumpPosition
+    ) === "aerialCounter"
+  ) {
     const front = adjacentPosition(context.input.defensiveJumpPosition, -1);
     const rear = adjacentPosition(context.input.defensiveJumpPosition, 1);
     if (front) excluded.add(front);
@@ -724,6 +774,43 @@ function addSoloReceptionDetails(
   if (reception.knockOnRisk) {
     addKnockOnDetails(details, reception.knockOnRisk, `${prefix}KnockOn`);
   }
+}
+
+function addDirectReadDuelDetails(
+  details: ResolutionDetails,
+  duel: HandsDuelResult,
+  defender: FieldPlayer
+): void {
+  details.defensiveReadMatched = true;
+  details.defensiveReadPlayerId = defender.id;
+  details.defensiveReadBonus = duel.defendingSituationalModifier;
+  if (duel.throwingScore !== null) details.duelAttackScore = duel.throwingScore;
+  if (duel.defendingScore !== null) details.duelDefenseScore = duel.defendingScore;
+  if (duel.winningPlayerId) details.defensiveReadWinnerId = duel.winningPlayerId;
+  if (duel.knockOnRisk) {
+    addKnockOnDetails(details, duel.knockOnRisk, "defensiveReadKnockOn");
+  }
+}
+
+function getCurrentDefensiveSelectionMode(
+  input: LineoutResolutionInput
+): ReturnType<typeof getDefensiveSelectionMode> | undefined {
+  return input.defensiveJumpPosition
+    ? getDefensiveSelectionMode(input.defendingAssignments, input.defensiveJumpPosition)
+    : undefined;
+}
+
+function getMatchedDefensiveReader(
+  input: LineoutResolutionInput,
+  targetPosition: LineoutPosition
+): FieldPlayer | undefined {
+  if (
+    input.defensiveJumpPosition !== targetPosition
+    || getDefensiveSelectionMode(input.defendingAssignments, targetPosition) !== "groundRead"
+  ) {
+    return undefined;
+  }
+  return input.defendingAssignments[targetPosition];
 }
 
 function addKnockOnDetails(

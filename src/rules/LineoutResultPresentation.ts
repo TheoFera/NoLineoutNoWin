@@ -48,6 +48,13 @@ const TITLE_BY_EXPLANATION_KEY: Record<string, string> = {
   "lineout.explanation.defenseLooseLost": "lineout.presentation.title.lost",
   "lineout.explanation.defenseDirectLooseWon": "lineout.presentation.title.recovered",
   "lineout.explanation.defenseDirectLooseLost": "lineout.presentation.title.lost",
+  "lineout.explanation.defenseReadWon": "lineout.presentation.title.recovered",
+  "lineout.explanation.defenseReadLost": "lineout.presentation.title.lost",
+  "lineout.explanation.attackReadBeaten": "lineout.presentation.title.won",
+  "lineout.explanation.attackReadLost": "lineout.presentation.title.ballLost",
+  "lineout.explanation.defenseReadOurKnockOn": "lineout.presentation.title.defenderKnockOn",
+  "lineout.explanation.defenseReadOpponentKnockOn": "lineout.presentation.title.opponentKnockOn",
+  "lineout.explanation.attackReadOpponentKnockOn": "lineout.presentation.title.opponentKnockOn",
   "lineout.explanation.attackHighBallWon": "lineout.presentation.title.highBall",
   "lineout.explanation.attackHighBallLost": "lineout.presentation.title.highBall",
   "lineout.explanation.defenseHighBallWon": "lineout.presentation.title.highBall",
@@ -63,6 +70,7 @@ const SCORE_DETAILS: Array<{ detailKey: string; labelKey: string }> = [
   { detailKey: "cascadeReceptionScore", labelKey: "lineout.detail.reception" },
   { detailKey: "duelAttackScore", labelKey: "lineout.detail.attackDuel" },
   { detailKey: "duelDefenseScore", labelKey: "lineout.detail.defenseDuel" },
+  { detailKey: "defensiveReadBonus", labelKey: "lineout.detail.defensiveReadBonus" },
   { detailKey: "counterScore", labelKey: "lineout.detail.counter" }
 ];
 

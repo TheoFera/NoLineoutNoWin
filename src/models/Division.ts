@@ -13,8 +13,8 @@ export type DivisionId =
 export type Division = {
   id: DivisionId;
   label: string;
-  minLineouts: number;
-  maxLineouts: number;
+  minimumMatchLineouts: number;
+  maximumMatchLineouts: number;
   offensiveCombinations: number;
   opponentSkill: number;
   adaptationAfterRepeats: number;

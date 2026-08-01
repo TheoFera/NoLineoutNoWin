@@ -4,12 +4,16 @@ import type { PoseName } from "./RugbyPlayerTypes";
 export const LINEOUT_LIFT_ANIMATION = {
   approachDurationMs: 70,
   approachDistancePixels: 16,
+  jumpAnticipationMs: 40,
+  contestCenterShiftPixels: 8,
+  contestJumperLeanDegrees: 5,
   defaultJumpQuality: 50,
   minimumJumperLiftHeightPixels: 0,
   maximumJumperLiftHeightPixels: 44,
   slowestJumperLiftDurationMs: 360,
   fastestJumperLiftDurationMs: 150,
   jumperHoldDurationMs: 120,
+  jumperApexSuspensionDurationMs: 200,
   lifterReturnDurationMs: 120,
   ballFlightDurationMs: 410,
   hookerReleaseDelayMs: 70,
@@ -79,7 +83,7 @@ export function getLineoutLiftSequenceDurationMs(
   const jumpMetrics = getLineoutJumpAnimationMetrics(jumpQuality);
   const jumperDuration = LINEOUT_LIFT_ANIMATION.approachDurationMs
     + jumpMetrics.liftDurationMs * 2
-    + LINEOUT_LIFT_ANIMATION.jumperHoldDurationMs
+    + LINEOUT_LIFT_ANIMATION.jumperApexSuspensionDurationMs
     + LINEOUT_LIFT_ANIMATION.lifterReturnDurationMs;
 
   return Math.max(

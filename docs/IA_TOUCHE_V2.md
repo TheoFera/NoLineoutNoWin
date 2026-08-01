@@ -283,4 +283,4 @@ Les poids exacts évoluent avec le nombre d’observations directes et restent c
 
 ## 14. Nombre de touches
 
-L’IA doit avoir exactement le même nombre de touches offensives que le joueur pendant un match. Le nombre est tiré une fois selon la division, puis appliqué aux deux équipes.
+Le nombre total de touches est tiré une fois selon la division, puis réparti entre l’IA et le joueur. Si le total est impair, une équipe tirée aléatoirement dispose d’une touche offensive supplémentaire ; l’écart ne dépasse jamais une touche.

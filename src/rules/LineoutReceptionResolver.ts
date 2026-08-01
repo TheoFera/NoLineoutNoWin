@@ -40,6 +40,8 @@ export type HandsDuelResult = {
   knockOnBy: LineoutResolutionTeam | null;
   throwingScore: number | null;
   defendingScore: number | null;
+  throwingSituationalModifier: number;
+  defendingSituationalModifier: number;
   winningPlayerId: string | null;
   knockOnRisk: KnockOnRiskResult | null;
 };
@@ -196,22 +198,27 @@ function calculateHandsDuelScore(
   situationalModifier: number
 ): number {
   const hands = clamp(player.hands, SCORE.minimum, SCORE.maximum);
-  return hands * CATCH.handsWeight
-    + randomFloat(SCORE.minimum, SCORE.maximum, rng) * CATCH.randomWeight
-    + situationalModifier;
+  return clamp(
+    hands * CATCH.handsWeight
+      + randomFloat(SCORE.minimum, SCORE.maximum, rng) * CATCH.randomWeight
+      + situationalModifier,
+    SCORE.minimum,
+    SCORE.maximum
+  );
 }
 
 export function resolveHandsDuel(
   throwingPlayer: FieldPlayer | undefined,
   defendingPlayer: FieldPlayer | undefined,
   rng: RandomSource,
-  situationalModifier = 0
+  throwingSituationalModifier = 0,
+  defendingSituationalModifier = throwingSituationalModifier
 ): HandsDuelResult {
   const throwingScore = throwingPlayer
-    ? calculateHandsDuelScore(throwingPlayer, rng, situationalModifier)
+    ? calculateHandsDuelScore(throwingPlayer, rng, throwingSituationalModifier)
     : null;
   const defendingScore = defendingPlayer
-    ? calculateHandsDuelScore(defendingPlayer, rng, situationalModifier)
+    ? calculateHandsDuelScore(defendingPlayer, rng, defendingSituationalModifier)
     : null;
   const throwingEligible = throwingScore !== null && throwingScore >= CATCH.successThreshold;
   const defendingEligible = defendingScore !== null && defendingScore >= CATCH.successThreshold;
@@ -223,6 +230,8 @@ export function resolveHandsDuel(
       knockOnBy: null,
       throwingScore,
       defendingScore,
+      throwingSituationalModifier,
+      defendingSituationalModifier,
       winningPlayerId: null,
       knockOnRisk: null
     };
@@ -240,6 +249,8 @@ export function resolveHandsDuel(
     knockOnBy: knockOnRisk.knockOn ? ballTeam : null,
     throwingScore,
     defendingScore,
+    throwingSituationalModifier,
+    defendingSituationalModifier,
     winningPlayerId: winner.id,
     knockOnRisk
   };

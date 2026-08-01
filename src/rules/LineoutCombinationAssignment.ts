@@ -19,6 +19,7 @@ import {
   getDistanceCoefficient,
   calculateDistanceIndex
 } from "./LineoutThrowResolver.ts";
+import { canBeLineoutJumper, canBeLineoutLifter } from "./LineoutPlayerRoles.ts";
 import { getTargetNaturalWeight } from "./CombinationRules.ts";
 
 const GENERATION = LINEOUT_BALANCE.generation;
@@ -173,7 +174,14 @@ export function isTargetOptionEligible(
   const jumper = playerAt(playersByPosition, option.roles.jumperPosition ?? option.targetPosition);
   const frontLifter = playerAt(playersByPosition, option.roles.frontLifterPosition);
   const rearLifter = playerAt(playersByPosition, option.roles.rearLifterPosition);
-  if (!jumper || !frontLifter || !rearLifter || jumper.jump < GENERATION.roleThreshold) {
+  if (
+    !jumper
+    || !frontLifter
+    || !rearLifter
+    || !canBeLineoutJumper(jumper)
+    || !canBeLineoutLifter(frontLifter)
+    || !canBeLineoutLifter(rearLifter)
+  ) {
     return false;
   }
 

@@ -149,7 +149,7 @@ Implémenter :
 - choix de la cible ;
 - malus après échec ;
 - adaptation selon les habitudes défensives ;
-- nombre de touches égal au joueur.
+- nombre de touches équilibré avec le joueur, avec un écart maximal d’une touche lorsque le total du match est impair.
 
 ## Lot 9 — IA défensive et mémoire
 

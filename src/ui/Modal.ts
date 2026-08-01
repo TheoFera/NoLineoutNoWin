@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GAME_HEIGHT, GAME_WIDTH } from "../config/DisplayConfig";
 import { t } from "../systems/I18n";
 import { UI_DEPTH } from "./UIDepth";
 import { UIButton } from "./UIButton";
@@ -22,12 +23,12 @@ export class Modal extends Phaser.GameObjects.Container {
     onClose: () => void,
     options: ModalOptions = {}
   ) {
-    super(scene, scene.scale.width / 2, scene.scale.height / 2);
+    super(scene, GAME_WIDTH / 2, GAME_HEIGHT / 2);
     const backdrop = scene.add.rectangle(
       0,
       0,
-      scene.scale.width,
-      scene.scale.height,
+      GAME_WIDTH,
+      GAME_HEIGHT,
       0x000000,
       0.68
     ).setInteractive();

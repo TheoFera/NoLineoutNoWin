@@ -94,6 +94,7 @@ export const LINEOUT_BALANCE = {
     handsWeight: 0.7,
     randomWeight: 0.3,
     successThreshold: 50,
+    correctDefensiveReadBonus: 20,
     placementModifier: {
       noNearbyOpponent: 5,
       oneAhead: -30,
@@ -136,6 +137,18 @@ export const LINEOUT_BALANCE = {
       frontLifter: { lift: 0.7, jump: 0.3 },
       directReceiver: { hands: 1 }
     }
+  },
+  progression: {
+    statMaximum: 99,
+    difficultyStartsAt: 60,
+    statPointsPerDifficultyStep: 10,
+    baseUsesPerLevel: {
+      jump: 2,
+      lift: 2,
+      hands: 3,
+      throwing: 3
+    },
+    additionalUsesPerDifficultyStep: 1
   },
   ai: {
     repertoireByDivision: {
@@ -207,7 +220,7 @@ export const LINEOUT_BALANCE = {
     videoRecencyWeights: [1, 0.8, 0.6, 0.4, 0.2]
   },
   match: {
-    simulatedMinutesPerRealSecond: 3,
+    simulatedMinutesPerRealSecond: 6,
     pitchLengthMeters: 100,
     simulationStepMinutes: 0.5,
     movement: {

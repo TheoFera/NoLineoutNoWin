@@ -52,57 +52,93 @@ export function generateMatchLineouts(
   maxMinute: number,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): MatchLineoutEvent[] {
-  const quotaPerTeam = randomInt(division.minLineouts, division.maxLineouts, randomSource);
-  const total = quotaPerTeam * 2;
-  const minimumRequiredEndMinute = 1 + (total - 1) * BALANCE.minimumMinutesBetweenLineouts;
+  const totalLineouts = randomInt(
+    division.minimumMatchLineouts,
+    division.maximumMatchLineouts,
+    randomSource
+  );
+  return generateLineoutsForTotal(totalLineouts, maxMinute, randomSource).lineouts;
+}
+
+function generateLineoutsForTotal(
+  totalLineouts: number,
+  maxMinute: number,
+  randomSource: RandomSource
+): {
+  lineouts: MatchLineoutEvent[];
+  playerLineoutQuota: number;
+  opponentLineoutQuota: number;
+} {
+  const minimumRequiredEndMinute = 1
+    + (totalLineouts - 1) * BALANCE.minimumMinutesBetweenLineouts;
   if (minimumRequiredEndMinute > maxMinute) {
     throw new RangeError(
-      `${total} lineouts require match end minute ${minimumRequiredEndMinute} or later`
+      `${totalLineouts} lineouts require match end minute ${minimumRequiredEndMinute} or later`
     );
   }
   const slack = maxMinute - minimumRequiredEndMinute;
   const offsets = Array.from(
-    { length: total },
+    { length: totalLineouts },
     () => randomInt(0, Math.max(0, slack), randomSource)
   ).sort((left, right) => left - right);
+  const baseQuota = Math.floor(totalLineouts / 2);
+  const hasExtraLineout = totalLineouts % 2 === 1;
+  const playerReceivesExtra = hasExtraLineout && randomInt(0, 1, randomSource) === 0;
+  const playerLineoutQuota = baseQuota + (playerReceivesExtra ? 1 : 0);
+  const opponentLineoutQuota = totalLineouts - playerLineoutQuota;
   const throwingSides = shuffle([
-    ...Array.from({ length: quotaPerTeam }, () => "us" as const),
-    ...Array.from({ length: quotaPerTeam }, () => "opponent" as const)
+    ...Array.from({ length: playerLineoutQuota }, () => "us" as const),
+    ...Array.from({ length: opponentLineoutQuota }, () => "opponent" as const)
   ], randomSource);
 
-  return throwingSides.map((throwingSide, index) => ({
-    id: `lineout_${index + 1}`,
-    minute: 1 + index * BALANCE.minimumMinutesBetweenLineouts + offsets[index],
-    pitchZone: "middle",
-    throwingSide,
-    numberOfPlayers: 7,
-    cause: randomCause(throwingSide, randomSource),
-    resolved: false
-  }));
+  return {
+    playerLineoutQuota,
+    opponentLineoutQuota,
+    lineouts: throwingSides.map((throwingSide, index) => ({
+      id: `lineout_${index + 1}`,
+      minute: 1 + index * BALANCE.minimumMinutesBetweenLineouts + offsets[index],
+      pitchZone: "middle",
+      throwingSide,
+      numberOfPlayers: 7,
+      cause: randomCause(throwingSide, randomSource),
+      resolved: false
+    }))
+  };
 }
 
 export function generateMatchSchedule(
   division: Division,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
-): { maxMinute: number; quotaPerTeam: number; lineouts: MatchLineoutEvent[] } {
-  const quotaPerTeam = randomInt(division.minLineouts, division.maxLineouts, randomSource);
-  const maxMinute = chooseMatchEndMinute(quotaPerTeam, randomSource);
+): {
+  maxMinute: number;
+  totalLineouts: number;
+  playerLineoutQuota: number;
+  opponentLineoutQuota: number;
+  lineouts: MatchLineoutEvent[];
+} {
+  const totalLineouts = randomInt(
+    division.minimumMatchLineouts,
+    division.maximumMatchLineouts,
+    randomSource
+  );
+  const maxMinute = chooseMatchEndMinute(totalLineouts, randomSource);
+  const generated = generateLineoutsForTotal(totalLineouts, maxMinute, randomSource);
   return {
     maxMinute,
-    quotaPerTeam,
-    lineouts: generateLineoutsForQuota(quotaPerTeam, maxMinute, randomSource)
+    totalLineouts,
+    ...generated
   };
 }
 
 export function chooseMatchEndMinute(
-  quotaPerTeam: number,
+  totalLineouts: number,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): number {
-  const minimumForQuota = 1
-    + (quotaPerTeam * 2 - 1) * BALANCE.minimumMinutesBetweenLineouts;
-  const minimum = Math.max(BALANCE.minimumEndMinute, minimumForQuota);
+  const minimumForLineouts = 1
+    + (totalLineouts - 1) * BALANCE.minimumMinutesBetweenLineouts;
+  const minimum = Math.max(BALANCE.minimumEndMinute, minimumForLineouts);
   if (minimum > BALANCE.maximumEndMinute) {
-    throw new RangeError("Lineout quota cannot fit before the configured maximum match minute");
+    throw new RangeError("Lineouts cannot fit before the configured maximum match minute");
   }
   return randomInt(minimum, BALANCE.maximumEndMinute, randomSource);
 }
@@ -705,18 +741,6 @@ function randomCause(
 ): TouchCause {
   const causes = throwingSide === "us" ? PLAYER_THROW_CAUSES : OPPONENT_THROW_CAUSES;
   return causes[randomInt(0, causes.length - 1, randomSource)];
-}
-
-function generateLineoutsForQuota(
-  quotaPerTeam: number,
-  maxMinute: number,
-  randomSource: RandomSource
-): MatchLineoutEvent[] {
-  const division = {
-    minLineouts: quotaPerTeam,
-    maxLineouts: quotaPerTeam
-  } as Division;
-  return generateMatchLineouts(division, maxMinute, randomSource);
 }
 
 function shuffle<T>(values: T[], randomSource: RandomSource): T[] {

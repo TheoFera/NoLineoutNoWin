@@ -3,6 +3,7 @@ import type { Combination, OffensiveRepertoire } from "./Combination";
 import type { DivisionId } from "./Division";
 import type { Team } from "./Team";
 import type { LineoutVideoMatch, OpponentAiMemory } from "./LineoutAI";
+import type { PlayerProgressionUsage } from "./PlayerProgression";
 
 export const DEFENSIVE_LINEOUT_SIZES = [2, 3, 4, 5, 6, 7] as const;
 
@@ -35,7 +36,7 @@ export type SaveGameV2 = SaveGameBase & {
   offensiveRepertoire: OffensiveRepertoire;
 };
 
-export type SaveGame = SaveGameBase & {
+export type SaveGameV3 = SaveGameBase & {
   version: 3;
   offensiveRepertoire: OffensiveRepertoire;
   opponentAiMemories: Record<string, OpponentAiMemory>;
@@ -43,4 +44,13 @@ export type SaveGame = SaveGameBase & {
   opponentTeams: Record<string, Team>;
 };
 
-export type StoredSaveGame = SaveGameV1 | SaveGameV2 | SaveGame;
+export type SaveGame = SaveGameBase & {
+  version: 4;
+  offensiveRepertoire: OffensiveRepertoire;
+  opponentAiMemories: Record<string, OpponentAiMemory>;
+  playerLineoutVideoHistory: LineoutVideoMatch[];
+  opponentTeams: Record<string, Team>;
+  playerProgressionUsage: PlayerProgressionUsage;
+};
+
+export type StoredSaveGame = SaveGameV1 | SaveGameV2 | SaveGameV3 | SaveGame;

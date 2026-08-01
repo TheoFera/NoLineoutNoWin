@@ -1,4 +1,4 @@
-import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2 } from "../models/SaveGame";
+import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2, SaveGameV3 } from "../models/SaveGame";
 import type { MatchStateData } from "../models/Match";
 import type { Team } from "../models/Team";
 import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations";
@@ -6,7 +6,7 @@ import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 import type { Combination } from "../models/Combination";
 import { normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { applyMatchToChampionship, createChampionshipState, normalizeChampionshipState } from "../rules/ChampionshipRules";
-import { applyPlayerProgression } from "../rules/PlayerProgression";
+import { normalizePlayerProgressionUsage, resolvePlayerProgression } from "../rules/PlayerProgression";
 import { createDefaultPlayerTeam, DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR, normalizeTeam } from "../rules/TeamFactory";
 import {
   isDefensiveLineoutSize,
@@ -21,7 +21,7 @@ import { getLanguage, t } from "../systems/I18n";
 import { clearSave, loadGame, saveGame } from "../systems/SaveSystem";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
-import type { SeasonSummary } from "../models/Championship";
+import type { MatchCompletionSummary } from "../models/PlayerProgression";
 import {
   createEmptyOpponentAiMemory,
   normalizeOpponentAiMemory,
@@ -36,6 +36,7 @@ type StoredTeam = Parameters<typeof normalizeTeam>[0];
 type StoredSaveGame =
   | (Omit<SaveGameV1, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGameV2, "playerTeam"> & { playerTeam: StoredTeam })
+  | (Omit<SaveGameV3, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGame, "playerTeam"> & { playerTeam: StoredTeam });
 
 export class GameStore {
@@ -75,7 +76,7 @@ export class GameStore {
     const division = getDivision("regionale_3");
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision.regionale_3;
     const save: SaveGame = {
-      version: 3,
+      version: 4,
       language: getLanguage(),
       currentDivisionId: "regionale_3",
       season: 1,
@@ -93,6 +94,7 @@ export class GameStore {
       opponentAiMemories: {},
       playerLineoutVideoHistory: [],
       opponentTeams: {},
+      playerProgressionUsage: {},
       createdAt: now,
       updatedAt: now
     };
@@ -237,7 +239,7 @@ export class GameStore {
     return this.match;
   }
 
-  static completeCurrentMatch(): SeasonSummary | null {
+  static completeCurrentMatch(): MatchCompletionSummary | null {
     if (!this.save || !this.match) {
       return null;
     }
@@ -278,6 +280,11 @@ export class GameStore {
         )
       }
       : this.match.away;
+    const progression = resolvePlayerProgression(
+      this.save.playerTeam,
+      this.match.playerUsage,
+      this.save.playerProgressionUsage
+    );
 
     this.save = this.withUpdatedAt({
       ...this.save,
@@ -291,7 +298,7 @@ export class GameStore {
         repertoireLimits.reserve
       ),
       playerTeam: {
-        ...applyPlayerProgression(this.save.playerTeam, this.match.playerUsage),
+        ...progression.team,
         divisionId: outcome.divisionId
       },
       playerLineoutVideoHistory: videoObservations.length > 0
@@ -307,11 +314,15 @@ export class GameStore {
       opponentTeams: {
         ...this.save.opponentTeams,
         [updatedOpponent.id]: updatedOpponent
-      }
+      },
+      playerProgressionUsage: progression.remainingUsage
     });
     this.match = null;
     saveGame(this.save);
-    return outcome.completedSeason ?? null;
+    return {
+      seasonSummary: outcome.completedSeason ?? null,
+      playerProgressions: progression.progressedPlayers
+    };
   }
 
   private static normalizeSave(save: StoredSaveGame): SaveGame {
@@ -320,7 +331,8 @@ export class GameStore {
     const division = getDivision(save.currentDivisionId);
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[save.currentDivisionId];
     const currentRepertoire = save.version !== 1 ? save.offensiveRepertoire : undefined;
-    const opponentAiMemories = save.version === 3
+    const hasAiPersistence = save.version === 3 || save.version === 4;
+    const opponentAiMemories = hasAiPersistence
       ? Object.fromEntries(Object.entries(save.opponentAiMemories ?? {}).map(([id, memory]) => [
         id,
         normalizeOpponentAiMemory(memory)
@@ -328,7 +340,7 @@ export class GameStore {
       : {};
     return {
       ...save,
-      version: 3,
+      version: 4,
       playerTeam,
       championship: normalizeChampionshipState(save.championship, save.currentDivisionId, save.season, playerTeam.name),
       offensiveCombinations,
@@ -341,7 +353,7 @@ export class GameStore {
       defensivePriority: normalizeDefensivePriority(save.defensivePriority, playerTeam),
       defenseMemory: normalizeDefenseMemory(save.defenseMemory, playerTeam),
       opponentAiMemories,
-      playerLineoutVideoHistory: save.version === 3
+      playerLineoutVideoHistory: hasAiPersistence
         ? (save.playerLineoutVideoHistory ?? []).map((match) => ({
           ...match,
           observations: match.observations.map((observation) => ({
@@ -350,12 +362,16 @@ export class GameStore {
           }))
         }))
         : [],
-      opponentTeams: save.version === 3
+      opponentTeams: hasAiPersistence
         ? Object.fromEntries(Object.entries(save.opponentTeams ?? {}).map(([id, team]) => [
           id,
           normalizeTeam(team)
         ]))
-        : {}
+        : {},
+      playerProgressionUsage: normalizePlayerProgressionUsage(
+        playerTeam,
+        save.version === 4 ? save.playerProgressionUsage : undefined
+      )
     };
   }
 

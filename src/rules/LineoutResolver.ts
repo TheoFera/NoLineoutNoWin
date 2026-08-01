@@ -119,7 +119,7 @@ export function adaptResolutionForPerspective(
     return legacyResult(
       weOffended ? "fault" : "won_dirty",
       "knock_on",
-      getKnockOnExplanationKey(perspective, weOffended, input),
+      getKnockOnExplanationKey(perspective, weOffended, input, resolution),
       calculationScore,
       calculationDetails,
       resolution
@@ -197,6 +197,25 @@ export function adaptResolutionForPerspective(
     );
   }
 
+  if (resolution.details.defensiveReadMatched === true) {
+    const explanationKey = perspective === "defending"
+      ? weHaveBall
+        ? "lineout.explanation.defenseReadWon"
+        : "lineout.explanation.defenseReadLost"
+      : weHaveBall
+        ? "lineout.explanation.attackReadBeaten"
+        : "lineout.explanation.attackReadLost";
+    const clean = resolution.outcome === "cleanWin" || resolution.outcome === "cleanSteal";
+    return legacyResult(
+      weHaveBall ? clean ? "won" : "won_dirty" : "lost",
+      weHaveBall ? clean ? "clean_catch" : "dirty_catch" : "stolen",
+      explanationKey,
+      calculationScore,
+      calculationDetails,
+      resolution
+    );
+  }
+
   const targetCatchKey = getContextualTargetCatchKey(perspective, input, resolution);
   if (targetCatchKey) {
     const clean = resolution.outcome === "cleanWin" || resolution.outcome === "cleanSteal";
@@ -269,8 +288,20 @@ function getHighBallExplanationKey(
 function getKnockOnExplanationKey(
   perspective: "throwing" | "defending",
   weOffended: boolean,
-  input: LineoutResolutionInput
+  input: LineoutResolutionInput,
+  resolution: LineoutResolution
 ): string {
+  if (resolution.details.defensiveReadMatched === true) {
+    if (perspective === "defending") {
+      return weOffended
+        ? "lineout.explanation.defenseReadOurKnockOn"
+        : "lineout.explanation.defenseReadOpponentKnockOn";
+    }
+    return weOffended
+      ? "lineout.explanation.attackDirectKnockOn"
+      : "lineout.explanation.attackReadOpponentKnockOn";
+  }
+
   if (perspective === "defending") {
     return weOffended
       ? "lineout.explanation.defenseOurKnockOn"

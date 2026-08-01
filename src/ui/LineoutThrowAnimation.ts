@@ -9,6 +9,12 @@ import {
 export const LINEOUT_THROW_ANIMATION = {
   travelSpeedPixelsPerSecond: 900,
   minimumTravelDurationMs: 16,
+  twistFrameDurationMs: 75,
+  flightApexScale: 1.16,
+  hookerBallSourceX: 85,
+  hookerBallHeightFromFeet: 305,
+  ballShadowApexPlayerHeightRatio: 1.15,
+  ballShadowApexScale: 0.55,
   straightMaximumHorizontalOffsetPixels: 9.5,
   notStraightMinimumHorizontalOffsetPixels: 25.01,
   maximumHorizontalOffsetPixels: 150,

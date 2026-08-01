@@ -131,15 +131,15 @@ Pas de relégation, recrutement, départs ou vieillissement dans la V1.
 | Division | Touches par match | Combinaisons offensives |
 |---|---:|---:|
 | Régionale 3 | 4 à 6 | 2 |
-| Régionale 2 | 6 à 9 | 3 |
-| Régionale 1 | 6 à 9 | 3 |
-| Fédérale 3 | 7 à 10 | 4 |
-| Fédérale 2 | 8 à 11 | 4 |
-| Fédérale 1 | 8 à 12 | 4 |
-| Nationale 2 | 9 à 13 | 5 |
-| Nationale | 9 à 13 | 5 |
-| Pro D2 | 10 à 14 | 5 |
-| Top 14 | 10 à 14 | 5 |
+| Régionale 2 | 5 à 7 | 3 |
+| Régionale 1 | 5 à 7 | 3 |
+| Fédérale 3 | 5 à 8 | 4 |
+| Fédérale 2 | 6 à 9 | 4 |
+| Fédérale 1 | 6 à 10 | 4 |
+| Nationale 2 | 7 à 11 | 5 |
+| Nationale | 7 à 11 | 5 |
+| Pro D2 | 7 à 12 | 5 |
+| Top 14 | 7 à 12 | 5 |
 
 ## 9. Match
 
