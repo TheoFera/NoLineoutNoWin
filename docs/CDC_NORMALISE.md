@@ -76,7 +76,7 @@ Il y a un menu d'accueil simple dans le flux joueur.
 Au lancement :
 
 - le jeu ouvre le menu d'accueil ;
-- si aucune sauvegarde n'existe, le bouton principal mène à la création du club ;
+- si aucune sauvegarde n'existe, le bouton principal mène à la création du club puis de ses huit joueurs ;
 - si une sauvegarde existe, le bouton principal mène directement à l'entraînement jouable.
 
 Boucle principale visée :
@@ -85,6 +85,7 @@ Boucle principale visée :
 Lancement
 → menu d'accueil
 → création du club si besoin
+→ création de l'équipe si besoin
 → entraînement jouable
 → match
 → résultat
@@ -217,6 +218,7 @@ La V1 doit contenir :
 
 - menu d'accueil simple ;
 - création du club simple ;
+- personnalisation rapide des huit joueurs à la création ;
 - entrée directe dans l'entraînement jouable ;
 - équipe consultable ;
 - championnat simple ;

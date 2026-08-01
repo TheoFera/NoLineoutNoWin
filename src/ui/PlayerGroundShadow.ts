@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getRugbyPlayerTextureKey } from "./RugbyPlayerAssets";
+import { getRugbyPlayerEqualHeightScale, getRugbyPlayerTextureKey } from "./RugbyPlayerAssets";
 import type { BodyShapeName, PoseName } from "./RugbyPlayerTypes";
 
 export const PLAYER_GROUND_SHADOW_STYLE = {
@@ -117,9 +117,10 @@ export class PlayerGroundShadow extends Phaser.GameObjects.Container {
   }
 
   private applyProjectedScale(elevationScale: number): void {
-    const playerScale = Math.min(
-      this.playerWidth / this.silhouette.width,
-      this.playerHeight / this.silhouette.height
+    const playerScale = getRugbyPlayerEqualHeightScale(
+      this.silhouette.height,
+      this.playerWidth,
+      this.playerHeight
     );
     this.silhouette.setScale(
       playerScale * elevationScale,

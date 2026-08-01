@@ -9,8 +9,24 @@ import type { BodyShapeName, PlayerLayerName, PoseName } from "./RugbyPlayerType
 
 export const RUGBY_PLAYER_FRAME_WIDTH = 48;
 export const RUGBY_PLAYER_FRAME_HEIGHT = 64;
+export const RUGBY_PLAYER_REFERENCE_SOURCE_WIDTH = 170;
+export const RUGBY_PLAYER_REFERENCE_SOURCE_HEIGHT = 370;
 
 const RUGBY_PLAYER_ASSET_BASE_PATH = "assets/sprites/rugby-player";
+
+export function getRugbyPlayerEqualHeightScale(
+  sourceHeight: number,
+  availableWidth: number,
+  availableHeight: number
+): number {
+  const referenceScale = Math.min(
+    availableWidth / RUGBY_PLAYER_REFERENCE_SOURCE_WIDTH,
+    availableHeight / RUGBY_PLAYER_REFERENCE_SOURCE_HEIGHT
+  );
+  const referenceDisplayHeight = RUGBY_PLAYER_REFERENCE_SOURCE_HEIGHT * referenceScale;
+
+  return referenceDisplayHeight / sourceHeight;
+}
 
 type RugbyPlayerLayerPaths = {
   body: string;

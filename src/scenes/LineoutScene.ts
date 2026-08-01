@@ -65,7 +65,6 @@ import {
   PlayerGroundShadow
 } from "../ui/PlayerGroundShadow";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
-import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
 import type { Kit, PoseName } from "../ui/RugbyPlayerTypes";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
@@ -79,6 +78,7 @@ import {
   MATCH_SCORE_OVERLAY_LAYOUT
 } from "../ui/MatchScoreOverlayLayout";
 import { PlayerStatsOverlay } from "../ui/PlayerStatsOverlay";
+import { getPlayerSkinTint } from "../ui/PlayerSkinTone";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
 import { MATH_RANDOM_SOURCE } from "../utils/Random";
@@ -196,6 +196,7 @@ export class LineoutScene extends Phaser.Scene {
   private statusClearTimer?: Phaser.Time.TimerEvent;
   private hookerSprite?: RugbyPlayer;
   private hookerShadow?: PlayerGroundShadow;
+  private hookerHeldBall?: Phaser.GameObjects.Container;
   private userSlotIndicators: Phaser.GameObjects.Rectangle[] = [];
   private readonly activeSlotPatterns: Record<number, number[]> = {
     1: [3],
@@ -221,10 +222,10 @@ export class LineoutScene extends Phaser.Scene {
     if (!this.textures.exists("lineout-pitch-background")) {
       this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
     }
-    if (this.mode === "match" && !this.textures.exists("lineout-ball")) {
+    if (!this.textures.exists("lineout-ball")) {
       this.load.image("lineout-ball", "assets/sprites/ball.png");
     }
-    if (this.mode === "match" && !this.textures.exists("lineout-ball-twist")) {
+    if (!this.textures.exists("lineout-ball-twist")) {
       this.load.image("lineout-ball-twist", "assets/sprites/ball2.png");
     }
   }
@@ -404,7 +405,7 @@ export class LineoutScene extends Phaser.Scene {
     const hookerKit = this.getLineoutKit(hookerSide);
     const hookerDepth = this.getPlayerDepth(hookerFeetY);
     const hooker = isOpponentThrow ? match?.away.hooker ?? save.playerTeam.hooker : save.playerTeam.hooker;
-    const hookerBodyShape = getBodyShapeForPlayer(hooker);
+    const hookerBodyShape = hooker.appearance.bodyShape;
 
     this.hookerShadow = new PlayerGroundShadow(
       this,
@@ -422,9 +423,30 @@ export class LineoutScene extends Phaser.Scene {
       hookerFeetY,
       "hooker_throw_back",
       hookerKit,
-      hookerBodyShape
+      hookerBodyShape,
+      getPlayerSkinTint(hooker)
     ).setVisualSize(layout.playerWidth, layout.playerHeight);
     this.hookerSprite.setKit(hookerKit);
+
+    const heldBallPosition = this.getHookerBallStart(hookerSide, layout);
+    const heldBall = this.add.image(0, 0, "lineout-ball")
+      .setDisplaySize(17, 24);
+    const heldBallElevationPixels = Math.max(0, hookerFeetY - heldBallPosition.y);
+    const heldBallShadowOffset = getElevatedObjectShadowOffset(heldBallElevationPixels);
+    const heldBallShadow = this.add.image(
+      heldBallShadowOffset.x,
+      heldBallShadowOffset.y,
+      "lineout-ball"
+    )
+      .setDisplaySize(heldBall.displayWidth, heldBall.displayHeight)
+      .setTintFill(PLAYER_GROUND_SHADOW_STYLE.color)
+      .setAlpha(PLAYER_GROUND_SHADOW_STYLE.baseAlpha)
+      .setAngle(PLAYER_GROUND_SHADOW_STYLE.angleDegrees);
+    this.hookerHeldBall = this.add.container(
+      heldBallPosition.x,
+      heldBallPosition.y,
+      [heldBallShadow, heldBall]
+    );
 
     // PlayerToken place le numero par rapport a son conteneur, dont le sprite a les pieds 4 px plus bas.
     const hookerNumberY = hookerFeetY - 1 - Math.max(12, layout.playerHeight * 0.42);
@@ -433,6 +455,7 @@ export class LineoutScene extends Phaser.Scene {
       color: UI.colors.text
     }).setOrigin(0.5);
     this.hookerSprite.setDepth(hookerDepth);
+    this.hookerHeldBall.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
     hookerText.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
 
     if (this.mode !== "training" && !isOpponentThrow) {
@@ -489,7 +512,7 @@ export class LineoutScene extends Phaser.Scene {
         {
           pose: this.getLineoutPose("us"),
           kit: this.getLineoutKit("us"),
-          bodyShape: getBodyShapeForPlayer(player),
+          bodyShape: player.appearance.bodyShape,
           displayWidth: layout.playerWidth,
           displayHeight: layout.playerHeight
         }
@@ -510,7 +533,7 @@ export class LineoutScene extends Phaser.Scene {
         {
           pose: "receiver_front",
           kit: this.getLineoutKit("us"),
-          bodyShape: getBodyShapeForPlayer(player),
+          bodyShape: player.appearance.bodyShape,
           displayWidth: layout.playerWidth,
           displayHeight: layout.playerHeight
         }
@@ -542,7 +565,7 @@ export class LineoutScene extends Phaser.Scene {
         {
           pose: this.getLineoutPose("us"),
           kit: this.getLineoutKit("us"),
-          bodyShape: getBodyShapeForPlayer(player),
+          bodyShape: player.appearance.bodyShape,
           displayWidth: layout.playerWidth,
           displayHeight: layout.playerHeight
         }
@@ -571,7 +594,7 @@ export class LineoutScene extends Phaser.Scene {
       const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, defenseColor, {
         pose: this.getLineoutPose("opponent"),
         kit: this.getLineoutKit("opponent"),
-        bodyShape: getBodyShapeForPlayer(player),
+        bodyShape: player.appearance.bodyShape,
         displayWidth: layout.playerWidth,
         displayHeight: layout.playerHeight
       });
@@ -643,7 +666,7 @@ export class LineoutScene extends Phaser.Scene {
         {
           pose: this.getLineoutPose("us"),
           kit: this.getLineoutKit("us"),
-          bodyShape: getBodyShapeForPlayer(player),
+          bodyShape: player.appearance.bodyShape,
           displayWidth: layout.playerWidth,
           displayHeight: layout.playerHeight
         }
@@ -665,7 +688,7 @@ export class LineoutScene extends Phaser.Scene {
       const token = new PlayerToken(this, layout.defenseX ?? 250, this.positionY(position, layout), player, opponentColor, {
         pose: this.getLineoutPose("opponent"),
         kit: this.getLineoutKit("opponent"),
-        bodyShape: getBodyShapeForPlayer(player),
+        bodyShape: player.appearance.bodyShape,
         displayWidth: layout.playerWidth,
         displayHeight: layout.playerHeight
       });
@@ -1116,19 +1139,9 @@ export class LineoutScene extends Phaser.Scene {
       const position = token.getData("lineoutPosition") as LineoutPosition | undefined;
       return position === targetPosition - 1 || position === targetPosition + 1;
     });
-    const fallbackStartX = this.getHookerX(throwingSide, layout);
-    const throwStartOffset = Math.round(
-      TRAINING_THROW_START_OFFSET
-      * layout.playerHeight
-      / Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
-    );
-    const fallbackStartY = layout.hookerY - throwStartOffset;
-    const hookerBallPoint = this.hookerSprite?.getWorldPointAtHeightFromFeet(
-      LINEOUT_THROW_ANIMATION.hookerBallSourceX,
-      LINEOUT_THROW_ANIMATION.hookerBallHeightFromFeet
-    );
-    const startX = hookerBallPoint?.x ?? fallbackStartX;
-    const startY = hookerBallPoint?.y ?? fallbackStartY;
+    const throwStart = this.getHookerBallStart(throwingSide, layout);
+    const startX = throwStart.x;
+    const startY = throwStart.y;
     const initialBallElevationPixels = Math.max(
       0,
       (this.hookerSprite?.y ?? layout.hookerY) - startY
@@ -1169,24 +1182,17 @@ export class LineoutScene extends Phaser.Scene {
     const volleyHorizontalDistance = sampleVolleyHorizontalDistance(
       MATH_RANDOM_SOURCE
     );
-    const ball: LineoutBallGameObject = this.mode === "match"
-      ? this.add.image(0, 0, "lineout-ball").setDisplaySize(17, 24)
-      : this.add.ellipse(0, 0, 16, 24, 0xf8fafc);
+    const ball: LineoutBallGameObject = this.add.image(0, 0, "lineout-ball").setDisplaySize(17, 24);
     const ballShadowOffset = getElevatedObjectShadowOffset(
       initialBallElevationPixels
     );
-    const ballShadow: LineoutBallGameObject = this.mode === "match"
-      ? this.add.image(ballShadowOffset.x, ballShadowOffset.y, "lineout-ball")
-        .setDisplaySize(ball.displayWidth, ball.displayHeight)
-        .setTintFill(PLAYER_GROUND_SHADOW_STYLE.color)
-      : this.add.ellipse(
-          ballShadowOffset.x,
-          ballShadowOffset.y,
-          ball.displayWidth,
-          ball.displayHeight,
-          PLAYER_GROUND_SHADOW_STYLE.color,
-          1
-        );
+    const ballShadow: LineoutBallGameObject = this.add.image(
+      ballShadowOffset.x,
+      ballShadowOffset.y,
+      "lineout-ball"
+    )
+      .setDisplaySize(ball.displayWidth, ball.displayHeight)
+      .setTintFill(PLAYER_GROUND_SHADOW_STYLE.color);
     ballShadow
       .setAlpha(PLAYER_GROUND_SHADOW_STYLE.baseAlpha)
       .setAngle(PLAYER_GROUND_SHADOW_STYLE.angleDegrees);
@@ -1194,6 +1200,8 @@ export class LineoutScene extends Phaser.Scene {
     const ballShadowBaseScaleY = ballShadow.scaleY;
     const ballVisual = this.add.container(startX, startY, [ballShadow, ball])
       .setDepth(this.getPlayerDepth(startY) + PLAYER_LABEL_DEPTH_OFFSET);
+    this.hookerHeldBall?.destroy();
+    this.hookerHeldBall = undefined;
     const defendingTargetToken = defendingJumpPosition
       ? defendingTokens.find((token) => (token.getData("lineoutPosition") as LineoutPosition | undefined) === defendingJumpPosition)
       : undefined;
@@ -1988,6 +1996,26 @@ export class LineoutScene extends Phaser.Scene {
     return layout.hookerX;
   }
 
+  private getHookerBallStart(
+    throwingSide: "us" | "opponent",
+    layout: LineoutLayout
+  ): { x: number; y: number } {
+    const throwStartOffset = Math.round(
+      TRAINING_THROW_START_OFFSET
+      * layout.playerHeight
+      / Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
+    );
+    const hookerBallPoint = this.hookerSprite?.getWorldPointAtHeightFromFeet(
+      LINEOUT_THROW_ANIMATION.hookerBallSourceX,
+      LINEOUT_THROW_ANIMATION.hookerBallHeightFromFeet
+    );
+
+    return hookerBallPoint ?? {
+      x: this.getHookerX(throwingSide, layout),
+      y: layout.hookerY - throwStartOffset
+    };
+  }
+
   private getLineoutPose(side: "us" | "opponent"): PoseName {
     return side === "us" ? "stand_front" : "stand_back";
   }
@@ -2603,6 +2631,7 @@ export class LineoutScene extends Phaser.Scene {
     this.statusText = undefined;
     this.hookerSprite = undefined;
     this.hookerShadow = undefined;
+    this.hookerHeldBall = undefined;
     this.userSlotIndicators = [];
     this.statusClearTimer?.remove(false);
     this.statusClearTimer = undefined;

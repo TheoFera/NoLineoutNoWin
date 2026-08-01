@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { FieldPlayer } from "../models/Player";
 import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { PlayerGroundShadow } from "./PlayerGroundShadow";
+import { getPlayerSkinTint } from "./PlayerSkinTone";
 import { RugbyPlayer } from "./RugbyPlayer";
 import type { BodyShapeName, Kit, PoseName } from "./RugbyPlayerTypes";
 import { UI } from "./UITheme";
@@ -174,7 +175,15 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     if (visualConfig) {
       this.defaultPose = visualConfig.pose;
       this.defaultBodyShape = visualConfig.bodyShape;
-      this.rugbyPlayer = new RugbyPlayer(scene, 0, 4, visualConfig.pose, visualConfig.kit, visualConfig.bodyShape)
+      this.rugbyPlayer = new RugbyPlayer(
+        scene,
+        0,
+        4,
+        visualConfig.pose,
+        visualConfig.kit,
+        visualConfig.bodyShape,
+        getPlayerSkinTint(this.player)
+      )
         .setVisualSize(visualConfig.displayWidth, visualConfig.displayHeight);
       return this.rugbyPlayer;
     }

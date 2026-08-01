@@ -1,4 +1,4 @@
-import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2, SaveGameV3 } from "../models/SaveGame";
+import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2, SaveGameV3, SaveGameV4 } from "../models/SaveGame";
 import type { MatchStateData } from "../models/Match";
 import type { Team } from "../models/Team";
 import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations";
@@ -22,6 +22,8 @@ import { clearSave, loadGame, saveGame } from "../systems/SaveSystem";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
 import type { MatchCompletionSummary } from "../models/PlayerProgression";
+import type { TeamPlayerDraft } from "../models/TeamCreation";
+import { getGeneratedTeamSkinToneId } from "../data/PlayerAppearanceOptions";
 import {
   createEmptyOpponentAiMemory,
   normalizeOpponentAiMemory,
@@ -37,6 +39,7 @@ type StoredSaveGame =
   | (Omit<SaveGameV1, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGameV2, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGameV3, "playerTeam"> & { playerTeam: StoredTeam })
+  | (Omit<SaveGameV4, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGame, "playerTeam"> & { playerTeam: StoredTeam });
 
 export class GameStore {
@@ -68,15 +71,21 @@ export class GameStore {
   static createNewSave(
     clubName: string,
     primaryColor = DEFAULT_PRIMARY_COLOR,
-    secondaryColor = DEFAULT_SECONDARY_COLOR
+    secondaryColor = DEFAULT_SECONDARY_COLOR,
+    playerDrafts?: readonly TeamPlayerDraft[]
   ): SaveGame {
     const now = new Date().toISOString();
-    const team = createDefaultPlayerTeam(clubName, { primary: primaryColor, secondary: secondaryColor });
+    const team = createDefaultPlayerTeam(
+      clubName,
+      { primary: primaryColor, secondary: secondaryColor },
+      undefined,
+      playerDrafts
+    );
     const offensiveCombinations = normalizeOffensiveCombinations(DEFAULT_COMBINATIONS);
     const division = getDivision("regionale_3");
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision.regionale_3;
     const save: SaveGame = {
-      version: 4,
+      version: 5,
       language: getLanguage(),
       currentDivisionId: "regionale_3",
       season: 1,
@@ -331,7 +340,8 @@ export class GameStore {
     const division = getDivision(save.currentDivisionId);
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[save.currentDivisionId];
     const currentRepertoire = save.version !== 1 ? save.offensiveRepertoire : undefined;
-    const hasAiPersistence = save.version === 3 || save.version === 4;
+    const hasAiPersistence = save.version === 3 || save.version === 4 || save.version === 5;
+    const hasProgressionPersistence = save.version === 4 || save.version === 5;
     const opponentAiMemories = hasAiPersistence
       ? Object.fromEntries(Object.entries(save.opponentAiMemories ?? {}).map(([id, memory]) => [
         id,
@@ -340,7 +350,7 @@ export class GameStore {
       : {};
     return {
       ...save,
-      version: 4,
+      version: 5,
       playerTeam,
       championship: normalizeChampionshipState(save.championship, save.currentDivisionId, save.season, playerTeam.name),
       offensiveCombinations,
@@ -365,12 +375,12 @@ export class GameStore {
       opponentTeams: hasAiPersistence
         ? Object.fromEntries(Object.entries(save.opponentTeams ?? {}).map(([id, team]) => [
           id,
-          normalizeTeam(team)
+          withOpponentSkinToneVariation(normalizeTeam(team))
         ]))
         : {},
       playerProgressionUsage: normalizePlayerProgressionUsage(
         playerTeam,
-        save.version === 4 ? save.playerProgressionUsage : undefined
+        hasProgressionPersistence ? save.playerProgressionUsage : undefined
       )
     };
   }
@@ -381,4 +391,29 @@ export class GameStore {
       updatedAt: new Date().toISOString()
     };
   }
+}
+
+function withOpponentSkinToneVariation(team: Team): Team {
+  const hooker = {
+    ...team.hooker,
+    appearance: {
+      ...team.hooker.appearance,
+      skinToneId: getGeneratedTeamSkinToneId(team.id, 0)
+    }
+  };
+  const fieldPlayers = team.fieldPlayers.map((player, index) => ({
+    ...player,
+    appearance: {
+      ...player.appearance,
+      skinToneId: getGeneratedTeamSkinToneId(team.id, index + 1)
+    }
+  }));
+  const fieldPlayersById = new Map(fieldPlayers.map((player) => [player.id, player]));
+
+  return {
+    ...team,
+    hooker,
+    fieldPlayers,
+    lineoutPlayers: team.lineoutPlayers.map((player) => fieldPlayersById.get(player.id) ?? player)
+  };
 }

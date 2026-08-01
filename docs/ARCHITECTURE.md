@@ -35,6 +35,7 @@ BootScene
 → PreloadScene
 → MainMenuScene
 → ClubCreationScene si aucune sauvegarde
+→ TeamCreationScene pour personnaliser les huit joueurs
 → sinon LineoutScene en mode training
 
 LineoutScene en mode training
@@ -52,6 +53,7 @@ MatchScene
 Conséquences :
 
 - `MainMenuScene` reste le point d'entrée du joueur ;
+- `TeamCreationScene` finalise la création de la sauvegarde après la personnalisation de l'équipe ;
 - `TrainingScene` n'est plus nécessaire dans le flux principal ;
 - `LineoutScene` porte l'entraînement jouable ;
 - `SettingsScene` reste un écran utilitaire lié au menu d'accueil ;
@@ -77,6 +79,7 @@ LineoutResolver.ts
 | `src/scenes/PreloadScene.ts` | charge les assets initiaux puis ouvre le menu d'accueil |
 | `src/scenes/MainMenuScene.ts` | affiche l'écran d'accueil |
 | `src/scenes/ClubCreationScene.ts` | crée la partie initiale |
+| `src/scenes/TeamCreationScene.ts` | personnalise les huit joueurs avant la création de la sauvegarde |
 | `src/scenes/LineoutScene.ts` | écran de touche et entraînement jouable |
 | `src/scenes/MatchScene.ts` | gère l'avancement du match |
 | `src/scenes/ResultScene.ts` | affiche la fin de match |

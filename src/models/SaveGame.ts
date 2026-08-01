@@ -44,7 +44,7 @@ export type SaveGameV3 = SaveGameBase & {
   opponentTeams: Record<string, Team>;
 };
 
-export type SaveGame = SaveGameBase & {
+export type SaveGameV4 = SaveGameBase & {
   version: 4;
   offensiveRepertoire: OffensiveRepertoire;
   opponentAiMemories: Record<string, OpponentAiMemory>;
@@ -53,4 +53,13 @@ export type SaveGame = SaveGameBase & {
   playerProgressionUsage: PlayerProgressionUsage;
 };
 
-export type StoredSaveGame = SaveGameV1 | SaveGameV2 | SaveGameV3 | SaveGame;
+export type SaveGame = SaveGameBase & {
+  version: 5;
+  offensiveRepertoire: OffensiveRepertoire;
+  opponentAiMemories: Record<string, OpponentAiMemory>;
+  playerLineoutVideoHistory: LineoutVideoMatch[];
+  opponentTeams: Record<string, Team>;
+  playerProgressionUsage: PlayerProgressionUsage;
+};
+
+export type StoredSaveGame = SaveGameV1 | SaveGameV2 | SaveGameV3 | SaveGameV4 | SaveGame;

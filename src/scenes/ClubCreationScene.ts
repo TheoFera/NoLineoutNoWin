@@ -1,6 +1,7 @@
 import Phaser from "phaser";
+import { cloneTeamPlayerDrafts } from "../data/PlayerAppearanceOptions";
+import type { ClubDraft } from "../models/TeamCreation";
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from "../rules/TeamFactory";
-import { GameStore } from "../state/GameStore";
 import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
 import { MainMenuButton } from "../ui/MainMenuButton";
@@ -23,9 +24,18 @@ export class ClubCreationScene extends Phaser.Scene {
   private errorText!: Phaser.GameObjects.Text;
   private primaryColorValueText!: Phaser.GameObjects.Text;
   private secondaryColorValueText!: Phaser.GameObjects.Text;
+  private initialClubName = "";
+  private playerDrafts?: ClubDraft["players"];
 
   constructor() {
     super("ClubCreationScene");
+  }
+
+  init(data: Partial<ClubDraft> = {}): void {
+    this.initialClubName = data.clubName ?? t("club.defaultName");
+    this.selectedPrimaryColor = data.primaryColor ?? DEFAULT_PRIMARY_COLOR;
+    this.selectedSecondaryColor = data.secondaryColor ?? DEFAULT_SECONDARY_COLOR;
+    this.playerDrafts = data.players ? cloneTeamPlayerDrafts(data.players) : undefined;
   }
 
   preload(): void {
@@ -83,7 +93,7 @@ export class ClubCreationScene extends Phaser.Scene {
       wordWrap: { width: 320 }
     }).setOrigin(0.5);
 
-    new MainMenuButton(this, 195, 700, 236, 58, t("club.startGame"), () => this.handleCreateClub(), {
+    new MainMenuButton(this, 195, 700, 236, 58, t("club.continue"), () => this.handleCreateClub(), {
       variant: "primary"
     });
     new MainMenuButton(this, 195, 766, 186, 44, t("club.backMenu"), () => navigateTo(this, "MainMenuScene"), {
@@ -101,7 +111,7 @@ export class ClubCreationScene extends Phaser.Scene {
 
     input.type = "text";
     input.maxLength = 24;
-    input.value = t("club.defaultName");
+    input.value = this.initialClubName;
     input.placeholder = t("club.namePlaceholder");
     input.autocomplete = "off";
     input.autocapitalize = "words";
@@ -137,6 +147,7 @@ export class ClubCreationScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.36);
   }
 
   private createPrimaryColorInput(): void {
@@ -254,8 +265,12 @@ export class ClubCreationScene extends Phaser.Scene {
       return;
     }
 
-    GameStore.createNewSave(clubName, this.selectedPrimaryColor, this.selectedSecondaryColor);
-    navigateTo(this, "LineoutScene", { mode: "training" });
+    navigateTo(this, "TeamCreationScene", {
+      clubName,
+      primaryColor: this.selectedPrimaryColor,
+      secondaryColor: this.selectedSecondaryColor,
+      players: this.playerDrafts
+    } satisfies ClubDraft);
   }
 
   private formatColorValue(color: number): string {

@@ -1,6 +1,15 @@
 import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
+import { createDefaultPlayerAppearance } from "../data/PlayerAppearanceOptions.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { FieldPlayer, Hooker } from "../models/Player.ts";
+import {
+  PLAYER_SKIN_TONE_IDS,
+  RUGBY_PLAYER_BODY_SHAPE_NAMES,
+  type BodyShapeName,
+  type PlayerAppearance,
+  type PlayerSkinToneId
+} from "../models/PlayerAppearance.ts";
+import type { TeamPlayerDraft } from "../models/TeamCreation.ts";
 import type { JerseyColors, Team } from "../models/Team.ts";
 import {
   MATH_RANDOM_SOURCE,
@@ -17,9 +26,22 @@ const DIVISION_IDS = Object.keys(LINEOUT_BALANCE.generation.divisionStats) as Di
 export const DEFAULT_PRIMARY_COLOR = 0x2563eb;
 export const DEFAULT_SECONDARY_COLOR = 0xffffff;
 
-type StoredTeamShape = Omit<Team, "fieldPlayers" | "lineoutPlayers"> & {
-  fieldPlayers?: FieldPlayer[];
-  lineoutPlayers?: FieldPlayer[];
+type StoredFieldPlayer = Omit<FieldPlayer, "appearance"> & {
+  appearance?: Partial<PlayerAppearance>;
+  height?: number;
+  width?: number;
+};
+
+type StoredHooker = Omit<Hooker, "appearance"> & {
+  appearance?: Partial<PlayerAppearance>;
+  height?: number;
+  width?: number;
+};
+
+type StoredTeamShape = Omit<Team, "hooker" | "fieldPlayers" | "lineoutPlayers"> & {
+  hooker: StoredHooker;
+  fieldPlayers?: StoredFieldPlayer[];
+  lineoutPlayers?: StoredFieldPlayer[];
 };
 
 function normalizeJerseyColors(colors?: Partial<JerseyColors>): JerseyColors {
@@ -83,7 +105,8 @@ export function createDefaultLineoutPlayers(
 export function createDefaultPlayerTeam(
   name: string,
   colors?: Partial<JerseyColors>,
-  randomSource: RandomSource = MATH_RANDOM_SOURCE
+  randomSource: RandomSource = MATH_RANDOM_SOURCE,
+  playerDrafts?: readonly TeamPlayerDraft[]
 ): Team {
   const generated = generateTeamForDivision({
     id: "player_team",
@@ -94,9 +117,28 @@ export function createDefaultPlayerTeam(
     clubModifier: 0,
     rng: randomSource
   }).team;
+  const draftsByNumber = new Map<number, TeamPlayerDraft>(
+    playerDrafts?.map((draft) => [draft.number, draft])
+  );
+  const hookerDraft = draftsByNumber.get(2);
+  const hooker: Hooker = {
+    ...generated.hooker,
+    id: "h2",
+    nickname: hookerDraft?.nickname ?? "Dédé",
+    appearance: hookerDraft ? { ...hookerDraft.appearance } : createDefaultPlayerAppearance(2)
+  };
+  const fieldPlayers = generated.fieldPlayers.map((player) => {
+    const draft = draftsByNumber.get(player.number);
+    return draft
+      ? { ...player, nickname: draft.nickname, appearance: { ...draft.appearance } }
+      : { ...player, appearance: createDefaultPlayerAppearance(player.number) };
+  });
+
   return {
     ...generated,
-    hooker: { ...generated.hooker, id: "h2", nickname: "Dédé" }
+    hooker,
+    fieldPlayers,
+    lineoutPlayers: fieldPlayers.slice(0, DEFAULT_TEAM_SIZE)
   };
 }
 
@@ -104,6 +146,7 @@ export function normalizeTeam(team: StoredTeamShape): Team {
   const fallback = createDefaultFieldPlayers(65, "p", createSeededRandom(1));
   const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
   const lineoutPlayers = normalizeLineoutPlayers(fieldPlayers, team.lineoutPlayers);
+  const hooker = normalizeStoredHooker(team.hooker);
 
   const offensiveCombinations = team.offensiveCombinations
     ? normalizeStoredOffensiveCombinations(team.offensiveCombinations)
@@ -113,6 +156,7 @@ export function normalizeTeam(team: StoredTeamShape): Team {
 
   return {
     ...team,
+    hooker,
     colors: normalizeJerseyColors(team.colors),
     fieldPlayers,
     lineoutPlayers,
@@ -128,9 +172,12 @@ export function normalizeTeam(team: StoredTeamShape): Team {
   };
 }
 
-function mergeFieldPlayers(primary: FieldPlayer[], fallback: FieldPlayer[]): FieldPlayer[] {
+function mergeFieldPlayers(primary: StoredFieldPlayer[], fallback: FieldPlayer[]): FieldPlayer[] {
   const byId = new Map<string, FieldPlayer>();
-  for (const player of [...primary, ...fallback]) {
+  for (const player of primary) {
+    if (!byId.has(player.id)) byId.set(player.id, normalizeStoredFieldPlayer(player));
+  }
+  for (const player of fallback) {
     if (!byId.has(player.id)) byId.set(player.id, player);
   }
   return [...byId.values()].slice(0, DEFAULT_TEAM_SIZE);
@@ -138,7 +185,7 @@ function mergeFieldPlayers(primary: FieldPlayer[], fallback: FieldPlayer[]): Fie
 
 function normalizeLineoutPlayers(
   fieldPlayers: FieldPlayer[],
-  currentLineoutPlayers?: FieldPlayer[]
+  currentLineoutPlayers?: StoredFieldPlayer[]
 ): FieldPlayer[] {
   const byId = new Map(fieldPlayers.map((player) => [player.id, player]));
   const selected: FieldPlayer[] = [];
@@ -150,4 +197,38 @@ function normalizeLineoutPlayers(
     if (!selected.some((item) => item.id === player.id)) selected.push(player);
   }
   return selected.slice(0, DEFAULT_TEAM_SIZE);
+}
+
+function normalizeStoredFieldPlayer(player: StoredFieldPlayer): FieldPlayer {
+  const { height: _height, width: _width, appearance, ...current } = player;
+  return {
+    ...current,
+    appearance: normalizePlayerAppearance(appearance, player.number)
+  };
+}
+
+function normalizeStoredHooker(hooker: StoredHooker): Hooker {
+  const { height: _height, width: _width, appearance, ...current } = hooker;
+  return {
+    ...current,
+    appearance: normalizePlayerAppearance(appearance, hooker.number)
+  };
+}
+
+function normalizePlayerAppearance(
+  appearance: Partial<PlayerAppearance> | undefined,
+  number: number
+): PlayerAppearance {
+  const fallback = createDefaultPlayerAppearance(number);
+  const bodyShape = RUGBY_PLAYER_BODY_SHAPE_NAMES.includes(appearance?.bodyShape as BodyShapeName)
+    ? appearance?.bodyShape as BodyShapeName
+    : fallback.bodyShape;
+  const skinToneId = PLAYER_SKIN_TONE_IDS.includes(appearance?.skinToneId as PlayerSkinToneId)
+    ? appearance?.skinToneId as PlayerSkinToneId
+    : fallback.skinToneId;
+  return {
+    bodyShape,
+    skinToneId,
+    headStyleId: "default"
+  };
 }

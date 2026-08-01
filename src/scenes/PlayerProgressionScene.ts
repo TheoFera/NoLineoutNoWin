@@ -16,7 +16,7 @@ import {
 } from "../ui/MatchPitchBackdrop";
 import { renderResultOverlayPanel } from "../ui/ResultOverlayPanel";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
-import { getBodyShapeForPlayer } from "../ui/RugbyPlayerTypes";
+import { getPlayerSkinTint } from "../ui/PlayerSkinTone";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 
@@ -204,7 +204,8 @@ export class PlayerProgressionScene extends Phaser.Scene {
         socksPrimary: colors.primary,
         detailsSecondary: colors.secondary
       },
-      getBodyShapeForPlayer(player)
+      player.appearance.bodyShape,
+      getPlayerSkinTint(player)
     ).setVisualSize(46, visualHeight);
   }
 

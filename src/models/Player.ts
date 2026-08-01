@@ -1,3 +1,5 @@
+import type { PlayerAppearance } from "./PlayerAppearance";
+
 export type FieldPlayerStatName = "jump" | "lift" | "hands";
 
 export type PlayerRole = "field" | "hooker";
@@ -7,8 +9,7 @@ export type FieldPlayer = {
   role: "field";
   number: number;
   nickname: string;
-  height: number;
-  width: number;
+  appearance: PlayerAppearance;
   jump: number;
   lift: number;
   hands: number;
@@ -19,8 +20,7 @@ export type Hooker = {
   role: "hooker";
   number: 2;
   nickname: string;
-  height: number;
-  width: number;
+  appearance: PlayerAppearance;
   throwing: number;
 };
 

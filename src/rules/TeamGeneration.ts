@@ -1,5 +1,9 @@
 import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
 import { PLAYER_NICKNAMES } from "../data/defaultNames.ts";
+import {
+  createDefaultPlayerAppearance,
+  getGeneratedTeamSkinToneId
+} from "../data/PlayerAppearanceOptions.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { FieldPlayer, Hooker } from "../models/Player.ts";
 import type { JerseyColors, Team, TeamLineoutStyle } from "../models/Team.ts";
@@ -81,8 +85,7 @@ export function generateLineoutRoster(options: {
     role: "hooker",
     number: 2,
     nickname: options.hookerNickname,
-    height: randomInt(168, 183, options.rng),
-    width: randomInt(78, 92, options.rng),
+    appearance: createDefaultPlayerAppearance(2),
     throwing: generateGeneralStat(range.minimum, range.maximum, options.clubModifier, options.rng)
   };
   const rolesByPlayerId = Object.fromEntries(
@@ -130,6 +133,20 @@ export function generateTeamForDivision(options: {
     reserveCount: limits.reserve,
     rng: options.rng
   });
+  const hooker: Hooker = {
+    ...roster.hooker,
+    appearance: {
+      ...roster.hooker.appearance,
+      skinToneId: getGeneratedTeamSkinToneId(options.id, 0)
+    }
+  };
+  const fieldPlayers = roster.fieldPlayers.map((player, index) => ({
+    ...player,
+    appearance: {
+      ...player.appearance,
+      skinToneId: getGeneratedTeamSkinToneId(options.id, index + 1)
+    }
+  }));
 
   return {
     report: roster.report,
@@ -138,9 +155,9 @@ export function generateTeamForDivision(options: {
       name: options.name,
       divisionId: options.divisionId,
       colors: options.colors,
-      hooker: roster.hooker,
-      fieldPlayers: roster.fieldPlayers,
-      lineoutPlayers: roster.fieldPlayers.slice(0, 7),
+      hooker,
+      fieldPlayers,
+      lineoutPlayers: fieldPlayers.slice(0, 7),
       lineoutStyle: style,
       offensiveRepertoire: repertoire.repertoire,
       offensiveCombinations: repertoire.combinations
@@ -164,8 +181,7 @@ function createFieldPlayer(
     role: "field",
     number,
     nickname: PLAYER_NICKNAMES[index] ?? `J${number}`,
-    height: randomInt(number <= 3 ? 176 : 184, number <= 3 ? 190 : 202, rng),
-    width: randomInt(number <= 3 ? 92 : 82, number <= 3 ? 110 : 102, rng),
+    appearance: createDefaultPlayerAppearance(number),
     ...stats
   };
 

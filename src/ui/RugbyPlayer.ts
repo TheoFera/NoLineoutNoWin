@@ -1,22 +1,40 @@
 import Phaser from "phaser";
-import { getRugbyPlayerTextureKey, hasRugbyPlayerLayerAsset, RUGBY_PLAYER_FRAME_HEIGHT, RUGBY_PLAYER_FRAME_WIDTH } from "./RugbyPlayerAssets";
+import {
+  getRugbyPlayerEqualHeightScale,
+  getRugbyPlayerTextureKey,
+  hasRugbyPlayerLayerAsset,
+  RUGBY_PLAYER_FRAME_HEIGHT,
+  RUGBY_PLAYER_FRAME_WIDTH
+} from "./RugbyPlayerAssets";
 import type { BodyShapeName, Kit, PoseName } from "./RugbyPlayerTypes";
 
 export class RugbyPlayer extends Phaser.GameObjects.Container {
   private pose: PoseName;
   private bodyShape: BodyShapeName;
   private kit: Kit;
+  private bodyTint: number;
   private bodyLayer: Phaser.GameObjects.Image;
   private jerseyLayer: Phaser.GameObjects.Image;
   private shortsLayer: Phaser.GameObjects.Image;
   private socksLayer: Phaser.GameObjects.Image;
   private detailsLayer?: Phaser.GameObjects.Image;
+  private requestedVisualWidth?: number;
+  private requestedVisualHeight?: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, pose: PoseName, kit: Kit, bodyShape: BodyShapeName) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    pose: PoseName,
+    kit: Kit,
+    bodyShape: BodyShapeName,
+    bodyTint = 0xffffff
+  ) {
     super(scene, x, y);
     this.pose = pose;
     this.bodyShape = bodyShape;
     this.kit = { ...kit };
+    this.bodyTint = bodyTint;
 
     // Tous les calques partagent un ancrage par les pieds pour garder le meme repere visuel entre poses.
     this.bodyLayer = this.createLayer(scene, "body");
@@ -31,7 +49,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     }
     this.setSize(RUGBY_PLAYER_FRAME_WIDTH, RUGBY_PLAYER_FRAME_HEIGHT);
 
-    this.applyKitTint();
+    this.applyTints();
     scene.add.existing(this);
   }
 
@@ -42,13 +60,19 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
 
     this.pose = pose;
     this.refreshTextures();
-    this.applyKitTint();
+    this.applyTints();
     return this;
   }
 
   setKit(kit: Kit): this {
     this.kit = { ...kit };
-    this.applyKitTint();
+    this.applyTints();
+    return this;
+  }
+
+  setBodyTint(bodyTint: number): this {
+    this.bodyTint = bodyTint;
+    this.applyTints();
     return this;
   }
 
@@ -59,12 +83,27 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
 
     this.bodyShape = bodyShape;
     this.refreshTextures();
-    this.applyKitTint();
+    this.applyTints();
     return this;
   }
 
   setVisualSize(width: number, height: number): this {
-    const scale = Math.min(width / this.bodyLayer.width, height / this.bodyLayer.height);
+    this.requestedVisualWidth = width;
+    this.requestedVisualHeight = height;
+    this.applyVisualSize();
+    return this;
+  }
+
+  private applyVisualSize(): void {
+    if (this.requestedVisualWidth === undefined || this.requestedVisualHeight === undefined) {
+      return;
+    }
+
+    const scale = getRugbyPlayerEqualHeightScale(
+      this.bodyLayer.height,
+      this.requestedVisualWidth,
+      this.requestedVisualHeight
+    );
     const displayWidth = Math.round(this.bodyLayer.width * scale);
     const displayHeight = Math.round(this.bodyLayer.height * scale);
     this.bodyLayer.setDisplaySize(displayWidth, displayHeight);
@@ -73,7 +112,6 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.socksLayer.setDisplaySize(displayWidth, displayHeight);
     this.detailsLayer?.setDisplaySize(displayWidth, displayHeight);
     this.setSize(displayWidth, displayHeight);
-    return this;
   }
 
   getPose(): PoseName {
@@ -124,9 +162,11 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.shortsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "shorts"));
     this.socksLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "socks"));
     this.refreshDetailsLayer();
+    this.applyVisualSize();
   }
 
-  private applyKitTint(): void {
+  private applyTints(): void {
+    this.bodyLayer.setTint(this.bodyTint);
     // Les calques de tenue restent en niveaux de gris, puis la couleur est appliquee ici.
     this.jerseyLayer.setTint(this.kit.jerseyPrimary);
     this.shortsLayer.setTint(this.kit.shortsPrimary);

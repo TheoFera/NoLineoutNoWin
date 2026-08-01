@@ -3,6 +3,7 @@ import { BootScene } from "./scenes/BootScene";
 import { PreloadScene } from "./scenes/PreloadScene";
 import { MainMenuScene } from "./scenes/MainMenuScene";
 import { ClubCreationScene } from "./scenes/ClubCreationScene";
+import { TeamCreationScene } from "./scenes/TeamCreationScene";
 import { MatchScene } from "./scenes/MatchScene";
 import { LineoutScene } from "./scenes/LineoutScene";
 import { TeamScene } from "./scenes/TeamScene";
@@ -35,6 +36,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     PreloadScene,
     MainMenuScene,
     ClubCreationScene,
+    TeamCreationScene,
     MatchScene,
     LineoutScene,
     TeamScene,

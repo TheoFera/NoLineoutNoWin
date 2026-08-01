@@ -24,6 +24,7 @@ type MenuPanelOptions = {
   accentColor?: number;
   fillColor?: number;
   height: number;
+  showAccent?: boolean;
   width: number;
   x: number;
   y: number;
@@ -79,7 +80,8 @@ export function renderMenuHeader(scene: Phaser.Scene, title: string, options: Me
 export function renderMenuPanel(scene: Phaser.Scene, options: MenuPanelOptions): Phaser.GameObjects.Graphics {
   return createRoundedPanel(scene, options.x, options.y, options.width, options.height, {
     accentColor: options.accentColor ?? 0x2f73d1,
-    fillColor: options.fillColor ?? 0x071326
+    fillColor: options.fillColor ?? 0x071326,
+    showAccent: options.showAccent ?? true
   });
 }
 
@@ -105,7 +107,7 @@ function createRoundedPanel(
   y: number,
   width: number,
   height: number,
-  colors: { accentColor: number; fillColor: number; }
+  colors: { accentColor: number; fillColor: number; showAccent: boolean; }
 ): Phaser.GameObjects.Graphics {
   const graphics = scene.add.graphics();
   const left = x - width / 2;
@@ -118,8 +120,10 @@ function createRoundedPanel(
   graphics.lineStyle(2, colors.accentColor, 0.95);
   graphics.fillRoundedRect(left, top, width, height, radius);
   graphics.strokeRoundedRect(left, top, width, height, radius);
-  graphics.fillStyle(colors.accentColor, 0.9);
-  graphics.fillRoundedRect(left + 14, top + 12, width - 28, 8, 6);
+  if (colors.showAccent) {
+    graphics.fillStyle(colors.accentColor, 0.9);
+    graphics.fillRoundedRect(left + 14, top + 12, width - 28, 8, 6);
+  }
 
   return graphics;
 }

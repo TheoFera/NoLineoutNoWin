@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: "fr.nolineout.nowin",
   appName: "No Lineout No Win",
   webDir: "dist",
-  bundledWebRuntime: false,
   plugins: {
     SystemBars: {
       insetsHandling: "css",
