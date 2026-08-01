@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "fr.nolineout.nowin",
+  appId: "fr.partagetonjeu.nolineoutnowin",
   appName: "No Lineout No Win",
   webDir: "dist",
   plugins: {
