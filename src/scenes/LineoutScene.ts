@@ -147,6 +147,7 @@ type DragState = {
   origin: DragOrigin;
   pointer: Phaser.Input.Pointer;
   token: PlayerToken;
+  startX: number;
   startY: number;
   moved: boolean;
   homeX: number;
@@ -680,12 +681,14 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindTrainingSlotToken(token: PlayerToken, slotIndex: number): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const pointerPosition = this.getPointerWorldPosition(pointer);
       this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "training-slot", slotIndex },
         pointer,
         token,
-        startY: pointer.y,
+        startX: pointerPosition.x,
+        startY: pointerPosition.y,
         moved: false,
         homeX: token.x,
         homeY: token.y
@@ -695,12 +698,14 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindTrainingReserveToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const pointerPosition = this.getPointerWorldPosition(pointer);
       this.setInspectedPlayer(token.player);
       this.dragState = {
         origin: { kind: "training-reserve" },
         pointer,
         token,
-        startY: pointer.y,
+        startX: pointerPosition.x,
+        startY: pointerPosition.y,
         moved: false,
         homeX: token.x,
         homeY: token.y
@@ -710,11 +715,13 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchAttackToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const pointerPosition = this.getPointerWorldPosition(pointer);
       this.dragState = {
         origin: { kind: "match-attack" },
         pointer,
         token,
-        startY: pointer.y,
+        startX: pointerPosition.x,
+        startY: pointerPosition.y,
         moved: false,
         homeX: token.x,
         homeY: token.y
@@ -724,12 +731,14 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchDefenseToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const pointerPosition = this.getPointerWorldPosition(pointer);
       this.hidePlayerInspector();
       this.dragState = {
         origin: { kind: "match-defense" },
         pointer,
         token,
-        startY: pointer.y,
+        startX: pointerPosition.x,
+        startY: pointerPosition.y,
         moved: false,
         homeX: token.x,
         homeY: token.y
@@ -769,7 +778,13 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    const movement = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y);
+    const pointerPosition = this.getPointerWorldPosition(pointer);
+    const movement = Phaser.Math.Distance.Between(
+      this.dragState.startX,
+      this.dragState.startY,
+      pointerPosition.x,
+      pointerPosition.y
+    );
     if (!this.dragState.moved && movement < 10) {
       return;
     }
@@ -779,8 +794,8 @@ export class LineoutScene extends Phaser.Scene {
     const layout = this.getLayout();
 
     if (origin.kind === "training-slot" || origin.kind === "training-reserve") {
-      token.x = Phaser.Math.Clamp(pointer.x, 28, 362);
-      token.y = Phaser.Math.Clamp(pointer.y, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
+      token.x = Phaser.Math.Clamp(pointerPosition.x, 28, 362);
+      token.y = Phaser.Math.Clamp(pointerPosition.y, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
       this.syncPlayerTokenDepth(token);
       return;
     }
@@ -791,9 +806,13 @@ export class LineoutScene extends Phaser.Scene {
       }
       const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
       const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
-      token.y = Phaser.Math.Clamp(pointer.y, minY, maxY);
+      token.y = Phaser.Math.Clamp(pointerPosition.y, minY, maxY);
       this.syncPlayerTokenDepth(token);
     }
+  }
+
+  private getPointerWorldPosition(pointer: Phaser.Input.Pointer): Phaser.Math.Vector2 {
+    return pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
   }
 
   private completeDrag(): void {
