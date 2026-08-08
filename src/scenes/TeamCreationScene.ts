@@ -1,9 +1,12 @@
 import Phaser from "phaser";
 import {
   AVAILABLE_PLAYER_BODY_SHAPES,
+  AVAILABLE_STANDARD_PLAYER_HEAD_STYLES,
+  canUsePlayerHeadStyle,
   cloneTeamPlayerDrafts,
   createDefaultTeamPlayerDrafts
 } from "../data/PlayerAppearanceOptions";
+import type { PlayerHeadStyleId } from "../models/PlayerAppearance";
 import type { ClubDraft, TeamPlayerDraft } from "../models/TeamCreation";
 import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation";
 import { GameStore } from "../state/GameStore";
@@ -30,6 +33,12 @@ type SkinSelector = {
   swatch: Phaser.GameObjects.Arc;
 };
 
+type HeadStyleSelector = {
+  headStyleId: PlayerHeadStyleId;
+  background: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
+};
+
 export class TeamCreationScene extends Phaser.Scene {
   private clubDraft!: ClubDraft;
   private players: TeamPlayerDraft[] = [];
@@ -42,6 +51,7 @@ export class TeamCreationScene extends Phaser.Scene {
   private numberSelectors: NumberSelector[] = [];
   private bodyShapeDots: Phaser.GameObjects.Arc[] = [];
   private skinSelectors: SkinSelector[] = [];
+  private headStyleSelectors: HeadStyleSelector[] = [];
 
   constructor() {
     super("TeamCreationScene");
@@ -81,9 +91,9 @@ export class TeamCreationScene extends Phaser.Scene {
 
     renderMenuPanel(this, {
       x: 195,
-      y: 410,
+      y: 495,
       width: 320,
-      height: 300,
+      height: 470,
       accentColor: UI.colors.accent,
       showAccent: false
     });
@@ -98,7 +108,8 @@ export class TeamCreationScene extends Phaser.Scene {
       "stand_front",
       this.getKit(),
       this.selectedPlayer.appearance.bodyShape,
-      getSkinToneTint(this.selectedPlayer.appearance.skinToneId)
+      getSkinToneTint(this.selectedPlayer.appearance.skinToneId),
+      this.selectedPlayer.appearance.headStyleId
     ).setVisualSize(112, 220);
 
     new UIButton(this, 83, 405, 52, 58, t("teamCreation.previousBodyShape"), () => this.cycleBodyShape(-1), {
@@ -111,8 +122,9 @@ export class TeamCreationScene extends Phaser.Scene {
     });
     this.renderBodyShapeDots();
     this.renderSkinToneSelectors();
+    this.renderHeadStyleSelectors();
 
-    this.errorText = this.add.text(195, 738, "", {
+    this.errorText = this.add.text(195, 754, "", {
       font: UI.font.small,
       color: "#fecaca",
       align: "center",
@@ -230,6 +242,26 @@ export class TeamCreationScene extends Phaser.Scene {
     });
   }
 
+  private renderHeadStyleSelectors(): void {
+    this.add.text(195, 670, t("teamCreation.headStyle"), {
+      font: UI.font.subtitle,
+      color: UI.colors.text
+    }).setOrigin(0.5);
+
+    this.headStyleSelectors = AVAILABLE_STANDARD_PLAYER_HEAD_STYLES.map((headStyleId, index) => {
+      const x = 91 + index * 104;
+      const background = this.add.rectangle(x, 710, 92, 38, UI.colors.panelDark, 0.96)
+        .setStrokeStyle(2, UI.colors.line)
+        .setInteractive({ useHandCursor: true });
+      const label = this.add.text(x, 710, t(`teamCreation.headStyle.${headStyleId}`), {
+        font: "bold 14px Arial",
+        color: UI.colors.text
+      }).setOrigin(0.5);
+      background.on("pointerup", () => this.selectHeadStyle(headStyleId));
+      return { headStyleId, background, label };
+    });
+  }
+
   private selectPlayer(index: number): void {
     if (index === this.selectedPlayerIndex) return;
     this.commitNickname();
@@ -247,6 +279,20 @@ export class TeamCreationScene extends Phaser.Scene {
       safeCurrentIndex + direction + AVAILABLE_PLAYER_BODY_SHAPES.length
     ) % AVAILABLE_PLAYER_BODY_SHAPES.length;
     this.selectedPlayer.appearance.bodyShape = AVAILABLE_PLAYER_BODY_SHAPES[nextIndex];
+    if (!canUsePlayerHeadStyle(
+      this.selectedPlayer.appearance.bodyShape,
+      this.selectedPlayer.appearance.headStyleId
+    )) {
+      this.selectedPlayer.appearance.headStyleId = "default";
+    }
+    this.refreshSelectedPlayer();
+  }
+
+  private selectHeadStyle(headStyleId: PlayerHeadStyleId): void {
+    if (!canUsePlayerHeadStyle(this.selectedPlayer.appearance.bodyShape, headStyleId)) {
+      return;
+    }
+    this.selectedPlayer.appearance.headStyleId = headStyleId;
     this.refreshSelectedPlayer();
   }
 
@@ -257,7 +303,8 @@ export class TeamCreationScene extends Phaser.Scene {
     this.nicknameInput?.setAttribute("aria-label", nicknameLabel);
     this.previewPlayer
       .setBodyShape(this.selectedPlayer.appearance.bodyShape)
-      .setBodyTint(getSkinToneTint(this.selectedPlayer.appearance.skinToneId));
+      .setBodyTint(getSkinToneTint(this.selectedPlayer.appearance.skinToneId))
+      .setHeadStyle(this.selectedPlayer.appearance.headStyleId);
 
     this.numberSelectors.forEach(({ background, label }, index) => {
       const selected = index === this.selectedPlayerIndex;
@@ -278,6 +325,23 @@ export class TeamCreationScene extends Phaser.Scene {
     this.skinSelectors.forEach(({ ring }, index) => {
       const selected = PLAYER_SKIN_TONE_OPTIONS[index].id === this.selectedPlayer.appearance.skinToneId;
       ring.setStrokeStyle(selected ? 4 : 2, selected ? UI.colors.accent : UI.colors.line);
+    });
+
+    this.headStyleSelectors.forEach(({ headStyleId, background, label }) => {
+      const available = canUsePlayerHeadStyle(this.selectedPlayer.appearance.bodyShape, headStyleId);
+      const selected = headStyleId === this.selectedPlayer.appearance.headStyleId;
+      background
+        .setFillStyle(selected ? UI.colors.accent : UI.colors.panelDark, selected ? 1 : 0.96)
+        .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line)
+        .setAlpha(available ? 1 : 0.35);
+      label
+        .setColor(selected ? "#1f2937" : UI.colors.text)
+        .setAlpha(available ? 1 : 0.35);
+      if (available) {
+        background.setInteractive({ useHandCursor: true });
+      } else {
+        background.disableInteractive();
+      }
     });
   }
 

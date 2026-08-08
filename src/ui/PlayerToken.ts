@@ -60,7 +60,8 @@ export class PlayerToken extends Phaser.GameObjects.Container {
       : undefined;
     this.selectionRing = scene.add.ellipse(0, -ringHeight / 2 + 4, ringWidth, ringHeight).setStrokeStyle(4, UI.colors.accent).setVisible(false);
     this.tokenBody = this.createBody(scene, color, visualConfig);
-    this.numberText = scene.add.text(0, -Math.max(12, (visualConfig?.displayHeight ?? 64) * 0.42), String(player.number), {
+    const numberY = -Math.max(12, (visualConfig?.displayHeight ?? 64) * 0.42);
+    this.numberText = scene.add.text(0, numberY, String(player.number), {
       font: "bold 12px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
@@ -69,9 +70,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
       this.selectionRing,
       this.hitTarget,
       this.tokenBody,
-      this.numberText,
       ...roleIcons
     ]);
+    // Le numéro fait partie du corps visuel : il suit ainsi le saut et l'inclinaison du sauteur.
+    this.attachToBody(this.numberText, 0, numberY);
     this.hitTarget.setData(PLAYER_TOKEN_HIT_AREA_DATA_KEY, true);
     this.hitTarget.setInteractive({ useHandCursor: true });
     this.hitTarget.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -132,7 +134,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   }
 
   attachToBody(
-    gameObject: Phaser.GameObjects.Image | Phaser.GameObjects.Ellipse | Phaser.GameObjects.Container,
+    gameObject: Phaser.GameObjects.Image
+      | Phaser.GameObjects.Ellipse
+      | Phaser.GameObjects.Container
+      | Phaser.GameObjects.Text,
     tokenLocalX: number,
     tokenLocalY: number
   ): this {
@@ -182,7 +187,8 @@ export class PlayerToken extends Phaser.GameObjects.Container {
         visualConfig.pose,
         visualConfig.kit,
         visualConfig.bodyShape,
-        getPlayerSkinTint(this.player)
+        getPlayerSkinTint(this.player),
+        this.player.appearance.headStyleId
       )
         .setVisualSize(visualConfig.displayWidth, visualConfig.displayHeight);
       return this.rugbyPlayer;

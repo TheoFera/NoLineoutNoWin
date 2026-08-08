@@ -22,8 +22,16 @@ export const PLAYER_SKIN_TONE_IDS = [
 
 export type PlayerSkinToneId = typeof PLAYER_SKIN_TONE_IDS[number];
 
+export const PLAYER_HEAD_STYLE_IDS = [
+  "default",
+  "helmet",
+  "bald"
+] as const;
+
+export type PlayerHeadStyleId = typeof PLAYER_HEAD_STYLE_IDS[number];
+
 export type PlayerAppearance = {
   bodyShape: BodyShapeName;
   skinToneId: PlayerSkinToneId;
-  headStyleId: "default";
+  headStyleId: PlayerHeadStyleId;
 };

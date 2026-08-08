@@ -2,6 +2,7 @@ import {
   PLAYER_SKIN_TONE_IDS,
   type BodyShapeName,
   type PlayerAppearance,
+  type PlayerHeadStyleId,
   type PlayerSkinToneId
 } from "../models/PlayerAppearance.ts";
 import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation.ts";
@@ -12,6 +13,19 @@ export const AVAILABLE_PLAYER_BODY_SHAPES = [
   "medium_standard",
   "medium_large"
 ] as const satisfies readonly BodyShapeName[];
+
+export const AVAILABLE_STANDARD_PLAYER_HEAD_STYLES = [
+  "default",
+  "helmet",
+  "bald"
+] as const satisfies readonly PlayerHeadStyleId[];
+
+export function canUsePlayerHeadStyle(
+  bodyShape: BodyShapeName,
+  headStyleId: PlayerHeadStyleId
+): boolean {
+  return headStyleId === "default" || bodyShape === "medium_standard";
+}
 
 export function createDefaultPlayerAppearance(number: number): PlayerAppearance {
   return {

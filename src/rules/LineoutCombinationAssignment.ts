@@ -191,7 +191,6 @@ export function isTargetOptionEligible(
 
 export function rebuildPlayableCombinationTargets(
   combination: Combination,
-  hooker: Hooker,
   availablePlayers: readonly FieldPlayer[]
 ): Combination {
   const playersById = new Map(availablePlayers.map((player) => [player.id, player]));
@@ -223,10 +222,7 @@ export function rebuildPlayableCombinationTargets(
       ));
       return storedOption ? cloneOption(storedOption) : generatedOption;
     })
-    .filter((option) => (
-      calculateStraightThrowProbability(hooker.throwing, option.targetPosition) >= 0.5
-      && isTargetOptionEligible(option, playersByPosition)
-    ));
+    .filter((option) => isTargetOptionEligible(option, playersByPosition));
   const totalNaturalWeight = playableOptions.reduce(
     (total, option) => total + Math.max(0, option.defaultNaturalWeight),
     0

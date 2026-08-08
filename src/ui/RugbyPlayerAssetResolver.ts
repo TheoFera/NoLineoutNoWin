@@ -38,6 +38,10 @@ export function resolveRugbyPlayerAssetSet(bodyShape: BodyShapeName, pose: PoseN
     return { bodyShape: DEFAULT_RUGBY_PLAYER_ASSET_SET.bodyShape, pose };
   }
 
+  if (hasRugbyPlayerAssetSet(bodyShape, DEFAULT_RUGBY_PLAYER_ASSET_SET.pose)) {
+    return { bodyShape, pose: DEFAULT_RUGBY_PLAYER_ASSET_SET.pose };
+  }
+
   return DEFAULT_RUGBY_PLAYER_ASSET_SET;
 }
 

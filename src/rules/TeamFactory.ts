@@ -3,10 +3,12 @@ import { createDefaultPlayerAppearance } from "../data/PlayerAppearanceOptions.t
 import type { DivisionId } from "../models/Division.ts";
 import type { FieldPlayer, Hooker } from "../models/Player.ts";
 import {
+  PLAYER_HEAD_STYLE_IDS,
   PLAYER_SKIN_TONE_IDS,
   RUGBY_PLAYER_BODY_SHAPE_NAMES,
   type BodyShapeName,
   type PlayerAppearance,
+  type PlayerHeadStyleId,
   type PlayerSkinToneId
 } from "../models/PlayerAppearance.ts";
 import type { TeamPlayerDraft } from "../models/TeamCreation.ts";
@@ -226,9 +228,13 @@ function normalizePlayerAppearance(
   const skinToneId = PLAYER_SKIN_TONE_IDS.includes(appearance?.skinToneId as PlayerSkinToneId)
     ? appearance?.skinToneId as PlayerSkinToneId
     : fallback.skinToneId;
+  const storedHeadStyleId = PLAYER_HEAD_STYLE_IDS.includes(appearance?.headStyleId as PlayerHeadStyleId)
+    ? appearance?.headStyleId as PlayerHeadStyleId
+    : fallback.headStyleId;
+  const headStyleId = bodyShape === "medium_standard" ? storedHeadStyleId : "default";
   return {
     bodyShape,
     skinToneId,
-    headStyleId: "default"
+    headStyleId
   };
 }

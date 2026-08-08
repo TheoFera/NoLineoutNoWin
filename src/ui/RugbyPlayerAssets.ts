@@ -4,7 +4,7 @@ import {
   hasRugbyPlayerAssetSet,
   resolveRugbyPlayerAssetSet
 } from "./RugbyPlayerAssetResolver";
-import { RUGBY_PLAYER_LAYER_NAMES } from "./RugbyPlayerTypes";
+import { RUGBY_PLAYER_BASE_LAYER_NAMES, RUGBY_PLAYER_LAYER_NAMES } from "./RugbyPlayerTypes";
 import type { BodyShapeName, PlayerLayerName, PoseName } from "./RugbyPlayerTypes";
 
 export const RUGBY_PLAYER_FRAME_WIDTH = 48;
@@ -28,13 +28,21 @@ export function getRugbyPlayerEqualHeightScale(
   return referenceDisplayHeight / sourceHeight;
 }
 
-type RugbyPlayerLayerPaths = {
-  body: string;
-  jersey: string;
-  shorts: string;
-  socks: string;
-  details: string;
-};
+type RugbyPlayerLayerPaths = Record<PlayerLayerName, string>;
+
+const HELMET_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:hooker_throw_back",
+  "medium_standard:jumper",
+  "medium_standard:lifter_front"
+]);
+
+const BALD_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:jumper"
+]);
 
 export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseName): RugbyPlayerLayerPaths {
   const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
@@ -45,7 +53,10 @@ export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseNam
     jersey: `${basePath}/jersey.png`,
     shorts: `${basePath}/shorts.png`,
     socks: `${basePath}/socks.png`,
-    details: `${basePath}/details.png`
+    details: `${basePath}/details.png`,
+    bodychauve: `${basePath}/bodychauve.png`,
+    casque: `${basePath}/casque.png`,
+    chauve: `${basePath}/chauve.png`
   };
 }
 
@@ -56,8 +67,22 @@ export function getRugbyPlayerTextureKey(bodyShape: BodyShapeName, pose: PoseNam
 
 export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseName, layer: PlayerLayerName): boolean {
   const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
-  return RUGBY_PLAYER_LAYER_NAMES.includes(layer)
-    && hasRugbyPlayerAssetSet(resolvedAssetSet.bodyShape, resolvedAssetSet.pose);
+  if (!hasRugbyPlayerAssetSet(resolvedAssetSet.bodyShape, resolvedAssetSet.pose)) {
+    return false;
+  }
+
+  if ((RUGBY_PLAYER_BASE_LAYER_NAMES as readonly PlayerLayerName[]).includes(layer)) {
+    return true;
+  }
+
+  const assetSetKey = `${resolvedAssetSet.bodyShape}:${resolvedAssetSet.pose}`;
+  if (layer === "casque") {
+    return HELMET_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "bodychauve" || layer === "chauve") {
+    return BALD_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  return false;
 }
 
 export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): void {

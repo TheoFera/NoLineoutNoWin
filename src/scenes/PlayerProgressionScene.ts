@@ -205,7 +205,8 @@ export class PlayerProgressionScene extends Phaser.Scene {
         detailsSecondary: colors.secondary
       },
       player.appearance.bodyShape,
-      getPlayerSkinTint(player)
+      getPlayerSkinTint(player),
+      player.appearance.headStyleId
     ).setVisualSize(46, visualHeight);
   }
 

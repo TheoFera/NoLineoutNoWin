@@ -244,7 +244,6 @@ export class LineoutScene extends Phaser.Scene {
         .filter(isCombinationValidForMatch)
         .map((combination) => rebuildPlayableCombinationTargets(
           combination,
-          save.playerTeam.hooker,
           save.playerTeam.lineoutPlayers
         ))
         .filter((combination) => (combination.targetOptions?.length ?? 0) > 0)
@@ -260,7 +259,6 @@ export class LineoutScene extends Phaser.Scene {
       ?? this.allCombinations[0];
     this.selectedCombination = rebuildPlayableCombinationTargets(
       this.selectedCombination,
-      save.playerTeam.hooker,
       save.playerTeam.lineoutPlayers
     );
 
@@ -424,7 +422,8 @@ export class LineoutScene extends Phaser.Scene {
       "hooker_throw_back",
       hookerKit,
       hookerBodyShape,
-      getPlayerSkinTint(hooker)
+      getPlayerSkinTint(hooker),
+      hooker.appearance.headStyleId
     ).setVisualSize(layout.playerWidth, layout.playerHeight);
     this.hookerSprite.setKit(hookerKit);
 
@@ -1224,6 +1223,10 @@ export class LineoutScene extends Phaser.Scene {
       defendingTargetToken
       && result.resolution?.details.defensiveSelectionMode === "aerialCounter"
     );
+    const samePositionContest = defendingJumpPosition === targetPosition && Boolean(
+      result.resolution?.details.defensiveSelectionMode === "aerialCounter"
+      || result.resolution?.details.defensiveReadMatched === true
+    );
     const defenderJumpQuality = this.getAnimationJumpQuality(
       result,
       "defenseJumpQuality"
@@ -1432,7 +1435,9 @@ export class LineoutScene extends Phaser.Scene {
         targetArrivalDurationMs,
         Boolean(retainedToken && retainedToken === targetToken),
         targetAnimationJumpQuality,
-        layout.hookerX
+        layout.hookerX,
+        trajectory === "low" ? "hand" : "jumper",
+        samePositionContest
       );
     }
     this.animateJumpGroup(
@@ -1442,7 +1447,9 @@ export class LineoutScene extends Phaser.Scene {
       defendingArrivalDurationMs,
       Boolean(retainedToken && retainedToken === defendingTargetToken),
       defenderJumpQuality,
-      layout.hookerX
+      layout.hookerX,
+      trajectory === "low" ? "hand" : "jumper",
+      samePositionContest
     );
     this.animateSecondaryRecoveryAttempts(
       result,
@@ -1687,6 +1694,8 @@ export class LineoutScene extends Phaser.Scene {
         0,
         arrivalDurationMs - LINEOUT_THROW_ANIMATION.secondaryAttemptDurationMs / 2
       );
+      const samePositionContest = throwingPositions.has(waypoint.position)
+        && defendingPositions.has(waypoint.position);
 
       if (throwingPositions.has(waypoint.position)) {
         const token = throwingTokens.find(
@@ -1697,7 +1706,8 @@ export class LineoutScene extends Phaser.Scene {
             token,
             mode,
             animationDelayMs,
-            token === retainedToken
+            token === retainedToken,
+            samePositionContest
           );
         }
       }
@@ -1710,7 +1720,8 @@ export class LineoutScene extends Phaser.Scene {
             token,
             mode,
             animationDelayMs,
-            token === retainedToken
+            token === retainedToken,
+            samePositionContest
           );
         }
       }
@@ -1721,10 +1732,14 @@ export class LineoutScene extends Phaser.Scene {
     token: PlayerToken,
     mode: SecondaryAttemptMode,
     delayMs: number,
-    retainsBall: boolean
+    retainsBall: boolean,
+    samePositionContest: boolean
   ): void {
     this.time.delayedCall(delayMs, () => {
       token.setPose(mode === "hand" ? "hand" : "jumper");
+      if (samePositionContest) {
+        this.moveTokenTowardContestCenter(token, this.getLayout().hookerX);
+      }
 
       if (mode !== "smallJump") {
         if (!retainsBall) {
@@ -1866,7 +1881,9 @@ export class LineoutScene extends Phaser.Scene {
     ballArrivalDurationMs: number,
     retainBall: boolean,
     jumpQuality: number,
-    contestCenterX: number
+    contestCenterX: number,
+    jumpPose: PoseName,
+    samePositionContest: boolean
   ): void {
     if (!targetToken) {
       return;
@@ -1876,6 +1893,12 @@ export class LineoutScene extends Phaser.Scene {
         LINEOUT_LIFT_ANIMATION.approachDurationMs,
         ballArrivalDurationMs
       );
+      if (samePositionContest) {
+        this.time.delayedCall(
+          Math.max(0, handPoseDelayMs - LINEOUT_LIFT_ANIMATION.approachDurationMs),
+          () => this.moveTokenTowardContestCenter(targetToken, contestCenterX)
+        );
+      }
       this.time.delayedCall(handPoseDelayMs, () => {
         targetToken.setPose("hand");
       });
@@ -1953,7 +1976,7 @@ export class LineoutScene extends Phaser.Scene {
 
       const originalTargetY = targetToken.y;
       this.time.delayedCall(LINEOUT_LIFT_ANIMATION.approachDurationMs, () => {
-        targetToken.setPose("jumper");
+        targetToken.setPose(jumpPose);
         this.tweens.add({
           targets: targetToken,
           y: originalTargetY - jumpMetrics.heightPixels,
@@ -2082,6 +2105,16 @@ export class LineoutScene extends Phaser.Scene {
   private revealOpponentTarget(): void {
     this.defenseTokens.forEach((token) => {
       token.setSelected(token.player.id === this.opponentTargetId);
+    });
+  }
+
+  private moveTokenTowardContestCenter(token: PlayerToken, contestCenterX: number): void {
+    const contestDirection = Math.sign(contestCenterX - token.x);
+    this.tweens.add({
+      targets: token,
+      x: token.x + contestDirection * LINEOUT_LIFT_ANIMATION.contestCenterShiftPixels,
+      duration: LINEOUT_LIFT_ANIMATION.approachDurationMs,
+      ease: "Sine.easeInOut"
     });
   }
 
@@ -2362,7 +2395,6 @@ export class LineoutScene extends Phaser.Scene {
     const playableCombinations = match.away.offensiveCombinations.map((combination) => (
       rebuildPlayableCombinationTargets(
         combination,
-        match.away.hooker,
         match.away.fieldPlayers
       )
     ));

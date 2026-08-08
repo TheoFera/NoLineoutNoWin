@@ -285,6 +285,14 @@ test("rugby player poses fall back through medium_standard before stand_front", 
     bodyShape: "medium_standard",
     pose: "stand_front"
   });
+  assert.deepEqual(resolveRugbyPlayerAssetSet("medium_large", "receiver_front"), {
+    bodyShape: "medium_large",
+    pose: "stand_front"
+  });
+  assert.deepEqual(resolveRugbyPlayerAssetSet("medium_large", "stand_back"), {
+    bodyShape: "medium_large",
+    pose: "stand_front"
+  });
 });
 
 test("opponent jersey colors are swapped only when both primary colors are too similar", () => {

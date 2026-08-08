@@ -166,11 +166,28 @@ test("playable targets follow the current player layout instead of stale saved o
       position: (index + 1) as 1 | 2 | 3 | 4,
       playerId: currentPlayer.id
     }))
-  }, hooker(100), currentPlayers);
+  }, currentPlayers);
 
   assert.deepEqual(
     rebuilt.targetOptions?.map((option) => `${option.type}:${option.targetPosition}`),
     ["directCatch:1", "jumpBlock:3"]
+  );
+});
+
+test("an unmarked last player remains playable despite a difficult long throw", () => {
+  const currentPlayers = [player("front"), player("last")];
+  const rebuilt = rebuildPlayableCombinationTargets({
+    id: "last-player",
+    nameKey: "combo.last-player",
+    slots: [
+      { position: 1, playerId: "front" },
+      { position: 7, playerId: "last" }
+    ]
+  }, currentPlayers);
+
+  assert.deepEqual(
+    rebuilt.targetOptions?.map((option) => `${option.type}:${option.targetPosition}`),
+    ["directCatch:1", "directCatch:7"]
   );
 });
 

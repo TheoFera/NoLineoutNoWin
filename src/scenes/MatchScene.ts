@@ -78,7 +78,6 @@ export class MatchScene extends Phaser.Scene {
       .filter(isCombinationValidForMatch)
       .map((combination) => rebuildPlayableCombinationTargets(
         combination,
-        save.playerTeam.hooker,
         save.playerTeam.lineoutPlayers
       ))
       .filter((combination) => (combination.targetOptions?.length ?? 0) > 0);
