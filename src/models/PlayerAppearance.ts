@@ -22,16 +22,28 @@ export const PLAYER_SKIN_TONE_IDS = [
 
 export type PlayerSkinToneId = typeof PLAYER_SKIN_TONE_IDS[number];
 
-export const PLAYER_HEAD_STYLE_IDS = [
-  "default",
-  "helmet",
-  "bald"
+export const PLAYER_HAIR_STYLE_IDS = [
+  "short",
+  "bald",
+  "mullet",
+  "bun"
 ] as const;
 
-export type PlayerHeadStyleId = typeof PLAYER_HEAD_STYLE_IDS[number];
+export type PlayerHairStyleId = typeof PLAYER_HAIR_STYLE_IDS[number];
+
+export const PLAYER_ACCESSORY_IDS = [
+  "none",
+  "helmet",
+  "strap",
+  "moustache",
+  "beard"
+] as const;
+
+export type PlayerAccessoryId = typeof PLAYER_ACCESSORY_IDS[number];
 
 export type PlayerAppearance = {
   bodyShape: BodyShapeName;
   skinToneId: PlayerSkinToneId;
-  headStyleId: PlayerHeadStyleId;
+  hairStyleId: PlayerHairStyleId;
+  accessoryId: PlayerAccessoryId;
 };

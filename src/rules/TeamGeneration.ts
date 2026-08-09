@@ -2,7 +2,7 @@ import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
 import { PLAYER_NICKNAMES } from "../data/defaultNames.ts";
 import {
   createDefaultPlayerAppearance,
-  getGeneratedTeamSkinToneId
+  getGeneratedTeamPlayerAppearance
 } from "../data/PlayerAppearanceOptions.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { FieldPlayer, Hooker } from "../models/Player.ts";
@@ -44,9 +44,9 @@ export type GeneratedRoster = {
 
 type GenerationProfile = "lifter" | "reliableHybrid" | "weakHybrid" | "jumper";
 
-export function deduceAerialRole(player: Pick<FieldPlayer, "jump" | "lift">): AerialRole {
-  const canJump = player.jump >= GENERATION.roleThreshold;
-  const canLift = player.lift >= GENERATION.roleThreshold;
+export function deduceAerialRole(player: Pick<FieldPlayer, "technique" | "strength">): AerialRole {
+  const canJump = player.technique >= GENERATION.roleThreshold;
+  const canLift = player.strength >= GENERATION.roleThreshold;
   if (canJump && canLift) return "jumperLifter";
   if (canJump) return "jumper";
   if (canLift) return "lifter";
@@ -135,17 +135,11 @@ export function generateTeamForDivision(options: {
   });
   const hooker: Hooker = {
     ...roster.hooker,
-    appearance: {
-      ...roster.hooker.appearance,
-      skinToneId: getGeneratedTeamSkinToneId(options.id, 0)
-    }
+    appearance: getGeneratedTeamPlayerAppearance(options.id, 0, roster.hooker.appearance)
   };
   const fieldPlayers = roster.fieldPlayers.map((player, index) => ({
     ...player,
-    appearance: {
-      ...player.appearance,
-      skinToneId: getGeneratedTeamSkinToneId(options.id, index + 1)
-    }
+    appearance: getGeneratedTeamPlayerAppearance(options.id, index + 1, player.appearance)
   }));
 
   return {
@@ -186,13 +180,13 @@ function createFieldPlayer(
   };
 
   if (DIVISION_ORDER.indexOf(divisionId) >= DIVISION_ORDER.indexOf("federale_1")) {
-    if (player.jump < GENERATION.roleThreshold) {
-      player.jump = GENERATION.roleThreshold;
-      corrections.push(`${player.id}:jump`);
+    if (player.technique < GENERATION.roleThreshold) {
+      player.technique = GENERATION.roleThreshold;
+      corrections.push(`${player.id}:technique`);
     }
-    if (player.lift < GENERATION.roleThreshold) {
-      player.lift = GENERATION.roleThreshold;
-      corrections.push(`${player.id}:lift`);
+    if (player.strength < GENERATION.roleThreshold) {
+      player.strength = GENERATION.roleThreshold;
+      corrections.push(`${player.id}:strength`);
     }
   }
   return player;
@@ -203,7 +197,7 @@ function generateProfileStats(
   profile: GenerationProfile,
   clubModifier: -3 | 0 | 3,
   rng: RandomSource
-): Pick<FieldPlayer, "jump" | "lift" | "hands"> {
+): Pick<FieldPlayer, "speed" | "strength" | "technique"> {
   const range = GENERATION.divisionStats[divisionId];
   const general = (minimumBonus = 0) => generateGeneralStat(
     Math.min(range.maximum, range.minimum + minimumBonus),
@@ -213,22 +207,22 @@ function generateProfileStats(
   );
 
   if (divisionId === "regionale_3") {
-    const hands = generateGeneralStat(
-      GENERATION.regionale3Hands.minimum,
-      GENERATION.regionale3Hands.maximum,
+    const speed = generateGeneralStat(
+      GENERATION.regionale3Speed.minimum,
+      GENERATION.regionale3Speed.maximum,
       clubModifier,
       rng
     );
     if (profile === "lifter") {
-      return { jump: randomInt(5, 25, rng), lift: randomInt(67, 78, rng), hands };
+      return { speed, technique: randomInt(45, 58, rng), strength: randomInt(67, 78, rng) };
     }
     if (profile === "jumper") {
-      return { jump: randomInt(65, 78, rng), lift: randomInt(44, 58, rng), hands };
+      return { speed, technique: randomInt(65, 78, rng), strength: randomInt(44, 58, rng) };
     }
     if (profile === "weakHybrid") {
-      return { jump: randomInt(60, 68, rng), lift: randomInt(61, 70, rng), hands };
+      return { speed, technique: randomInt(60, 68, rng), strength: randomInt(61, 70, rng) };
     }
-    return { jump: randomInt(64, 71, rng), lift: randomInt(64, 71, rng), hands };
+    return { speed, technique: randomInt(64, 71, rng), strength: randomInt(64, 71, rng) };
   }
 
   const divisionIndex = DIVISION_ORDER.indexOf(divisionId);
@@ -239,18 +233,18 @@ function generateProfileStats(
     Math.max(0, Math.max(secondaryMinimum, secondaryMaximum)),
     rng
   );
-  const hands = general();
-  if (profile === "lifter") return { jump: secondary(), lift: general(2), hands };
-  if (profile === "jumper") return { jump: general(2), lift: secondary(), hands };
+  const speed = general();
+  if (profile === "lifter") return { speed, technique: secondary(), strength: general(2) };
+  if (profile === "jumper") return { speed, technique: general(2), strength: secondary() };
   if (profile === "weakHybrid") {
     const hybridGap = Math.max(1, 9 - divisionIndex);
     return {
-      jump: clamp(general() - hybridGap, 0, 100),
-      lift: general(1),
-      hands
+      speed,
+      technique: clamp(general() - hybridGap, 0, 100),
+      strength: general(1)
     };
   }
-  return { jump: general(), lift: general(), hands };
+  return { speed, technique: general(), strength: general() };
 }
 
 function getGenerationProfileForNumber(number: number): GenerationProfile {
@@ -302,7 +296,7 @@ function validateDivisionConstraints(
   }
   if (DIVISION_ORDER.indexOf(divisionId) >= DIVISION_ORDER.indexOf("federale_1")) {
     return players.every((player) => (
-      player.jump >= GENERATION.roleThreshold && player.lift >= GENERATION.roleThreshold
+      player.technique >= GENERATION.roleThreshold && player.strength >= GENERATION.roleThreshold
     ));
   }
   return players.every((player) => deduceAerialRole(player) !== "none");

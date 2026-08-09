@@ -18,6 +18,7 @@ export const AVAILABLE_RUGBY_PLAYER_ASSET_SETS: readonly RugbyPlayerAssetSet[] =
   { bodyShape: "medium_standard", pose: "lifter_front" },
   { bodyShape: "medium_large", pose: "stand_front" },
   { bodyShape: "medium_large", pose: "hand" },
+  { bodyShape: "medium_large", pose: "hooker_throw_back" },
   { bodyShape: "medium_large", pose: "lifter_front" }
 ];
 

@@ -1,14 +1,20 @@
 import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
-import { createDefaultPlayerAppearance } from "../data/PlayerAppearanceOptions.ts";
+import {
+  canUsePlayerAccessory,
+  canUsePlayerHairStyle,
+  createDefaultPlayerAppearance
+} from "../data/PlayerAppearanceOptions.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { FieldPlayer, Hooker } from "../models/Player.ts";
 import {
-  PLAYER_HEAD_STYLE_IDS,
+  PLAYER_ACCESSORY_IDS,
+  PLAYER_HAIR_STYLE_IDS,
   PLAYER_SKIN_TONE_IDS,
   RUGBY_PLAYER_BODY_SHAPE_NAMES,
   type BodyShapeName,
+  type PlayerAccessoryId,
   type PlayerAppearance,
-  type PlayerHeadStyleId,
+  type PlayerHairStyleId,
   type PlayerSkinToneId
 } from "../models/PlayerAppearance.ts";
 import type { TeamPlayerDraft } from "../models/TeamCreation.ts";
@@ -25,17 +31,22 @@ import { normalizeOffensiveRepertoire } from "./LineoutRepertoire.ts";
 const DEFAULT_TEAM_SIZE = 7;
 const DIVISION_IDS = Object.keys(LINEOUT_BALANCE.generation.divisionStats) as DivisionId[];
 
+type LegacyPlayerHeadStyleId = "default" | "helmet" | "bald";
+type StoredPlayerAppearance = Partial<PlayerAppearance> & {
+  headStyleId?: LegacyPlayerHeadStyleId;
+};
+
 export const DEFAULT_PRIMARY_COLOR = 0x2563eb;
 export const DEFAULT_SECONDARY_COLOR = 0xffffff;
 
 type StoredFieldPlayer = Omit<FieldPlayer, "appearance"> & {
-  appearance?: Partial<PlayerAppearance>;
+  appearance?: StoredPlayerAppearance;
   height?: number;
   width?: number;
 };
 
 type StoredHooker = Omit<Hooker, "appearance"> & {
-  appearance?: Partial<PlayerAppearance>;
+  appearance?: StoredPlayerAppearance;
   height?: number;
   width?: number;
 };
@@ -218,7 +229,7 @@ function normalizeStoredHooker(hooker: StoredHooker): Hooker {
 }
 
 function normalizePlayerAppearance(
-  appearance: Partial<PlayerAppearance> | undefined,
+  appearance: StoredPlayerAppearance | undefined,
   number: number
 ): PlayerAppearance {
   const fallback = createDefaultPlayerAppearance(number);
@@ -228,13 +239,26 @@ function normalizePlayerAppearance(
   const skinToneId = PLAYER_SKIN_TONE_IDS.includes(appearance?.skinToneId as PlayerSkinToneId)
     ? appearance?.skinToneId as PlayerSkinToneId
     : fallback.skinToneId;
-  const storedHeadStyleId = PLAYER_HEAD_STYLE_IDS.includes(appearance?.headStyleId as PlayerHeadStyleId)
-    ? appearance?.headStyleId as PlayerHeadStyleId
-    : fallback.headStyleId;
-  const headStyleId = bodyShape === "medium_standard" ? storedHeadStyleId : "default";
+  const storedHairStyleId = PLAYER_HAIR_STYLE_IDS.includes(appearance?.hairStyleId as PlayerHairStyleId)
+    ? appearance?.hairStyleId as PlayerHairStyleId
+    : appearance?.headStyleId === "bald"
+      ? "bald"
+      : fallback.hairStyleId;
+  const hairStyleId = canUsePlayerHairStyle(bodyShape, storedHairStyleId)
+    ? storedHairStyleId
+    : fallback.hairStyleId;
+  const storedAccessoryId = PLAYER_ACCESSORY_IDS.includes(appearance?.accessoryId as PlayerAccessoryId)
+    ? appearance?.accessoryId as PlayerAccessoryId
+    : appearance?.headStyleId === "helmet"
+      ? "helmet"
+      : fallback.accessoryId;
+  const accessoryId = canUsePlayerAccessory(bodyShape, storedAccessoryId)
+    ? storedAccessoryId
+    : fallback.accessoryId;
   return {
     bodyShape,
     skinToneId,
-    headStyleId
+    hairStyleId,
+    accessoryId
   };
 }

@@ -1,12 +1,14 @@
 import Phaser from "phaser";
 import {
   AVAILABLE_PLAYER_BODY_SHAPES,
-  AVAILABLE_STANDARD_PLAYER_HEAD_STYLES,
-  canUsePlayerHeadStyle,
+  PLAYER_ACCESSORY_OPTIONS,
+  PLAYER_HAIR_STYLE_OPTIONS,
+  canUsePlayerAccessory,
+  canUsePlayerHairStyle,
   cloneTeamPlayerDrafts,
   createDefaultTeamPlayerDrafts
 } from "../data/PlayerAppearanceOptions";
-import type { PlayerHeadStyleId } from "../models/PlayerAppearance";
+import type { PlayerAccessoryId, PlayerHairStyleId } from "../models/PlayerAppearance";
 import type { ClubDraft, TeamPlayerDraft } from "../models/TeamCreation";
 import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation";
 import { GameStore } from "../state/GameStore";
@@ -33,8 +35,14 @@ type SkinSelector = {
   swatch: Phaser.GameObjects.Arc;
 };
 
-type HeadStyleSelector = {
-  headStyleId: PlayerHeadStyleId;
+type HairStyleSelector = {
+  hairStyleId: PlayerHairStyleId;
+  background: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
+};
+
+type AccessorySelector = {
+  accessoryId: PlayerAccessoryId;
   background: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
 };
@@ -51,7 +59,8 @@ export class TeamCreationScene extends Phaser.Scene {
   private numberSelectors: NumberSelector[] = [];
   private bodyShapeDots: Phaser.GameObjects.Arc[] = [];
   private skinSelectors: SkinSelector[] = [];
-  private headStyleSelectors: HeadStyleSelector[] = [];
+  private hairStyleSelectors: HairStyleSelector[] = [];
+  private accessorySelectors: AccessorySelector[] = [];
 
   constructor() {
     super("TeamCreationScene");
@@ -104,13 +113,14 @@ export class TeamCreationScene extends Phaser.Scene {
     this.previewPlayer = new RugbyPlayer(
       this,
       195,
-      520,
+      490,
       "stand_front",
       this.getKit(),
       this.selectedPlayer.appearance.bodyShape,
       getSkinToneTint(this.selectedPlayer.appearance.skinToneId),
-      this.selectedPlayer.appearance.headStyleId
-    ).setVisualSize(112, 220);
+      this.selectedPlayer.appearance.hairStyleId,
+      this.selectedPlayer.appearance.accessoryId
+    ).setVisualSize(104, 190);
 
     new UIButton(this, 83, 405, 52, 58, t("teamCreation.previousBodyShape"), () => this.cycleBodyShape(-1), {
       variant: "secondary",
@@ -122,7 +132,8 @@ export class TeamCreationScene extends Phaser.Scene {
     });
     this.renderBodyShapeDots();
     this.renderSkinToneSelectors();
-    this.renderHeadStyleSelectors();
+    this.renderHairStyleSelectors();
+    this.renderAccessorySelectors();
 
     this.errorText = this.add.text(195, 754, "", {
       font: UI.font.small,
@@ -217,21 +228,21 @@ export class TeamCreationScene extends Phaser.Scene {
   private renderBodyShapeDots(): void {
     const totalWidth = (AVAILABLE_PLAYER_BODY_SHAPES.length - 1) * 18;
     this.bodyShapeDots = AVAILABLE_PLAYER_BODY_SHAPES.map((_bodyShape, index) => (
-      this.add.circle(195 - totalWidth / 2 + index * 18, 540, 5, UI.colors.line, 0.45)
+      this.add.circle(195 - totalWidth / 2 + index * 18, 510, 5, UI.colors.line, 0.45)
     ));
   }
 
   private renderSkinToneSelectors(): void {
-    this.add.text(35, 583, t("teamCreation.skinTone"), {
+    this.add.text(35, 535, t("teamCreation.skinTone"), {
       font: UI.font.subtitle,
       color: UI.colors.text
     }).setOrigin(0, 0.5);
     const totalWidth = (PLAYER_SKIN_TONE_OPTIONS.length - 1) * 55;
     this.skinSelectors = PLAYER_SKIN_TONE_OPTIONS.map((option, index) => {
       const x = 195 - totalWidth / 2 + index * 55;
-      const ring = this.add.circle(x, 628, 22, UI.colors.panel, 0.96)
+      const ring = this.add.circle(x, 568, 19, UI.colors.panel, 0.96)
         .setStrokeStyle(3, UI.colors.line);
-      const swatch = this.add.circle(x, 628, 16, option.tint)
+      const swatch = this.add.circle(x, 568, 14, option.tint)
         .setInteractive({ useHandCursor: true });
       swatch.setData("ariaLabel", t("teamCreation.skinToneOption").replace("{number}", String(index + 1)));
       swatch.on("pointerup", () => {
@@ -242,23 +253,47 @@ export class TeamCreationScene extends Phaser.Scene {
     });
   }
 
-  private renderHeadStyleSelectors(): void {
-    this.add.text(195, 670, t("teamCreation.headStyle"), {
+  private renderHairStyleSelectors(): void {
+    this.add.text(35, 610, t("teamCreation.hairStyle"), {
       font: UI.font.subtitle,
       color: UI.colors.text
-    }).setOrigin(0.5);
+    }).setOrigin(0, 0.5);
 
-    this.headStyleSelectors = AVAILABLE_STANDARD_PLAYER_HEAD_STYLES.map((headStyleId, index) => {
-      const x = 91 + index * 104;
-      const background = this.add.rectangle(x, 710, 92, 38, UI.colors.panelDark, 0.96)
+    this.hairStyleSelectors = PLAYER_HAIR_STYLE_OPTIONS.map((hairStyleId, index) => {
+      const x = 75 + index * 80;
+      const background = this.add.rectangle(x, 638, 72, 32, UI.colors.panelDark, 0.96)
         .setStrokeStyle(2, UI.colors.line)
         .setInteractive({ useHandCursor: true });
-      const label = this.add.text(x, 710, t(`teamCreation.headStyle.${headStyleId}`), {
-        font: "bold 14px Arial",
-        color: UI.colors.text
+      const label = this.add.text(x, 638, t(`teamCreation.hairStyle.${hairStyleId}`), {
+        font: "bold 12px Arial",
+        color: UI.colors.text,
+        align: "center",
+        wordWrap: { width: 68 }
       }).setOrigin(0.5);
-      background.on("pointerup", () => this.selectHeadStyle(headStyleId));
-      return { headStyleId, background, label };
+      background.on("pointerup", () => this.selectHairStyle(hairStyleId));
+      return { hairStyleId, background, label };
+    });
+  }
+
+  private renderAccessorySelectors(): void {
+    this.add.text(35, 675, t("teamCreation.accessory"), {
+      font: UI.font.subtitle,
+      color: UI.colors.text
+    }).setOrigin(0, 0.5);
+
+    this.accessorySelectors = PLAYER_ACCESSORY_OPTIONS.map((accessoryId, index) => {
+      const x = 75 + index * 80;
+      const background = this.add.rectangle(x, 703, 72, 32, UI.colors.panelDark, 0.96)
+        .setStrokeStyle(2, UI.colors.line)
+        .setInteractive({ useHandCursor: true });
+      const label = this.add.text(x, 703, t(`teamCreation.accessory.${accessoryId}`), {
+        font: "bold 12px Arial",
+        color: UI.colors.text,
+        align: "center",
+        wordWrap: { width: 68 }
+      }).setOrigin(0.5);
+      background.on("pointerup", () => this.selectAccessory(accessoryId));
+      return { accessoryId, background, label };
     });
   }
 
@@ -279,20 +314,36 @@ export class TeamCreationScene extends Phaser.Scene {
       safeCurrentIndex + direction + AVAILABLE_PLAYER_BODY_SHAPES.length
     ) % AVAILABLE_PLAYER_BODY_SHAPES.length;
     this.selectedPlayer.appearance.bodyShape = AVAILABLE_PLAYER_BODY_SHAPES[nextIndex];
-    if (!canUsePlayerHeadStyle(
+    if (!canUsePlayerHairStyle(
       this.selectedPlayer.appearance.bodyShape,
-      this.selectedPlayer.appearance.headStyleId
+      this.selectedPlayer.appearance.hairStyleId
     )) {
-      this.selectedPlayer.appearance.headStyleId = "default";
+      this.selectedPlayer.appearance.hairStyleId = "short";
+    }
+    if (!canUsePlayerAccessory(
+      this.selectedPlayer.appearance.bodyShape,
+      this.selectedPlayer.appearance.accessoryId
+    )) {
+      this.selectedPlayer.appearance.accessoryId = "none";
     }
     this.refreshSelectedPlayer();
   }
 
-  private selectHeadStyle(headStyleId: PlayerHeadStyleId): void {
-    if (!canUsePlayerHeadStyle(this.selectedPlayer.appearance.bodyShape, headStyleId)) {
+  private selectHairStyle(hairStyleId: PlayerHairStyleId): void {
+    if (!canUsePlayerHairStyle(this.selectedPlayer.appearance.bodyShape, hairStyleId)) {
       return;
     }
-    this.selectedPlayer.appearance.headStyleId = headStyleId;
+    this.selectedPlayer.appearance.hairStyleId = hairStyleId;
+    this.refreshSelectedPlayer();
+  }
+
+  private selectAccessory(accessoryId: PlayerAccessoryId): void {
+    if (!canUsePlayerAccessory(this.selectedPlayer.appearance.bodyShape, accessoryId)) {
+      return;
+    }
+    this.selectedPlayer.appearance.accessoryId = this.selectedPlayer.appearance.accessoryId === accessoryId
+      ? "none"
+      : accessoryId;
     this.refreshSelectedPlayer();
   }
 
@@ -304,7 +355,8 @@ export class TeamCreationScene extends Phaser.Scene {
     this.previewPlayer
       .setBodyShape(this.selectedPlayer.appearance.bodyShape)
       .setBodyTint(getSkinToneTint(this.selectedPlayer.appearance.skinToneId))
-      .setHeadStyle(this.selectedPlayer.appearance.headStyleId);
+      .setHairStyle(this.selectedPlayer.appearance.hairStyleId)
+      .setAccessory(this.selectedPlayer.appearance.accessoryId);
 
     this.numberSelectors.forEach(({ background, label }, index) => {
       const selected = index === this.selectedPlayerIndex;
@@ -327,9 +379,25 @@ export class TeamCreationScene extends Phaser.Scene {
       ring.setStrokeStyle(selected ? 4 : 2, selected ? UI.colors.accent : UI.colors.line);
     });
 
-    this.headStyleSelectors.forEach(({ headStyleId, background, label }) => {
-      const available = canUsePlayerHeadStyle(this.selectedPlayer.appearance.bodyShape, headStyleId);
-      const selected = headStyleId === this.selectedPlayer.appearance.headStyleId;
+    this.hairStyleSelectors.forEach(({ hairStyleId, background, label }) => {
+      const available = canUsePlayerHairStyle(this.selectedPlayer.appearance.bodyShape, hairStyleId);
+      const selected = hairStyleId === this.selectedPlayer.appearance.hairStyleId;
+      this.refreshAppearanceSelector(background, label, available, selected);
+    });
+
+    this.accessorySelectors.forEach(({ accessoryId, background, label }) => {
+      const available = canUsePlayerAccessory(this.selectedPlayer.appearance.bodyShape, accessoryId);
+      const selected = accessoryId === this.selectedPlayer.appearance.accessoryId;
+      this.refreshAppearanceSelector(background, label, available, selected);
+    });
+  }
+
+  private refreshAppearanceSelector(
+    background: Phaser.GameObjects.Rectangle,
+    label: Phaser.GameObjects.Text,
+    available: boolean,
+    selected: boolean
+  ): void {
       background
         .setFillStyle(selected ? UI.colors.accent : UI.colors.panelDark, selected ? 1 : 0.96)
         .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line)
@@ -342,7 +410,6 @@ export class TeamCreationScene extends Phaser.Scene {
       } else {
         background.disableInteractive();
       }
-    });
   }
 
   private commitNickname(): void {

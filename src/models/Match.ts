@@ -5,9 +5,9 @@ import type { LineoutOutcome } from "./Lineout";
 import type { LineoutPosition } from "./Combination";
 
 export type MatchPlayerUsage = {
-  jump: number;
-  lift: number;
-  hands: number;
+  speed: number;
+  strength: number;
+  technique: number;
   throwing: number;
 };
 

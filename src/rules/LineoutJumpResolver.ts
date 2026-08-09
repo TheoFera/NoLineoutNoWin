@@ -60,18 +60,18 @@ export function calculateJumpRandomAmplitude(baseQuality: number): number {
 
 export function calculateJumpQuality(input: JumpQualityInput): JumpQualityResult {
   const effectiveJump = effectiveStat(
-    input.jumper.jump,
+    input.jumper.technique,
     input.fatigueByPlayerId[input.jumper.id] ?? 0
   );
   const effectiveRearLift = input.rearLifter
     ? effectiveStat(
-      input.rearLifter.lift,
+      input.rearLifter.strength,
       input.fatigueByPlayerId[input.rearLifter.id] ?? 0
     )
     : 0;
   const effectiveFrontLift = input.frontLifter
     ? effectiveStat(
-      input.frontLifter.lift,
+      input.frontLifter.strength,
       input.fatigueByPlayerId[input.frontLifter.id] ?? 0
     )
     : 0;

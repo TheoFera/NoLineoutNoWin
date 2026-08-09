@@ -1,4 +1,4 @@
-export const LINEOUT_BALANCE_SPECIFICATION_STATUS = "v2_source_of_truth_loaded" as const;
+export const LINEOUT_BALANCE_SPECIFICATION_STATUS = "v3_source_of_truth_loaded" as const;
 
 export const LINEOUT_BALANCE = {
   positions: {
@@ -110,12 +110,94 @@ export const LINEOUT_BALANCE = {
     },
     looseBallThrowingTeamProbability: 0.5
   },
+  gameplayV3: {
+    depth: {
+      minimumMeters: 1.2,
+      maximumMeters: 14.2,
+      positionSpacingMeters: 1.85,
+      ballContinuationMeters: 3.2
+    },
+    gesture: {
+      minimumDistancePixels: 34,
+      maximumDistancePixels: 300,
+      minimumSpeedPixelsPerSecond: 420,
+      accidentalTouchProtectionMs: 35
+    },
+    timing: {
+      combinationLeadMs: 650,
+      phaseDurationMs: 460,
+      movementPhaseLeadMs: 120,
+      baseFlightDurationMs: 430,
+      flightDurationPerMeterMs: 47,
+      minimumFlightDurationMs: 500,
+      maximumFlightDurationMs: 1_180
+    },
+    movement: {
+      minimumMetersPerSecond: 1.25,
+      maximumMetersPerSecond: 3.8,
+      avoidanceClearanceMeters: 0.62,
+      avoidanceLateralMeters: 0.72,
+      minimumPlayerSeparationMeters: 0.58,
+      arrivalToleranceMeters: 0.035
+    },
+    jump: {
+      standingHandHeightMeters: 2.05,
+      minimumSoloElevationMeters: 0.42,
+      maximumSoloElevationMeters: 0.92,
+      oneLifterElevationMeters: 0.58,
+      twoLifterElevationMeters: 0.92,
+      minimumDurationMs: 720,
+      maximumDurationMs: 1_080,
+      feintDurationMs: 360,
+      feintElevationMeters: 0.12,
+      lifterReachMeters: 1.95,
+      singleRearLifterMinimumStrengthExclusive: 70,
+      singleRearLifterMinimumJumperSpeedExclusive: 70,
+      singleRearLifterMinimumJumperTechniqueExclusive: 70
+    },
+    trajectory: {
+      startHeightMeters: 1.92,
+      preciseTargetHeightMeters: 3.05,
+      lowTargetHeightMeters: 2.35,
+      highTargetHeightMeters: 3.78,
+      minimumControlHeightMeters: 3.4,
+      maximumControlHeightMeters: 8.5,
+      notStraightLateralMeters: 0.68,
+      maximumLateralErrorMeters: 1.15
+    },
+    throwing: {
+      minimumDepthErrorMeters: 0.12,
+      maximumDepthErrorMeters: 1.65,
+      minimumHeightErrorMeters: 0.04,
+      maximumHeightErrorMeters: 0.72,
+      minimumLateralErrorMeters: 0.03,
+      maximumLateralErrorMeters: 0.9
+    },
+    reach: {
+      depthMeters: 0.48,
+      lateralMeters: 0.9,
+      heightMeters: 0.38,
+      simultaneousWindowMs: 85,
+      groundCatchMaximumHeightMeters: 2.25
+    },
+    resolution: {
+      singleCatchThreshold: 48,
+      cleanCatchThreshold: 70,
+      cleanDuelMargin: 9,
+      techniqueWeight: 0.62,
+      reachWeight: 0.28,
+      speedWeight: 0.1,
+      randomAmplitude: 4,
+      throwingTeamInitiative: 3,
+      fatigueMaximumPenalty: 18
+    }
+  },
   generation: {
     roleThreshold: 60,
     clubModifiers: [-3, 0, 3],
-    regionale3Hands: {
-      minimum: 26,
-      maximum: 78
+    regionale3Speed: {
+      minimum: 55,
+      maximum: 75
     },
     divisionStats: {
       regionale_3: { mean: 65, minimum: 60, maximum: 70 },
@@ -143,9 +225,9 @@ export const LINEOUT_BALANCE = {
     difficultyStartsAt: 60,
     statPointsPerDifficultyStep: 10,
     baseUsesPerLevel: {
-      jump: 2,
-      lift: 2,
-      hands: 3,
+      speed: 2,
+      strength: 2,
+      technique: 3,
       throwing: 3
     },
     additionalUsesPerDifficultyStep: 1

@@ -498,7 +498,7 @@ function buildCalculationDetails(
   const details: LineoutResult["calculationDetails"] = [];
   pushDetail(details, "lineout.calc.throwing", resolution.details.throwQuality);
   pushDetail(details, "lineout.calc.jump", resolution.details.attackJumpQuality);
-  if (targetPlayer) pushDetail(details, "lineout.calc.hands", targetPlayer.hands);
+  if (targetPlayer) pushDetail(details, "lineout.calc.hands", targetPlayer.technique);
   pushDetail(
     details,
     "lineout.calc.pressure",

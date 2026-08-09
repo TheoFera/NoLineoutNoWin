@@ -14,7 +14,17 @@ function cloneCombination(combination: Combination): Combination {
   return {
     ...combination,
     slots: normalizeCombinationSlots(combination.slots).map((slot) => ({ ...slot })),
-    targetOptions: normalizeCombinationTargetOptions(combination.targetOptions)
+    targetOptions: normalizeCombinationTargetOptions(combination.targetOptions),
+    plan: combination.plan ? {
+      phases: combination.plan.phases.map((phase) => ({
+        ...phase,
+        actions: phase.actions.map((action) => (
+          action.type === "jump"
+            ? { ...action, lifterPositions: [...action.lifterPositions] }
+            : { ...action }
+        ))
+      }))
+    } : undefined
   };
 }
 
@@ -161,9 +171,18 @@ export function findCombinationTargetOption(
     .find((option) => getTargetOptionPlayerPosition(option) === playerPosition);
 }
 
-export function getCombinationDisplayName(combination: Combination, translate: (key: string) => string): string {
+export function getCombinationDisplayName(
+  combination: Combination,
+  translate: (key: string) => string,
+  defaultIndex?: number
+): string {
   const customName = combination.customName?.trim();
-  return customName && customName.length > 0 ? customName : translate(combination.nameKey);
+  if (customName && customName.length > 0) return customName;
+  if (defaultIndex !== undefined) {
+    return translate("lineout.v3.defaultCombinationName")
+      .replace("{number}", String(defaultIndex + 1));
+  }
+  return translate(combination.nameKey);
 }
 
 export function orderPlayersForCombination(players: FieldPlayer[], combination?: Combination): FieldPlayer[] {
@@ -253,4 +272,26 @@ export function renameCombination(combinations: Combination[], combinationId: st
       customName: customName.trim()
     };
   });
+}
+
+export function replaceCombinationPlan(
+  combinations: Combination[],
+  combinationId: string,
+  plan: NonNullable<Combination["plan"]>
+): Combination[] {
+  return combinations.map((combination) => ({
+    ...cloneCombination(combination),
+    ...(combination.id === combinationId ? {
+      plan: {
+        phases: plan.phases.map((phase) => ({
+          ...phase,
+          actions: phase.actions.map((action) => (
+            action.type === "jump"
+              ? { ...action, lifterPositions: [...action.lifterPositions] }
+              : { ...action }
+          ))
+        }))
+      }
+    } : {})
+  }));
 }

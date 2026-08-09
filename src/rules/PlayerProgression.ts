@@ -46,9 +46,9 @@ function progressStat(current: number, usage: number, stat: ProgressedStatName):
 
 export function createEmptyUsage(): MatchPlayerUsage {
   return {
-    jump: 0,
-    lift: 0,
-    hands: 0,
+    speed: 0,
+    strength: 0,
+    technique: 0,
     throwing: 0
   };
 }
@@ -139,20 +139,20 @@ function progressFieldPlayer(
   usageMap: PlayerProgressionUsage
 ): { player: FieldPlayer; remainingUsage: MatchPlayerUsage } {
   const usage = usageMap[player.id] ?? createEmptyUsage();
-  const jump = progressStat(player.jump, usage.jump, "jump");
-  const lift = progressStat(player.lift, usage.lift, "lift");
-  const hands = progressStat(player.hands, usage.hands, "hands");
+  const speed = progressStat(player.speed, usage.speed, "speed");
+  const strength = progressStat(player.strength, usage.strength, "strength");
+  const technique = progressStat(player.technique, usage.technique, "technique");
   return {
     player: {
       ...player,
-      jump: jump.value,
-      lift: lift.value,
-      hands: hands.value
+      speed: speed.value,
+      strength: strength.value,
+      technique: technique.value
     },
     remainingUsage: {
-      jump: jump.remainingUsage,
-      lift: lift.remainingUsage,
-      hands: hands.remainingUsage,
+      speed: speed.remainingUsage,
+      strength: strength.remainingUsage,
+      technique: technique.remainingUsage,
       throwing: 0
     }
   };
@@ -167,9 +167,9 @@ function combineUsage(
     const saved = normalizeUsage(savedUsage[playerId]);
     const currentMatch = normalizeUsage(matchUsage[playerId]);
     return [playerId, {
-      jump: saved.jump + currentMatch.jump,
-      lift: saved.lift + currentMatch.lift,
-      hands: saved.hands + currentMatch.hands,
+      speed: saved.speed + currentMatch.speed,
+      strength: saved.strength + currentMatch.strength,
+      technique: saved.technique + currentMatch.technique,
       throwing: saved.throwing + currentMatch.throwing
     }];
   }));
@@ -177,9 +177,9 @@ function combineUsage(
 
 function normalizeUsage(usage: MatchPlayerUsage | undefined): MatchPlayerUsage {
   return {
-    jump: normalizeUsageValue(usage?.jump),
-    lift: normalizeUsageValue(usage?.lift),
-    hands: normalizeUsageValue(usage?.hands),
+    speed: normalizeUsageValue(usage?.speed),
+    strength: normalizeUsageValue(usage?.strength),
+    technique: normalizeUsageValue(usage?.technique),
     throwing: normalizeUsageValue(usage?.throwing)
   };
 }
@@ -191,7 +191,7 @@ function normalizeUsageValue(value: number | undefined): number {
 function buildPlayerProgression(previous: Player, current: Player): PlayerProgressionSummary | null {
   const statNames: ProgressedStatName[] = current.role === "hooker"
     ? ["throwing"]
-    : ["jump", "lift", "hands"];
+    : ["speed", "strength", "technique"];
   const changes = statNames
     .map((stat) => buildStatProgression(previous, current, stat))
     .filter((change): change is PlayerStatProgression => change !== null);

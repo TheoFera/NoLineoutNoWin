@@ -1,8 +1,9 @@
 import {
   PLAYER_SKIN_TONE_IDS,
   type BodyShapeName,
+  type PlayerAccessoryId,
   type PlayerAppearance,
-  type PlayerHeadStyleId,
+  type PlayerHairStyleId,
   type PlayerSkinToneId
 } from "../models/PlayerAppearance.ts";
 import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation.ts";
@@ -14,24 +15,41 @@ export const AVAILABLE_PLAYER_BODY_SHAPES = [
   "medium_large"
 ] as const satisfies readonly BodyShapeName[];
 
-export const AVAILABLE_STANDARD_PLAYER_HEAD_STYLES = [
-  "default",
-  "helmet",
-  "bald"
-] as const satisfies readonly PlayerHeadStyleId[];
+export const PLAYER_HAIR_STYLE_OPTIONS = [
+  "short",
+  "bald",
+  "mullet",
+  "bun"
+] as const satisfies readonly PlayerHairStyleId[];
 
-export function canUsePlayerHeadStyle(
+export const PLAYER_ACCESSORY_OPTIONS = [
+  "helmet",
+  "strap",
+  "moustache",
+  "beard"
+] as const satisfies readonly PlayerAccessoryId[];
+
+export function canUsePlayerHairStyle(
   bodyShape: BodyShapeName,
-  headStyleId: PlayerHeadStyleId
+  hairStyleId: PlayerHairStyleId
 ): boolean {
-  return headStyleId === "default" || bodyShape === "medium_standard";
+  return hairStyleId === "short" || (hairStyleId === "bald" && bodyShape === "medium_standard");
+}
+
+export function canUsePlayerAccessory(
+  bodyShape: BodyShapeName,
+  accessoryId: PlayerAccessoryId
+): boolean {
+  if (accessoryId === "none") return true;
+  return bodyShape === "medium_standard" && (accessoryId === "helmet" || accessoryId === "strap");
 }
 
 export function createDefaultPlayerAppearance(number: number): PlayerAppearance {
   return {
     bodyShape: number === 1 || number === 3 ? "medium_large" : "medium_standard",
     skinToneId: "base",
-    headStyleId: "default"
+    hairStyleId: "short",
+    accessoryId: "none"
   };
 }
 
@@ -61,4 +79,40 @@ export function getGeneratedTeamSkinToneId(teamId: string, rosterIndex: number):
   }
 
   return PLAYER_SKIN_TONE_IDS[(teamHash + rosterIndex) % PLAYER_SKIN_TONE_IDS.length];
+}
+
+export function getGeneratedTeamPlayerAppearance(
+  teamId: string,
+  rosterIndex: number,
+  baseAppearance: PlayerAppearance
+): PlayerAppearance {
+  const hairStyles = PLAYER_HAIR_STYLE_OPTIONS.filter((hairStyleId) => (
+    canUsePlayerHairStyle(baseAppearance.bodyShape, hairStyleId)
+  ));
+  const accessories: PlayerAccessoryId[] = [
+    "none",
+    ...PLAYER_ACCESSORY_OPTIONS.filter((accessoryId) => (
+      canUsePlayerAccessory(baseAppearance.bodyShape, accessoryId)
+    ))
+  ];
+
+  return {
+    ...baseAppearance,
+    skinToneId: getGeneratedTeamSkinToneId(teamId, rosterIndex),
+    hairStyleId: selectStableAppearanceOption(hairStyles, teamId, rosterIndex, "hair"),
+    accessoryId: selectStableAppearanceOption(accessories, teamId, rosterIndex, "accessory")
+  };
+}
+
+function selectStableAppearanceOption<T>(
+  options: readonly T[],
+  teamId: string,
+  rosterIndex: number,
+  category: string
+): T {
+  let hash = 0;
+  for (const character of `${teamId}:${rosterIndex}:${category}`) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return options[hash % options.length];
 }

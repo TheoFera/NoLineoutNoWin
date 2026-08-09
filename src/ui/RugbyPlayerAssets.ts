@@ -35,13 +35,25 @@ const HELMET_ASSET_SET_KEYS = new Set([
   "medium_standard:hand",
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
-  "medium_standard:lifter_front"
+  "medium_standard:lifter_front",
+  "medium_large:hooker_throw_back"
 ]);
 
 const BALD_ASSET_SET_KEYS = new Set([
   "medium_standard:stand_front",
   "medium_standard:hand",
-  "medium_standard:jumper"
+  "medium_standard:hooker_throw_back",
+  "medium_standard:jumper",
+  "medium_standard:lifter_front",
+  "medium_large:hooker_throw_back"
+]);
+
+const STRAP_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:hooker_throw_back",
+  "medium_standard:jumper",
+  "medium_standard:lifter_front"
 ]);
 
 export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseName): RugbyPlayerLayerPaths {
@@ -56,7 +68,8 @@ export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseNam
     details: `${basePath}/details.png`,
     bodychauve: `${basePath}/bodychauve.png`,
     casque: `${basePath}/casque.png`,
-    chauve: `${basePath}/chauve.png`
+    chauve: `${basePath}/chauve.png`,
+    strap: `${basePath}/strap.png`
   };
 }
 
@@ -81,6 +94,9 @@ export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseNam
   }
   if (layer === "bodychauve" || layer === "chauve") {
     return BALD_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "strap") {
+    return STRAP_ASSET_SET_KEYS.has(assetSetKey);
   }
   return false;
 }

@@ -160,7 +160,7 @@ export function resolveSoloReception(
   rng: RandomSource,
   situationalModifier = 0
 ): SoloReceptionResult {
-  const hands = clamp(player.hands, SCORE.minimum, SCORE.maximum);
+  const hands = clamp(player.technique, SCORE.minimum, SCORE.maximum);
   const randomScore = randomFloat(SCORE.minimum, SCORE.maximum, rng);
   const placementModifier = calculatePlacementModifier(placements);
   const score = hands * CATCH.handsWeight
@@ -197,7 +197,7 @@ function calculateHandsDuelScore(
   rng: RandomSource,
   situationalModifier: number
 ): number {
-  const hands = clamp(player.hands, SCORE.minimum, SCORE.maximum);
+  const hands = clamp(player.technique, SCORE.minimum, SCORE.maximum);
   return clamp(
     hands * CATCH.handsWeight
       + randomFloat(SCORE.minimum, SCORE.maximum, rng) * CATCH.randomWeight
@@ -241,7 +241,7 @@ export function resolveHandsDuel(
     && (!defendingEligible || (throwingScore as number) >= (defendingScore as number));
   const winner = throwingWins ? throwingPlayer as FieldPlayer : defendingPlayer as FieldPlayer;
   const ballTeam: LineoutResolutionTeam = throwingWins ? "throwingTeam" : "defendingTeam";
-  const knockOnRisk = testKnockOn(winner.hands, [], rng);
+  const knockOnRisk = testKnockOn(winner.technique, [], rng);
 
   return {
     outcome: knockOnRisk.knockOn ? "knockOn" : "caught",
@@ -461,7 +461,7 @@ function calculateGroundRecoveryScore(
   rng: RandomSource
 ): number | null {
   if (!candidate) return null;
-  return candidate.player.hands * CATCH.handsWeight
+  return candidate.player.technique * CATCH.handsWeight
     + randomFloat(SCORE.minimum, SCORE.maximum, rng) * CATCH.randomWeight
     - Math.abs(candidate.position - groundPosition)
       * CATCH.secondaryRecovery.groundDistancePenaltyPerPosition;

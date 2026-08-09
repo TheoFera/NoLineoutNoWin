@@ -1,5 +1,9 @@
 export { RUGBY_PLAYER_BODY_SHAPE_NAMES } from "../models/PlayerAppearance";
-export type { BodyShapeName, PlayerHeadStyleId } from "../models/PlayerAppearance";
+export type {
+  BodyShapeName,
+  PlayerAccessoryId,
+  PlayerHairStyleId
+} from "../models/PlayerAppearance";
 
 export const RUGBY_PLAYER_POSE_NAMES = [
   "stand_front",
@@ -24,7 +28,7 @@ export type Kit = {
 };
 
 export const RUGBY_PLAYER_BASE_LAYER_NAMES = ["body", "jersey", "shorts", "socks", "details"] as const;
-export const RUGBY_PLAYER_OPTIONAL_LAYER_NAMES = ["bodychauve", "casque", "chauve"] as const;
+export const RUGBY_PLAYER_OPTIONAL_LAYER_NAMES = ["bodychauve", "casque", "chauve", "strap"] as const;
 export const RUGBY_PLAYER_LAYER_NAMES = [
   ...RUGBY_PLAYER_BASE_LAYER_NAMES,
   ...RUGBY_PLAYER_OPTIONAL_LAYER_NAMES

@@ -126,7 +126,7 @@ export class TeamScene extends Phaser.Scene {
 
       this.add.text(28, y, `${t("team.numberPrefix")}${player.number}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
       this.add.text(84, y, player.nickname, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(166, y, `${t("team.stat.jumpAbbr")} ${player.jump} - ${t("team.stat.liftAbbr")} ${player.lift} - ${t("team.stat.handsAbbr")} ${player.hands}`, {
+      this.add.text(166, y, `${t("team.stat.speedAbbr")} ${player.speed} - ${t("team.stat.strengthAbbr")} ${player.strength} - ${t("team.stat.techniqueAbbr")} ${player.technique}`, {
         font: UI.font.small,
         color: UI.colors.muted
       }).setOrigin(0, 0.5);

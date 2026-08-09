@@ -1,6 +1,6 @@
 import type { PlayerAppearance } from "./PlayerAppearance";
 
-export type FieldPlayerStatName = "jump" | "lift" | "hands";
+export type FieldPlayerStatName = "speed" | "strength" | "technique";
 
 export type PlayerRole = "field" | "hooker";
 
@@ -10,9 +10,9 @@ export type FieldPlayer = {
   number: number;
   nickname: string;
   appearance: PlayerAppearance;
-  jump: number;
-  lift: number;
-  hands: number;
+  speed: number;
+  strength: number;
+  technique: number;
 };
 
 export type Hooker = {

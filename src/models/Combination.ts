@@ -20,6 +20,31 @@ export type CombinationTargetOption = {
   defaultNaturalWeight: number;
 };
 
+export type CombinationPhaseAction =
+  | {
+    type: "move";
+    playerPosition: LineoutPosition;
+    destinationDepthMeters: number;
+  }
+  | {
+    type: "feint";
+    playerPosition: LineoutPosition;
+  }
+  | {
+    type: "jump";
+    playerPosition: LineoutPosition;
+    lifterPositions: LineoutPosition[];
+  };
+
+export type CombinationPhase = {
+  id: string;
+  actions: CombinationPhaseAction[];
+};
+
+export type CombinationPlan = {
+  phases: CombinationPhase[];
+};
+
 type StoredCombinationTargetOption = Omit<CombinationTargetOption, "roles" | "defaultNaturalWeight"> & {
   roles: CombinationTargetRoles & {
     /** Ancien nom lu uniquement pendant la migration des sauvegardes. */
@@ -41,6 +66,7 @@ export type Combination = {
   nameKey: string;
   customName?: string;
   slots: CombinationPlayerSlot[];
+  plan?: CombinationPlan;
   targetOptions?: CombinationTargetOption[];
   /** @deprecated Kept only until the V2 combination library replaces legacy saves. */
   risk: number;

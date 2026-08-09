@@ -8,6 +8,14 @@ import {
 import type { Team } from "../models/Team";
 
 const DEFENSIVE_SLOT_COUNT = 7;
+const DEFAULT_ACTIVE_SLOTS: Record<DefensiveLineoutSize, number[]> = {
+  2: [3, 4],
+  3: [2, 3, 4],
+  4: [1, 2, 3, 4],
+  5: [1, 2, 3, 4, 5],
+  6: [0, 1, 2, 3, 4, 5],
+  7: [0, 1, 2, 3, 4, 5, 6]
+};
 
 function buildLineoutPool(team: Team): FieldPlayer[] {
   return team.lineoutPlayers.slice();
@@ -168,6 +176,67 @@ export function normalizeDefenseMemory(memory: DefenseMemory | undefined, team: 
   }
 
   return normalized;
+}
+
+export function createDefaultDefenseMemory(team: Team): DefenseMemory {
+  return Object.fromEntries(DEFENSIVE_LINEOUT_SIZES.map((size) => [
+    size,
+    createDefaultDefensiveLayout(team, size)
+  ])) as DefenseMemory;
+}
+
+export function createDefaultDefensiveLayout(
+  team: Team,
+  size: DefensiveLineoutSize
+): DefensiveLayout {
+  const available = team.lineoutPlayers.slice();
+  const jumpers = available.slice().sort((left, right) => (
+    defensiveJumperScore(right) - defensiveJumperScore(left)
+  ));
+  const primaryJumper = jumpers[0];
+  const secondaryJumper = jumpers.find((player) => player.id !== primaryJumper?.id);
+  const lifters = available.slice().sort((left, right) => (
+    defensiveLifterScore(right) - defensiveLifterScore(left)
+  ));
+  const selected: FieldPlayer[] = [];
+  const add = (player: FieldPlayer | undefined) => {
+    if (player && !selected.some((item) => item.id === player.id) && selected.length < size) {
+      selected.push(player);
+    }
+  };
+
+  const firstLifter = lifters.find((player) => player.id !== primaryJumper?.id);
+  const secondLifter = lifters.find((player) => (
+    player.id !== primaryJumper?.id && player.id !== firstLifter?.id
+  ));
+  if (size === 2) {
+    add(primaryJumper);
+    add(firstLifter);
+  } else {
+    add(firstLifter);
+    add(primaryJumper);
+    add(secondLifter);
+    if (size >= 4) add(secondaryJumper);
+  }
+  available
+    .slice()
+    .sort((left, right) => defensiveUtilityScore(right) - defensiveUtilityScore(left))
+    .forEach(add);
+
+  return placePlayersInSlots(selected, DEFAULT_ACTIVE_SLOTS[size])
+    .map((player) => player?.id ?? null);
+}
+
+function defensiveJumperScore(player: FieldPlayer): number {
+  return player.technique * 0.6 + player.speed * 0.25 + player.strength * 0.15;
+}
+
+function defensiveLifterScore(player: FieldPlayer): number {
+  return player.strength * 0.7 + player.speed * 0.2 + player.technique * 0.1;
+}
+
+function defensiveUtilityScore(player: FieldPlayer): number {
+  return player.speed * 0.3 + player.strength * 0.35 + player.technique * 0.35;
 }
 
 export function normalizeDefensiveLayout(layout: Array<string | null>): DefensiveLayout {

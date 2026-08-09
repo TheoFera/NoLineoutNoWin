@@ -3,6 +3,7 @@ import type { FieldPlayer } from "../models/Player";
 import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { PlayerGroundShadow } from "./PlayerGroundShadow";
 import { getPlayerSkinTint } from "./PlayerSkinTone";
+import { t } from "../systems/I18n";
 import { RugbyPlayer } from "./RugbyPlayer";
 import type { BodyShapeName, Kit, PoseName } from "./RugbyPlayerTypes";
 import { UI } from "./UITheme";
@@ -188,7 +189,8 @@ export class PlayerToken extends Phaser.GameObjects.Container {
         visualConfig.kit,
         visualConfig.bodyShape,
         getPlayerSkinTint(this.player),
-        this.player.appearance.headStyleId
+        this.player.appearance.hairStyleId,
+        this.player.appearance.accessoryId
       )
         .setVisualSize(visualConfig.displayWidth, visualConfig.displayHeight);
       return this.rugbyPlayer;
@@ -215,13 +217,13 @@ export class PlayerToken extends Phaser.GameObjects.Container {
 
     if (canBeLineoutJumper(player)) {
       const bg = scene.add.circle(jumperX, iconY, 8, UI.colors.accent, 1).setStrokeStyle(1, 0x3f2d00);
-      const text = scene.add.text(jumperX, iconY, "S", { font: "bold 10px Arial", color: "#1f2937" }).setOrigin(0.5);
+      const text = scene.add.text(jumperX, iconY, t("lineout.role.jumperAbbr"), { font: "bold 10px Arial", color: "#1f2937" }).setOrigin(0.5);
       icons.push(bg, text);
     }
 
     if (canBeLineoutLifter(player)) {
       const bg = scene.add.circle(lifterX, iconY, 8, 0x0f3d2b, 1).setStrokeStyle(1, UI.colors.line);
-      const text = scene.add.text(lifterX, iconY, "L", { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
+      const text = scene.add.text(lifterX, iconY, t("lineout.role.lifterAbbr"), { font: "bold 9px Arial", color: UI.colors.text }).setOrigin(0.5);
       icons.push(bg, text);
     }
 

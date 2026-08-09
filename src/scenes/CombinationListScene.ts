@@ -47,8 +47,12 @@ export class CombinationListScene extends Phaser.Scene {
       this.renderCombinationRow(combination, index);
     });
 
+    new UIButton(this, 195, 730, 286, 42, t("lineout.v3.defensiveFormations"), () => {
+      navigateTo(this, "LineoutScene", { mode: "training", trainingMode: "defense-edit" });
+    }, { variant: "secondary" });
+
     new UIButton(this, 195, 792, 220, 42, t("button.back"), () => {
-      navigateTo(this, "LineoutScene", { mode: "training", combinationId: this.selectedCombinationId ?? fallbackCombinationId });
+      navigateTo(this, "LineoutScene", { mode: "training", trainingMode: "edit", combinationId: this.selectedCombinationId ?? fallbackCombinationId });
     }, {
       variant: "secondary"
     });
@@ -66,12 +70,12 @@ export class CombinationListScene extends Phaser.Scene {
       this.add.rectangle(28, y, 5, 74, UI.colors.accent, 0.95);
     }
 
-    new UIButton(this, 165, y, 256, 40, getCombinationDisplayName(combination, t), () => {
-      navigateTo(this, "LineoutScene", { mode: "training", combinationId: combination.id });
+    new UIButton(this, 165, y, 256, 40, this.getDisplayName(combination, index), () => {
+      navigateTo(this, "LineoutScene", { mode: "training", trainingMode: "edit", combinationId: combination.id });
     });
 
     new UIButton(this, 327, y, 44, 40, t("button.editSymbol"), () => {
-      this.openRenameOverlay(combination);
+      this.openRenameOverlay(combination, index);
     }, {
       variant: "secondary",
       fontSize: 26,
@@ -79,7 +83,7 @@ export class CombinationListScene extends Phaser.Scene {
     });
   }
 
-  private openRenameOverlay(combination: Combination): void {
+  private openRenameOverlay(combination: Combination, index: number): void {
     this.destroyNameInput();
 
     const overlay = this.add.rectangle(195, 422, 390, 844, 0x020617, 0.55).setDepth(UI_DEPTH.overlayBackdrop);
@@ -112,7 +116,11 @@ export class CombinationListScene extends Phaser.Scene {
       this.scene.restart({ combinationId: this.selectedCombinationId });
     });
 
-    this.createNameInput(getCombinationDisplayName(combination, t), combination.id);
+    this.createNameInput(this.getDisplayName(combination, index), combination.id);
+  }
+
+  private getDisplayName(combination: Combination, index: number): string {
+    return getCombinationDisplayName(combination, t, index);
   }
 
   private createNameInput(initialValue: string, combinationId: string): void {

@@ -10,6 +10,7 @@ import { normalizePlayerProgressionUsage, resolvePlayerProgression } from "../ru
 import { createDefaultPlayerTeam, DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR, normalizeTeam } from "../rules/TeamFactory";
 import {
   isDefensiveLineoutSize,
+  createDefaultDefenseMemory,
   normalizeDefenseMemory,
   normalizeDefensiveLayout,
   normalizeDefensivePriority
@@ -23,7 +24,7 @@ import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
 import type { MatchCompletionSummary } from "../models/PlayerProgression";
 import type { TeamPlayerDraft } from "../models/TeamCreation";
-import { getGeneratedTeamSkinToneId } from "../data/PlayerAppearanceOptions";
+import { getGeneratedTeamPlayerAppearance } from "../data/PlayerAppearanceOptions";
 import {
   createEmptyOpponentAiMemory,
   normalizeOpponentAiMemory,
@@ -81,11 +82,13 @@ export class GameStore {
       undefined,
       playerDrafts
     );
-    const offensiveCombinations = normalizeOffensiveCombinations(DEFAULT_COMBINATIONS);
+    const offensiveCombinations = normalizeOffensiveCombinations(
+      team.offensiveCombinations ?? DEFAULT_COMBINATIONS
+    );
     const division = getDivision("regionale_3");
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision.regionale_3;
     const save: SaveGame = {
-      version: 5,
+      version: 6,
       language: getLanguage(),
       currentDivisionId: "regionale_3",
       season: 1,
@@ -95,11 +98,11 @@ export class GameStore {
       offensiveRepertoire: normalizeOffensiveRepertoire(
         offensiveCombinations.map((combination) => combination.id),
         division.offensiveCombinations,
-        undefined,
+        team.offensiveRepertoire,
         repertoireLimits.reserve
       ),
       defensivePriority: normalizeDefensivePriority([], team),
-      defenseMemory: {},
+      defenseMemory: createDefaultDefenseMemory(team),
       opponentAiMemories: {},
       playerLineoutVideoHistory: [],
       opponentTeams: {},
@@ -134,9 +137,9 @@ export class GameStore {
     const save = this.getSave();
     const stored = save.opponentTeams[generatedTeam.id];
     if (stored && stored.divisionId === generatedTeam.divisionId) {
-      return normalizeTeam(stored);
+      return withOpponentAppearanceVariation(normalizeTeam(stored));
     }
-    const normalized = normalizeTeam(generatedTeam);
+    const normalized = withOpponentAppearanceVariation(normalizeTeam(generatedTeam));
     this.save = this.withUpdatedAt({
       ...save,
       opponentTeams: {
@@ -340,8 +343,8 @@ export class GameStore {
     const division = getDivision(save.currentDivisionId);
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[save.currentDivisionId];
     const currentRepertoire = save.version !== 1 ? save.offensiveRepertoire : undefined;
-    const hasAiPersistence = save.version === 3 || save.version === 4 || save.version === 5;
-    const hasProgressionPersistence = save.version === 4 || save.version === 5;
+    const hasAiPersistence = save.version === 3 || save.version === 4 || save.version === 6;
+    const hasProgressionPersistence = save.version === 4 || save.version === 6;
     const opponentAiMemories = hasAiPersistence
       ? Object.fromEntries(Object.entries(save.opponentAiMemories ?? {}).map(([id, memory]) => [
         id,
@@ -350,7 +353,7 @@ export class GameStore {
       : {};
     return {
       ...save,
-      version: 5,
+      version: 6,
       playerTeam,
       championship: normalizeChampionshipState(save.championship, save.currentDivisionId, save.season, playerTeam.name),
       offensiveCombinations,
@@ -375,7 +378,7 @@ export class GameStore {
       opponentTeams: hasAiPersistence
         ? Object.fromEntries(Object.entries(save.opponentTeams ?? {}).map(([id, team]) => [
           id,
-          withOpponentSkinToneVariation(normalizeTeam(team))
+          withOpponentAppearanceVariation(normalizeTeam(team))
         ]))
         : {},
       playerProgressionUsage: normalizePlayerProgressionUsage(
@@ -393,20 +396,14 @@ export class GameStore {
   }
 }
 
-function withOpponentSkinToneVariation(team: Team): Team {
+function withOpponentAppearanceVariation(team: Team): Team {
   const hooker = {
     ...team.hooker,
-    appearance: {
-      ...team.hooker.appearance,
-      skinToneId: getGeneratedTeamSkinToneId(team.id, 0)
-    }
+    appearance: getGeneratedTeamPlayerAppearance(team.id, 0, team.hooker.appearance)
   };
   const fieldPlayers = team.fieldPlayers.map((player, index) => ({
     ...player,
-    appearance: {
-      ...player.appearance,
-      skinToneId: getGeneratedTeamSkinToneId(team.id, index + 1)
-    }
+    appearance: getGeneratedTeamPlayerAppearance(team.id, index + 1, player.appearance)
   }));
   const fieldPlayersById = new Map(fieldPlayers.map((player) => [player.id, player]));
 

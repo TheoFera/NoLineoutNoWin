@@ -12,8 +12,8 @@ export type OffensivePlan = {
 };
 
 function averageLiftAround(players: FieldPlayer[], targetIndex: number): number {
-  const left = players[targetIndex - 1]?.lift ?? 0;
-  const right = players[targetIndex + 1]?.lift ?? 0;
+  const left = players[targetIndex - 1]?.strength ?? 0;
+  const right = players[targetIndex + 1]?.strength ?? 0;
   if (left && right) {
     return (left + right) / 2;
   }
@@ -42,7 +42,7 @@ export function buildDefensivePlan(players: FieldPlayer[], numberOfPlayers: numb
   const selectedPlayers = players.slice(0, numberOfPlayers);
   const likelyJumpPosition = findBestPosition(
     selectedPlayers,
-    (player, index) => player.jump * 0.6 + averageLiftAround(selectedPlayers, index) * 0.25 + player.hands * 0.15
+    (player, index) => player.technique * 0.6 + averageLiftAround(selectedPlayers, index) * 0.25 + player.speed * 0.15
   );
   return { selectedPlayers, likelyJumpPosition };
 }
@@ -52,7 +52,7 @@ export function buildOffensivePlan(players: FieldPlayer[], numberOfPlayers: numb
   const targetPosition = findBestPosition(selectedPlayers, (player, index) => {
     const position = index + 1;
     const distancePenalty = position >= 6 ? 8 : position >= 4 ? 4 : 0;
-    return player.jump * 0.5 + averageLiftAround(selectedPlayers, index) * 0.35 + player.hands * 0.15 - distancePenalty;
+    return player.technique * 0.5 + averageLiftAround(selectedPlayers, index) * 0.35 + player.speed * 0.15 - distancePenalty;
   });
   return { selectedPlayers, targetPosition };
 }

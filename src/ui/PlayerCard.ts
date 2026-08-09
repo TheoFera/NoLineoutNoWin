@@ -16,7 +16,7 @@ export class PlayerCard extends Phaser.GameObjects.Container {
 
     const stats = isHooker(player)
       ? `${t("team.throwing")} ${player.throwing}`
-      : `${t("team.stat.jump")} ${player.jump}\n${t("team.stat.lift")} ${player.lift}\n${t("team.stat.hands")} ${player.hands}`;
+      : `${t("team.stat.speed")} ${player.speed}\n${t("team.stat.strength")} ${player.strength}\n${t("team.stat.technique")} ${player.technique}`;
 
     const statsText = scene.add.text(-95, -12, stats, {
       font: UI.font.body,

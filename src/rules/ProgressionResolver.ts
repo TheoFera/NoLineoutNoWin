@@ -4,8 +4,8 @@ import { clamp } from "../utils/Clamp.ts";
 export function progressTargetPlayer(player: FieldPlayer, cleanWin: boolean): FieldPlayer {
   return {
     ...player,
-    jump: clamp(player.jump + (cleanWin ? 2 : 1), 1, 99),
-    hands: clamp(player.hands + (cleanWin ? 1 : 0), 1, 99)
+    speed: clamp(player.speed + (cleanWin ? 2 : 1), 1, 99),
+    technique: clamp(player.technique + (cleanWin ? 1 : 0), 1, 99)
   };
 }
 

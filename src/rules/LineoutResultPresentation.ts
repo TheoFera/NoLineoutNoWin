@@ -110,6 +110,41 @@ function buildOfficialDetails(
   rawDetails: Record<string, number | string | boolean>
 ): LineoutResultDetail[] {
   const details: LineoutResultDetail[] = [];
+  if (rawDetails.gameplayVersion === 3) {
+    const requestedDepth = rawDetails.requestedDepthMeters;
+    const actualDepth = rawDetails.actualDepthMeters;
+    const contactScore = rawDetails.contactScore;
+    const trajectory = rawDetails.trajectory;
+    if (typeof requestedDepth === "number") {
+      details.push({
+        labelKey: "lineout.v3.detail.requestedDepth",
+        value: `${requestedDepth.toFixed(1)} m`,
+        format: "text"
+      });
+    }
+    if (typeof actualDepth === "number") {
+      details.push({
+        labelKey: "lineout.v3.detail.actualDepth",
+        value: `${actualDepth.toFixed(1)} m`,
+        format: "text"
+      });
+    }
+    if (typeof trajectory === "string") {
+      details.push({
+        labelKey: "lineout.v3.detail.trajectory",
+        value: trajectory,
+        valueKey: `lineout.v3.trajectory.${trajectory}`,
+        format: "text"
+      });
+    }
+    if (typeof contactScore === "number") {
+      details.push({
+        labelKey: "lineout.v3.detail.contactScore",
+        value: contactScore,
+        format: "score"
+      });
+    }
+  }
   const targetPosition = rawDetails.targetPosition;
   if (typeof targetPosition === "number") {
     details.push({

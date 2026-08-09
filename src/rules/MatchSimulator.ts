@@ -723,9 +723,9 @@ function updateDerivedPercentages(match: MatchStateData): MatchStateData {
 
 function getTeamSkill(team: Team): number {
   const playerStats = team.lineoutPlayers.flatMap((player) => [
-    player.jump,
-    player.lift,
-    player.hands
+    player.speed,
+    player.strength,
+    player.technique
   ]);
   const allStats = [...playerStats, team.hooker.throwing];
   return allStats.reduce((sum, value) => sum + value, 0) / Math.max(1, allStats.length);

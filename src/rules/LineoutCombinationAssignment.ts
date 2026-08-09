@@ -245,9 +245,9 @@ export function calculateExpectedJump(
   rearLifter: FieldPlayer,
   frontLifter: FieldPlayer
 ): number {
-  return jumper.jump * LINEOUT_BALANCE.jumping.jumperWeight
-    + rearLifter.lift * LINEOUT_BALANCE.jumping.rearLifterWeight
-    + frontLifter.lift * LINEOUT_BALANCE.jumping.frontLifterWeight
+  return jumper.technique * LINEOUT_BALANCE.jumping.jumperWeight
+    + rearLifter.strength * LINEOUT_BALANCE.jumping.rearLifterWeight
+    + frontLifter.strength * LINEOUT_BALANCE.jumping.frontLifterWeight
     + LINEOUT_BALANCE.jumping.twoLiftersModifier;
 }
 
@@ -256,7 +256,7 @@ function calculateOptionAssignmentScore(
   playersByPosition: PlayerByPosition
 ): number {
   if (option.type === "directCatch") {
-    return playerAt(playersByPosition, option.roles.directCatcherPosition ?? option.targetPosition)?.hands ?? 0;
+    return playerAt(playersByPosition, option.roles.directCatcherPosition ?? option.targetPosition)?.technique ?? 0;
   }
 
   const jumper = playerAt(playersByPosition, option.roles.jumperPosition ?? option.targetPosition);
@@ -264,12 +264,12 @@ function calculateOptionAssignmentScore(
   const frontLifter = playerAt(playersByPosition, option.roles.frontLifterPosition);
   if (!jumper || !rearLifter || !frontLifter) return 0;
   const weights = GENERATION.assignmentWeights;
-  return jumper.jump * weights.jumper.jump
-    + jumper.hands * weights.jumper.hands
-    + rearLifter.lift * weights.rearLifter.lift
-    + rearLifter.jump * weights.rearLifter.jump
-    + frontLifter.lift * weights.frontLifter.lift
-    + frontLifter.jump * weights.frontLifter.jump;
+  return jumper.technique * weights.jumper.jump
+    + jumper.technique * weights.jumper.hands
+    + rearLifter.strength * weights.rearLifter.lift
+    + rearLifter.technique * weights.rearLifter.jump
+    + frontLifter.strength * weights.frontLifter.lift
+    + frontLifter.technique * weights.frontLifter.jump;
 }
 
 function calculateCombinationStyleWeight(

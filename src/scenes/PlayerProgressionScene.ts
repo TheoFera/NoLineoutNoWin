@@ -206,7 +206,8 @@ export class PlayerProgressionScene extends Phaser.Scene {
       },
       player.appearance.bodyShape,
       getPlayerSkinTint(player),
-      player.appearance.headStyleId
+      player.appearance.hairStyleId,
+      player.appearance.accessoryId
     ).setVisualSize(46, visualHeight);
   }
 
@@ -294,9 +295,9 @@ export class PlayerProgressionScene extends Phaser.Scene {
     }
 
     return [
-      { name: "jump", value: player.jump },
-      { name: "lift", value: player.lift },
-      { name: "hands", value: player.hands }
+      { name: "speed", value: player.speed },
+      { name: "strength", value: player.strength },
+      { name: "technique", value: player.technique }
     ];
   }
 

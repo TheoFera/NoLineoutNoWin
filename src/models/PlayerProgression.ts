@@ -3,7 +3,7 @@ import type { MatchPlayerUsage } from "./Match";
 import type { Player } from "./Player";
 import type { Team } from "./Team";
 
-export type ProgressedStatName = "jump" | "lift" | "hands" | "throwing";
+export type ProgressedStatName = "speed" | "strength" | "technique" | "throwing";
 
 export type PlayerStatProgression = {
   stat: ProgressedStatName;

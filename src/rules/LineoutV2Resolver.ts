@@ -217,7 +217,7 @@ function resolveJumpBlock(
       defensivePosition,
       throwQuality: context.throwResult.throwing.quality,
       defendingJumpQuality: defensiveJump.quality,
-      defendingHands: defendingJumper.hands,
+      defendingHands: defendingJumper.technique,
       trajectory
     });
     addAheadCounterDetails(context.details, counter);
@@ -237,7 +237,7 @@ function resolveJumpBlock(
   const blockReception = calculateBlockReceptionScore(
     attackingJump.quality,
     trajectory,
-    attackingJumper.hands
+    attackingJumper.technique
   );
   addBlockReceptionDetails(context.details, blockReception);
 
@@ -332,9 +332,9 @@ function resolveSamePostContest(
 ): LineoutResolution {
   const duel = resolveSamePositionDuel({
     attackingJumpQuality: attackingJump.quality,
-    attackingHands: attackingJumper.hands,
+    attackingHands: attackingJumper.technique,
     defendingJumpQuality: defensiveJump.quality,
-    defendingHands: defendingJumper.hands,
+    defendingHands: defendingJumper.technique,
     trajectory
   });
   addDuelDetails(context.details, duel);
@@ -346,7 +346,7 @@ function resolveSamePostContest(
     return resolveCleanDefensiveCatch(context, defendingJumper, "lineout.reason.duelCleanSteal");
   }
 
-  const knockOn = testKnockOn(attackingJumper.hands, [], context.input.rng);
+  const knockOn = testKnockOn(attackingJumper.technique, [], context.input.rng);
   addKnockOnDetails(context.details, knockOn, "attackKnockOn");
   if (knockOn.knockOn) {
     return knockOnResolution(context, "throwingTeam", "lineout.reason.attackingKnockOn");
@@ -366,7 +366,7 @@ function resolveCleanDefensiveCatch(
   defender: FieldPlayer,
   reason: string
 ): LineoutResolution {
-  const knockOn = testKnockOn(defender.hands, [], context.input.rng);
+  const knockOn = testKnockOn(defender.technique, [], context.input.rng);
   addKnockOnDetails(context.details, knockOn, "defenseKnockOn");
   if (knockOn.knockOn) {
     return knockOnResolution(context, "defendingTeam", "lineout.reason.defendingKnockOn");

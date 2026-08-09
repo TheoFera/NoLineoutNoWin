@@ -54,7 +54,7 @@ export type SaveGameV4 = SaveGameBase & {
 };
 
 export type SaveGame = SaveGameBase & {
-  version: 5;
+  version: 6;
   offensiveRepertoire: OffensiveRepertoire;
   opponentAiMemories: Record<string, OpponentAiMemory>;
   playerLineoutVideoHistory: LineoutVideoMatch[];
