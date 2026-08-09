@@ -1282,10 +1282,18 @@ export class LineoutScene extends Phaser.Scene {
     if (this.trainingMode !== "edit" || this.trainingEditorPhaseIndex === null) {
       return this.positionY(position, layout);
     }
-    return this.v3YFromDepth(
+    const playerY = this.v3YFromDepth(
       this.getTrainingPreviewDepth(position, this.trainingEditorPhaseIndex),
       layout
     );
+    const supportAction = this.getTrainingAerialSupportAction(position);
+    if (!supportAction) return playerY;
+
+    const jumperY = this.v3YFromDepth(
+      this.getTrainingPreviewDepth(supportAction.playerPosition, this.trainingEditorPhaseIndex),
+      layout
+    );
+    return playerY + Math.sign(jumperY - playerY) * LINEOUT_LIFT_ANIMATION.approachDistancePixels;
   }
 
   private renderTrainingMovementArrows(layout: LineoutLayout): void {
@@ -1330,21 +1338,37 @@ export class LineoutScene extends Phaser.Scene {
     }
     const actions = getV3CombinationPlan(this.selectedCombination)
       .phases[this.trainingEditorPhaseIndex]?.actions ?? [];
-    if (actions.some((action) => action.type === "jump" && action.playerPosition === position)) {
+    if (actions.some((action) => (
+      (action.type === "jump" || action.type === "feint")
+      && action.playerPosition === position
+    ))) {
       return "jumper";
     }
-    const supportedJump = actions.find((action) => (
-      action.type === "jump" && action.lifterPositions.includes(position)
-    ));
-    if (supportedJump?.type === "jump") {
+    const supportedAction = this.getTrainingAerialSupportAction(position);
+    if (supportedAction) {
       const jumperDepth = this.getTrainingPreviewDepth(
-        supportedJump.playerPosition,
+        supportedAction.playerPosition,
         this.trainingEditorPhaseIndex
       );
       const lifterDepth = this.getTrainingPreviewDepth(position, this.trainingEditorPhaseIndex);
       return lifterDepth > jumperDepth ? "hand" : "lifter_front";
     }
     return this.getLineoutPose("us");
+  }
+
+  private getTrainingAerialSupportAction(
+    lifterPosition: LineoutPosition
+  ): Extract<CombinationPhaseAction, { type: "jump" | "feint" }> | undefined {
+    if (this.trainingEditorPhaseIndex === null) return undefined;
+    const actions = getV3CombinationPlan(this.selectedCombination)
+      .phases[this.trainingEditorPhaseIndex]?.actions ?? [];
+    return actions.find((action): action is Extract<CombinationPhaseAction, { type: "jump" | "feint" }> => {
+      if (action.type === "jump") {
+        return action.lifterPositions.includes(lifterPosition);
+      }
+      if (action.type !== "feint") return false;
+      return this.getAutomaticLifterPositions(action.playerPosition).includes(lifterPosition);
+    });
   }
 
   private getTrainingPreviewDepth(position: LineoutPosition, throughPhaseIndex: number): number {
@@ -2084,12 +2108,30 @@ export class LineoutScene extends Phaser.Scene {
     snapshot.players.forEach((state) => {
       const token = this.findV3Token(state.player.id);
       if (!token || this.dragState?.token === token) return;
-      token.x = this.mode === "training"
+      const baseX = this.mode === "training"
         ? layout.hookerX + (state.position.lateralMeters + 0.72) * lateralScale
         : SCREEN_WIDTH / 2 + state.position.lateralMeters * lateralScale;
       const groundY = this.v3YFromDepth(state.position.depthMeters, layout);
+      const engagedJumper = state.activity === "lifting" && state.engagedByPlayerId
+        ? snapshot.players.find((candidate) => candidate.player.id === state.engagedByPlayerId)
+        : undefined;
+      const approachProgress = engagedJumper?.jump
+        ? this.getV3LifterApproachProgress(
+          snapshot.elapsedMs - engagedJumper.jump.startedAtMs,
+          engagedJumper.jump.durationMs
+        )
+        : 0;
+      const jumperGroundY = engagedJumper
+        ? this.v3YFromDepth(engagedJumper.position.depthMeters, layout)
+        : groundY;
+      const approachY = Math.sign(jumperGroundY - groundY)
+        * LINEOUT_LIFT_ANIMATION.approachDistancePixels
+        * approachProgress;
+      const corridorDirection = this.mode === "training" ? 0 : Math.sign(SCREEN_WIDTH / 2 - baseX);
+      token.x = baseX
+        + corridorDirection * LINEOUT_LIFT_ANIMATION.contestCenterShiftPixels * approachProgress;
       const elevationPixels = state.position.heightMeters * 34;
-      token.y = groundY - elevationPixels;
+      token.y = groundY + approachY - elevationPixels;
       token.setShadowElevation(elevationPixels);
       if (state.activity === "ready" || state.activity === "unavailable") token.resetPose();
       this.syncPlayerTokenDepth(token);
@@ -2109,6 +2151,20 @@ export class LineoutScene extends Phaser.Scene {
       );
       this.v3BallSprite.setAngle(snapshot.ball.completed ? 90 : -8);
     }
+  }
+
+  private getV3LifterApproachProgress(elapsedMs: number, durationMs: number): number {
+    const approachProgress = Phaser.Math.Clamp(
+      elapsedMs / LINEOUT_LIFT_ANIMATION.approachDurationMs,
+      0,
+      1
+    );
+    const returnProgress = Phaser.Math.Clamp(
+      (durationMs - elapsedMs) / LINEOUT_LIFT_ANIMATION.lifterReturnDurationMs,
+      0,
+      1
+    );
+    return Math.min(approachProgress, returnProgress);
   }
 
   private handleV3Resolution(
@@ -3209,7 +3265,9 @@ export class LineoutScene extends Phaser.Scene {
     this.time.delayedCall(jumpAnimationDelayMs, () => {
       const targetPosition = targetToken.getData("lineoutPosition") as LineoutPosition | undefined;
       const originalTargetX = targetToken.x;
-      const contestDirection = Math.sign(contestCenterX - originalTargetX);
+      const contestDirection = this.mode === "training"
+        ? 0
+        : Math.sign(contestCenterX - originalTargetX);
       const contestedTargetX = originalTargetX
         + contestDirection * LINEOUT_LIFT_ANIMATION.contestCenterShiftPixels;
       const targetLean = contestDirection * LINEOUT_LIFT_ANIMATION.contestJumperLeanDegrees;

@@ -28,6 +28,7 @@ export type LineoutV3Movement = {
 export type LineoutV3Jump = {
   startedAtMs: number;
   durationMs: number;
+  apexHoldDurationMs: number;
   maximumHandHeightMeters: number;
   lifterIds: string[];
   feint: boolean;

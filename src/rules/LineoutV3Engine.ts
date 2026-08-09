@@ -237,7 +237,7 @@ export class LineoutV3Engine {
       return [{ type: "playerMoved", playerId: player.player.id }];
     }
     if (action.type === "feint") {
-      return this.startJump(player, [], true);
+      return this.startJump(player, this.findCompatibleLifters(player, 2), true);
     }
     const lifters = action.lifterPositions
       .map((position) => this.playerIdByAttackingPosition.get(position))
@@ -256,7 +256,7 @@ export class LineoutV3Engine {
     jumper.movement = undefined;
     jumper.hasJumped = true;
     const effectiveSpeed = this.effectiveStat(jumper, jumper.player.speed);
-    const durationMs = feint
+    const movementDurationMs = feint
       ? V3.jump.feintDurationMs
       : this.interpolateByStat(
         effectiveSpeed,
@@ -277,10 +277,15 @@ export class LineoutV3Engine {
       : lifters.length === 1
         ? V3.jump.oneLifterElevationMeters * liftStrength / 100
         : 0;
+    const apexHoldDurationMs = feint
+      ? 0
+      : this.calculateApexHoldDurationMs(jumper, lifters, liftStrength);
+    const durationMs = movementDurationMs + apexHoldDurationMs;
     jumper.activity = feint ? "feinting" : "jumping";
     jumper.jump = {
       startedAtMs: this.elapsedMs,
       durationMs,
+      apexHoldDurationMs,
       maximumHandHeightMeters: V3.jump.standingHandHeightMeters + (
         feint ? V3.jump.feintElevationMeters : soloElevation + liftElevation
       ),
@@ -340,12 +345,28 @@ export class LineoutV3Engine {
   private updateJump(player: LineoutV3PlayerState): void {
     const jump = player.jump;
     if (!jump) return;
-    const progress = clamp((this.elapsedMs - jump.startedAtMs) / jump.durationMs, 0, 1);
-    const elevation = Math.sin(Math.PI * progress)
-      * (jump.maximumHandHeightMeters - V3.jump.standingHandHeightMeters);
+    const elapsedMs = this.elapsedMs - jump.startedAtMs;
+    const movementDurationMs = jump.durationMs - jump.apexHoldDurationMs;
+    const ascentDurationMs = movementDurationMs / 2;
+    const descentStartedAtMs = ascentDurationMs + jump.apexHoldDurationMs;
+    const maximumElevation = jump.maximumHandHeightMeters - V3.jump.standingHandHeightMeters;
+    let elevation: number;
+    if (elapsedMs < ascentDurationMs) {
+      const ascentProgress = clamp(elapsedMs / ascentDurationMs, 0, 1);
+      elevation = Math.sin(ascentProgress * Math.PI / 2) * maximumElevation;
+    } else if (elapsedMs < descentStartedAtMs) {
+      elevation = maximumElevation;
+    } else {
+      const descentProgress = clamp(
+        (elapsedMs - descentStartedAtMs) / ascentDurationMs,
+        0,
+        1
+      );
+      elevation = Math.cos(descentProgress * Math.PI / 2) * maximumElevation;
+    }
     player.position.heightMeters = elevation;
     player.handHeightMeters = V3.jump.standingHandHeightMeters + elevation;
-    if (progress < 1) return;
+    if (elapsedMs < jump.durationMs) return;
 
     player.position.heightMeters = 0;
     player.handHeightMeters = V3.jump.standingHandHeightMeters;
@@ -358,6 +379,31 @@ export class LineoutV3Engine {
       }
     });
     player.jump = undefined;
+  }
+
+  private calculateApexHoldDurationMs(
+    jumper: LineoutV3PlayerState,
+    lifters: readonly LineoutV3PlayerState[],
+    averageLifterStrength: number
+  ): number {
+    if (lifters.length === 0) return 0;
+    const effectiveTechnique = this.effectiveStat(jumper, jumper.player.technique);
+    const holdQuality = clamp(
+      averageLifterStrength * V3.jump.lifterStrengthHoldWeight
+      + effectiveTechnique * V3.jump.jumperTechniqueHoldWeight,
+      0,
+      100
+    );
+    const lifterCountMultiplier = lifters.length === 1
+      ? V3.jump.oneLifterHoldDurationMultiplier
+      : 1;
+    return Math.round(
+      this.interpolate(
+        V3.jump.minimumApexHoldDurationMs,
+        V3.jump.maximumApexHoldDurationMs,
+        holdQuality / 100
+      ) * lifterCountMultiplier
+    );
   }
 
   private updateBall(): LineoutV3Event[] {
