@@ -6,12 +6,24 @@ import type {
   LineoutPosition
 } from "../models/Combination";
 import type { FieldPlayer } from "../models/Player";
-import { getV3CombinationPlan } from "./LineoutV3Combination";
+import { getV3CombinationPlan, moveV3JumpsToFinalPhase } from "./LineoutV3Combination";
 
 export type LineoutV3AerialActionEligibility = {
   eligible: boolean;
   lifterPositions: LineoutPosition[];
 };
+
+export function isLineoutV3AerialStructureEligible(
+  jumper: FieldPlayer,
+  frontLifter: FieldPlayer | undefined,
+  rearLifter: FieldPlayer | undefined
+): boolean {
+  if (!rearLifter) return false;
+  if (frontLifter) return true;
+  return rearLifter.strength > JUMP.singleRearLifterMinimumStrengthExclusive
+    && jumper.speed > JUMP.singleRearLifterMinimumJumperSpeedExclusive
+    && jumper.technique > JUMP.singleRearLifterMinimumJumperTechniqueExclusive;
+}
 
 type PositionedPlayer = {
   playerPosition: LineoutPosition;
@@ -34,16 +46,25 @@ export function evaluateLineoutV3AerialActionEligibility(
   const jumper = positionedPlayers[jumperIndex];
   if (!jumper) return { eligible: false, lifterPositions: [] };
 
-  const frontLifter = positionedPlayers[jumperIndex - 1];
-  const rearLifter = positionedPlayers[jumperIndex + 1];
-  const hasTwoSurroundingPlayers = Boolean(frontLifter && rearLifter);
-  const hasExceptionalSingleRearLift = Boolean(
-    rearLifter
-    && rearLifter.player.strength > JUMP.singleRearLifterMinimumStrengthExclusive
-    && jumper.player.speed > JUMP.singleRearLifterMinimumJumperSpeedExclusive
-    && jumper.player.technique > JUMP.singleRearLifterMinimumJumperTechniqueExclusive
+  const frontCandidate = positionedPlayers[jumperIndex - 1];
+  const rearCandidate = positionedPlayers[jumperIndex + 1];
+  const frontDistance = frontCandidate
+    ? jumper.depthMeters - frontCandidate.depthMeters
+    : Number.POSITIVE_INFINITY;
+  const rearDistance = rearCandidate
+    ? rearCandidate.depthMeters - jumper.depthMeters
+    : Number.POSITIVE_INFINITY;
+  const frontLifter = frontDistance > 0.01 && frontDistance <= JUMP.lifterReachMeters
+    ? frontCandidate
+    : undefined;
+  const rearLifter = rearDistance > 0.01 && rearDistance <= JUMP.lifterReachMeters
+    ? rearCandidate
+    : undefined;
+  const eligible = isLineoutV3AerialStructureEligible(
+    jumper.player,
+    frontLifter?.player,
+    rearLifter?.player
   );
-  const eligible = hasTwoSurroundingPlayers || hasExceptionalSingleRearLift;
   if (!eligible) return { eligible: false, lifterPositions: [] };
 
   return {
@@ -58,8 +79,9 @@ export function removeInvalidLineoutV3AerialActions(
   players: readonly FieldPlayer[],
   plan: CombinationPlan
 ): CombinationPlan {
+  const normalizedPlan = moveV3JumpsToFinalPhase(plan);
   return {
-    phases: plan.phases.map((phase, phaseIndex) => ({
+    phases: normalizedPlan.phases.map((phase, phaseIndex) => ({
       ...phase,
       actions: phase.actions.reduce<CombinationPhaseAction[]>((validActions, action) => {
         if (action.type === "move") {
@@ -71,7 +93,7 @@ export function removeInvalidLineoutV3AerialActions(
           players,
           action.playerPosition,
           phaseIndex,
-          plan
+          normalizedPlan
         );
         if (!eligibility.eligible) return validActions;
         if (action.type === "jump") {

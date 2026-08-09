@@ -4,6 +4,7 @@ import {
   MATCH_SCORE_OVERLAY_DEPTH,
   MATCH_SCORE_OVERLAY_LAYOUT
 } from "./MatchScoreOverlayLayout";
+import { fitTextToWidth } from "./TextFit";
 
 export type MatchScoreOverlayData = {
   homeName: string;
@@ -153,13 +154,17 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     align: "left" | "right"
   ): Phaser.GameObjects.Text {
     const normalizedName = name.toUpperCase();
-    const fontSize = normalizedName.length > 20 ? 9 : normalizedName.length > 15 ? 10 : 12;
-    return scene.add.text(x, y, normalizedName, {
-      font: `bold ${fontSize}px Arial`,
+    const textObject = scene.add.text(x, y, normalizedName, {
+      font: "bold 12px Arial",
       color: "#f8fafc",
       align,
       stroke: "#020617",
       strokeThickness: 2
     }).setOrigin(align === "left" ? 0 : 1, 0.5);
+    return fitTextToWidth(
+      textObject,
+      MATCH_SCORE_OVERLAY_LAYOUT.centerPanelX - 20,
+      8
+    );
   }
 }

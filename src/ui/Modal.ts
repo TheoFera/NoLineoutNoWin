@@ -13,7 +13,26 @@ export type ModalSecondaryAction = {
 export type ModalOptions = {
   primaryLabel?: string;
   secondaryAction?: ModalSecondaryAction;
+  tone?: "default" | "success" | "danger";
 };
+
+const MODAL_TONES = {
+  default: {
+    background: UI.colors.panelDark,
+    border: UI.colors.accent,
+    title: UI.colors.text
+  },
+  success: {
+    background: 0x0b2e1d,
+    border: 0x4ade80,
+    title: "#86efac"
+  },
+  danger: {
+    background: 0x32131a,
+    border: 0xf87171,
+    title: "#fca5a5"
+  }
+} as const;
 
 export class Modal extends Phaser.GameObjects.Container {
   constructor(
@@ -24,6 +43,7 @@ export class Modal extends Phaser.GameObjects.Container {
     options: ModalOptions = {}
   ) {
     super(scene, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+    const tone = MODAL_TONES[options.tone ?? "default"];
     const backdrop = scene.add.rectangle(
       0,
       0,
@@ -34,7 +54,7 @@ export class Modal extends Phaser.GameObjects.Container {
     ).setInteractive();
     const titleText = scene.add.text(0, 0, title, {
       font: UI.font.subtitle,
-      color: UI.colors.text,
+      color: tone.title,
       align: "center",
       wordWrap: { width: 276 }
     }).setOrigin(0.5);
@@ -53,7 +73,8 @@ export class Modal extends Phaser.GameObjects.Container {
       202,
       topPadding + titleText.height + titleGap + bodyText.height + buttonGap + buttonHeight + bottomPadding
     );
-    const bg = scene.add.rectangle(0, 0, 332, panelHeight, UI.colors.panelDark, 0.96).setStrokeStyle(2, UI.colors.accent);
+    const bg = scene.add.rectangle(0, 0, 332, panelHeight, tone.background, 0.98)
+      .setStrokeStyle(2, tone.border);
     const panelTop = -panelHeight / 2;
     const titleY = panelTop + topPadding + titleText.height / 2;
     const bodyY = titleY + titleText.height / 2 + titleGap + bodyText.height / 2;

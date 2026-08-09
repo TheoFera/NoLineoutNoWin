@@ -134,6 +134,13 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     return this;
   }
 
+  getVisualCenterOffsetY(): number {
+    if (this.rugbyPlayer) {
+      return this.rugbyPlayer.y - this.rugbyPlayer.getVisualHeight() / 2;
+    }
+    return -22;
+  }
+
   attachToBody(
     gameObject: Phaser.GameObjects.Image
       | Phaser.GameObjects.Ellipse
@@ -200,7 +207,7 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   }
 
   private syncShadowPosition(): void {
-    this.shadow?.setGroundPosition(this.x, this.y + 4);
+    this.shadow?.setPlayerFeetPosition(this.x, this.y + 4);
   }
 
   private createRoleIcons(

@@ -4,6 +4,8 @@ import type { PoseName } from "./RugbyPlayerTypes";
 export const LINEOUT_LIFT_ANIMATION = {
   approachDurationMs: 70,
   approachDistancePixels: 16,
+  frontLifterApproachDistancePixels: 35,
+  frontLifterApproachDurationMs: 150,
   jumpAnticipationMs: 40,
   contestCenterShiftPixels: 8,
   contestJumperLeanDegrees: 5,
@@ -24,6 +26,7 @@ export const LINEOUT_LIFT_ANIMATION = {
 export type LifterAnimationConfig = {
   pose: PoseName;
   approachOffsetY: number;
+  approachDurationMs: number;
 };
 
 export type LineoutJumpAnimationMetrics = {
@@ -62,14 +65,16 @@ export function getLifterAnimationConfig(
   if (supportPosition === targetPosition - 1) {
     return {
       pose: "lifter_front",
-      approachOffsetY: -LINEOUT_LIFT_ANIMATION.approachDistancePixels
+      approachOffsetY: -LINEOUT_LIFT_ANIMATION.frontLifterApproachDistancePixels,
+      approachDurationMs: LINEOUT_LIFT_ANIMATION.frontLifterApproachDurationMs
     };
   }
 
   if (supportPosition === targetPosition + 1) {
     return {
       pose: "hand",
-      approachOffsetY: LINEOUT_LIFT_ANIMATION.approachDistancePixels
+      approachOffsetY: LINEOUT_LIFT_ANIMATION.approachDistancePixels,
+      approachDurationMs: LINEOUT_LIFT_ANIMATION.approachDurationMs
     };
   }
 

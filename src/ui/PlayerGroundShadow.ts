@@ -8,9 +8,7 @@ export const PLAYER_GROUND_SHADOW_STYLE = {
   angleDegrees: -40,
   contactOffsetX: 1,
   contactOffsetY: -7,
-  baseAlpha: 0.25,
-  maximumElevationAlphaReduction: 0.13,
-  maximumElevationScaleReduction: 0.45
+  baseAlpha: 0.25
 } as const;
 
 export function getPlayerShadowProjectionOffset(distancePixels: number): { x: number; y: number } {
@@ -22,12 +20,16 @@ export function getPlayerShadowProjectionOffset(distancePixels: number): { x: nu
   };
 }
 
-export function getElevatedObjectShadowOffset(elevationPixels: number): { x: number; y: number } {
+export function getElevatedObjectShadowOffset(
+  elevationPixels: number,
+  projectionDistanceScale = 1
+): { x: number; y: number } {
   const projectedPoint = getPlayerShadowProjectionOffset(elevationPixels);
   return {
-    x: projectedPoint.x + PLAYER_GROUND_SHADOW_STYLE.contactOffsetX,
+    x: projectedPoint.x * projectionDistanceScale
+      + PLAYER_GROUND_SHADOW_STYLE.contactOffsetX,
     y: elevationPixels
-      + projectedPoint.y
+      + projectedPoint.y * projectionDistanceScale
       + PLAYER_GROUND_SHADOW_STYLE.contactOffsetY
   };
 }
@@ -91,24 +93,25 @@ export class PlayerGroundShadow extends Phaser.GameObjects.Container {
 
   setElevation(elevationPixels: number): this {
     this.elevation = Math.max(0, elevationPixels);
-    const elevationRatio = Phaser.Math.Clamp(this.elevation / (this.playerHeight * 0.9), 0, 1);
-    const scale = 1
-      - elevationRatio * PLAYER_GROUND_SHADOW_STYLE.maximumElevationScaleReduction;
-
-    this.setPosition(this.groundX, this.groundY + this.elevation);
-    this.applyProjectedScale(scale);
-    this.silhouette.setAlpha(
-      PLAYER_GROUND_SHADOW_STYLE.baseAlpha
-        - elevationRatio * PLAYER_GROUND_SHADOW_STYLE.maximumElevationAlphaReduction
-    );
+    this.updateProjectedPosition();
+    this.applyProjectedScale(1);
+    this.silhouette.setAlpha(PLAYER_GROUND_SHADOW_STYLE.baseAlpha);
     return this;
   }
 
-  setGroundPosition(x: number, y: number): this {
+  setPlayerFeetPosition(x: number, elevatedFeetY: number): this {
     this.groundX = x;
-    this.groundY = y;
-    this.setPosition(this.groundX, this.groundY + this.elevation);
+    this.groundY = elevatedFeetY + this.elevation;
+    this.updateProjectedPosition();
     return this;
+  }
+
+  private updateProjectedPosition(): void {
+    const projection = getPlayerShadowProjectionOffset(this.elevation);
+    this.setPosition(
+      this.groundX + projection.x,
+      this.groundY + projection.y
+    );
   }
 
   private refreshTexture(): void {

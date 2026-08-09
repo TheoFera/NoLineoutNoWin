@@ -72,6 +72,7 @@ export class TeamCreationScene extends Phaser.Scene {
       : createDefaultTeamPlayerDrafts();
     this.clubDraft = {
       clubName: data.clubName,
+      leagueId: data.leagueId,
       primaryColor: data.primaryColor,
       secondaryColor: data.secondaryColor
     };
@@ -437,7 +438,8 @@ export class TeamCreationScene extends Phaser.Scene {
       this.clubDraft.clubName,
       this.clubDraft.primaryColor,
       this.clubDraft.secondaryColor,
-      this.players
+      this.players,
+      this.clubDraft.leagueId
     );
     navigateTo(this, "LineoutScene", { mode: "training" });
   }

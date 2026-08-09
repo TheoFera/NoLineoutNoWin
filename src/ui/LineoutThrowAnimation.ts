@@ -1,6 +1,7 @@
 import type { CombinationTargetOption } from "../models/Combination";
 import type { LineoutResult, LineoutTrajectory } from "../models/Lineout";
 import type { RandomSource } from "../utils/Random";
+import type { PoseName } from "./RugbyPlayerTypes";
 import {
   getLineoutJumpAnimationMetrics,
   LINEOUT_LIFT_ANIMATION
@@ -15,12 +16,15 @@ export const LINEOUT_THROW_ANIMATION = {
   hookerBallHeightFromFeetRatio: 305 / 370,
   ballShadowApexPlayerHeightRatio: 1.15,
   ballShadowApexScale: 0.55,
+  ballShadowMaximumDistanceScale: 1.8,
   straightMaximumHorizontalOffsetPixels: 9.5,
   notStraightMinimumHorizontalOffsetPixels: 25.01,
   maximumHorizontalOffsetPixels: 150,
   gaussianMaximumStandardDeviations: 3,
   preciseCatchHeightRatio: 0.82,
   handPoseBallHeightRatio: 0.54,
+  caughtHandPoseBallHeightRatio: 190 / 370,
+  caughtJumperPoseBallHeightRatio: 0.86,
   playerTokenSpriteFeetOffsetPixels: 4,
   lowCatchHeightRatio: 0.5,
   highClearancePixels: 18,
@@ -43,6 +47,8 @@ export const LINEOUT_THROW_ANIMATION = {
   continuationDurationMs: 210,
   knockOnDropDurationMs: 260,
   knockOnBounceDurationMs: 90,
+  v3KnockOnContactDurationMs: 120,
+  v3KnockOnForwardPixels: 34,
   caughtHoldDurationMs: 180,
   resultHoldDurationMs: 100
 } as const;
@@ -543,6 +549,20 @@ export function getHandPoseBallOffset(
     x: 0,
     y: LINEOUT_THROW_ANIMATION.playerTokenSpriteFeetOffsetPixels
       - playerHeight * LINEOUT_THROW_ANIMATION.handPoseBallHeightRatio
+  };
+}
+
+export function getCaughtBallPlacement(
+  pose: Extract<PoseName, "hand" | "jumper">,
+  playerHeight: number
+): BallAnimationTargetOffset & { angle: number } {
+  const heightRatio = pose === "jumper"
+    ? LINEOUT_THROW_ANIMATION.caughtJumperPoseBallHeightRatio
+    : LINEOUT_THROW_ANIMATION.caughtHandPoseBallHeightRatio;
+  return {
+    x: 0,
+    y: LINEOUT_THROW_ANIMATION.playerTokenSpriteFeetOffsetPixels - playerHeight * heightRatio,
+    angle: 0
   };
 }
 

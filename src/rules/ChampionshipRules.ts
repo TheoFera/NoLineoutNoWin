@@ -2,18 +2,21 @@ import { getOpponentCatalog } from "../ai/OpponentGenerator.ts";
 import type { ChampionshipState, ChampionshipTeamRecord, SeasonSummary } from "../models/Championship.ts";
 import type { DivisionId } from "../models/Division.ts";
 import type { OpponentClub } from "../models/OpponentClub.ts";
+import type { FfrLeagueId } from "../models/ClubLocation.ts";
+import { DEFAULT_FFR_LEAGUE_ID } from "../data/frenchRugbyLeagues.ts";
 import { getNextDivision } from "./DivisionRules.ts";
-import { randomInt } from "../utils/Random.ts";
+import { MATH_RANDOM_SOURCE, randomInt, type RandomSource } from "../utils/Random.ts";
 
 const PLAYER_TEAM_ID = "player_team";
 const OPPONENT_COUNT = 5;
 const WIN_POINTS = 4;
 const DRAW_POINTS = 2;
+const REGIONAL_DIVISIONS: DivisionId[] = ["regionale_3", "regionale_2", "regionale_1"];
 
-function shuffle<T>(items: T[]): T[] {
+function shuffle<T>(items: T[], randomSource: RandomSource = MATH_RANDOM_SOURCE): T[] {
   const copy = items.slice();
   for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = randomInt(0, index);
+    const swapIndex = randomInt(0, index, randomSource);
     [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
   }
   return copy;
@@ -33,42 +36,74 @@ function createRecord(teamId: string, name: string): ChampionshipTeamRecord {
   };
 }
 
-function pickChampionshipOpponents(divisionId: DivisionId, count: number): OpponentClub[] {
-  const catalog = getOpponentCatalog();
-  const preferred = shuffle(catalog.filter((club) => club.sourceDivisionId === divisionId));
-  const fallback = shuffle(catalog.filter((club) => club.sourceDivisionId !== divisionId));
-  const ordered = [...preferred, ...fallback];
+function selectClubsWithVariedColors(
+  clubs: OpponentClub[],
+  count: number,
+  randomSource: RandomSource
+): OpponentClub[] {
+  const ordered = shuffle(clubs, randomSource);
   const selected: OpponentClub[] = [];
   const seenColorKeys = new Set<string>();
 
   for (const club of ordered) {
-    if (seenColorKeys.has(club.colorKey)) {
-      continue;
+    if (!seenColorKeys.has(club.colorKey)) {
+      selected.push(club);
+      seenColorKeys.add(club.colorKey);
     }
-
-    selected.push(club);
-    seenColorKeys.add(club.colorKey);
-    if (selected.length === count) {
-      return selected;
-    }
+    if (selected.length === count) return selected;
   }
 
   for (const club of ordered) {
-    if (selected.some((item) => item.id === club.id)) {
-      continue;
-    }
-
-    selected.push(club);
-    if (selected.length === count) {
-      return selected;
-    }
-  }
-
-  if (selected.length < count) {
-    throw new Error(`Not enough opponent clubs to build a championship of ${count} teams.`);
+    if (!selected.some((item) => item.id === club.id)) selected.push(club);
+    if (selected.length === count) return selected;
   }
 
   return selected;
+}
+
+function pickChampionshipOpponents(
+  divisionId: DivisionId,
+  count: number,
+  leagueId: FfrLeagueId,
+  randomSource: RandomSource
+): { clubs: OpponentClub[]; poolId: string } {
+  const catalog = getOpponentCatalog();
+  if (REGIONAL_DIVISIONS.includes(divisionId)) {
+    const sameDivision = catalog.filter((club) => (
+      club.sourceDivisionId === divisionId && club.sourceLeagueId === leagueId
+    ));
+    const otherRegionalClubs = catalog.filter((club) => (
+      REGIONAL_DIVISIONS.includes(club.sourceDivisionId)
+      && club.sourceLeagueId === leagueId
+      && club.sourceDivisionId !== divisionId
+    ));
+    const candidates = sameDivision.length >= count
+      ? sameDivision
+      : [...sameDivision, ...otherRegionalClubs];
+    if (candidates.length === 0) {
+      throw new Error(`No regional opponent club is available for league ${leagueId}.`);
+    }
+    return {
+      clubs: selectClubsWithVariedColors(candidates, count, randomSource),
+      poolId: `regional_${leagueId}`
+    };
+  }
+
+  const divisionClubs = catalog.filter((club) => club.sourceDivisionId === divisionId);
+  const pools = new Map<string, OpponentClub[]>();
+  divisionClubs.forEach((club) => {
+    const clubs = pools.get(club.sourcePoolId) ?? [];
+    clubs.push(club);
+    pools.set(club.sourcePoolId, clubs);
+  });
+  const selectedPool = shuffle([...pools.entries()], randomSource)[0];
+  if (!selectedPool) {
+    throw new Error(`No opponent pool is available for division ${divisionId}.`);
+  }
+  return {
+    clubs: selectClubsWithVariedColors(selectedPool[1], count, randomSource),
+    poolId: selectedPool[0]
+  };
 }
 
 function updateRecord(record: ChampionshipTeamRecord, pointsFor: number, pointsAgainst: number): ChampionshipTeamRecord {
@@ -139,21 +174,29 @@ export function getGoalAverage(record: ChampionshipTeamRecord): number {
   return record.pointsFor - record.pointsAgainst;
 }
 
-export function createChampionshipState(divisionId: DivisionId, season: number, playerTeamName: string): ChampionshipState {
-  const selectedClubs = pickChampionshipOpponents(divisionId, OPPONENT_COUNT);
+export function createChampionshipState(
+  divisionId: DivisionId,
+  season: number,
+  playerTeamName: string,
+  leagueId: FfrLeagueId = DEFAULT_FFR_LEAGUE_ID,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): ChampionshipState {
+  const selection = pickChampionshipOpponents(divisionId, OPPONENT_COUNT, leagueId, randomSource);
   const opponentIds: string[] = [];
   const standings: ChampionshipTeamRecord[] = [createRecord(PLAYER_TEAM_ID, playerTeamName)];
 
-  selectedClubs.forEach((club) => {
+  selection.clubs.forEach((club) => {
     opponentIds.push(club.id);
     standings.push(createRecord(club.id, club.name));
   });
-  const firstLeg = shuffle(opponentIds);
-  const returnLeg = shuffle(opponentIds);
+  const firstLeg = shuffle(opponentIds, randomSource);
+  const returnLeg = shuffle(opponentIds, randomSource);
 
   return {
     season,
     divisionId,
+    leagueId: REGIONAL_DIVISIONS.includes(divisionId) ? leagueId : null,
+    poolId: selection.poolId,
     nextRound: 1,
     totalRounds: firstLeg.length + returnLeg.length,
     schedule: [...firstLeg, ...returnLeg],
@@ -165,10 +208,11 @@ export function normalizeChampionshipState(
   championship: ChampionshipState | undefined,
   divisionId: DivisionId,
   season: number,
-  playerTeamName: string
+  playerTeamName: string,
+  leagueId: FfrLeagueId = DEFAULT_FFR_LEAGUE_ID
 ): ChampionshipState {
   if (!championship) {
-    return createChampionshipState(divisionId, season, playerTeamName);
+    return createChampionshipState(divisionId, season, playerTeamName, leagueId);
   }
 
   const uniqueOpponentIds = Array.from(new Set(championship.schedule));
@@ -177,6 +221,8 @@ export function normalizeChampionshipState(
     : championship.schedule;
   return {
     ...championship,
+    leagueId: championship.leagueId ?? (REGIONAL_DIVISIONS.includes(divisionId) ? leagueId : null),
+    poolId: championship.poolId ?? "historique",
     schedule,
     totalRounds: schedule.length,
     standings: championship.standings.map((record) => ({
@@ -203,7 +249,8 @@ export function applyMatchToChampionship(
   championship: ChampionshipState,
   ourScore: number,
   opponentScore: number,
-  playerTeamName: string
+  playerTeamName: string,
+  leagueId: FfrLeagueId = DEFAULT_FFR_LEAGUE_ID
 ): {
   championship: ChampionshipState;
   divisionId: DivisionId;
@@ -252,7 +299,7 @@ export function applyMatchToChampionship(
   }
 
   return {
-    championship: createChampionshipState(nextDivisionId, nextSeason, playerTeamName),
+    championship: createChampionshipState(nextDivisionId, nextSeason, playerTeamName, leagueId),
     divisionId: nextDivisionId,
     season: nextSeason,
     promoted,

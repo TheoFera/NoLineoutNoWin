@@ -79,7 +79,7 @@ function inferDivisionFromLegacyBase(base: number): DivisionId {
 export function createDefaultHooker(
   id: string,
   nickname: string,
-  base = 65,
+  base = 60,
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): Hooker {
   return generateLineoutRoster({
@@ -93,7 +93,7 @@ export function createDefaultHooker(
 }
 
 export function createDefaultFieldPlayers(
-  base = 65,
+  base = 60,
   prefix = "p",
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): FieldPlayer[] {
@@ -108,7 +108,7 @@ export function createDefaultFieldPlayers(
 }
 
 export function createDefaultLineoutPlayers(
-  base = 65,
+  base = 60,
   prefix = "p",
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): FieldPlayer[] {
@@ -151,12 +151,14 @@ export function createDefaultPlayerTeam(
     ...generated,
     hooker,
     fieldPlayers,
-    lineoutPlayers: fieldPlayers.slice(0, DEFAULT_TEAM_SIZE)
+    lineoutPlayers: fieldPlayers.slice(0, DEFAULT_TEAM_SIZE),
+    offensiveCombinations: undefined,
+    offensiveRepertoire: undefined
   };
 }
 
 export function normalizeTeam(team: StoredTeamShape): Team {
-  const fallback = createDefaultFieldPlayers(65, "p", createSeededRandom(1));
+  const fallback = createDefaultFieldPlayers(60, "p", createSeededRandom(1));
   const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
   const lineoutPlayers = normalizeLineoutPlayers(fieldPlayers, team.lineoutPlayers);
   const hooker = normalizeStoredHooker(team.hooker);

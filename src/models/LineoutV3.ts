@@ -23,6 +23,7 @@ export type LineoutV3Movement = {
   destinationDepthMeters: number;
   waypoints: Array<Pick<LineoutV3Point, "depthMeters" | "lateralMeters">>;
   waypointIndex: number;
+  speedMetersPerSecond?: number;
 };
 
 export type LineoutV3Jump = {

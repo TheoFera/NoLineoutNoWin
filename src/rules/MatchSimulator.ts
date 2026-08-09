@@ -617,19 +617,39 @@ function attemptImmediateLineoutTry(
       : BALANCE.immediateTryProbability.distance16To22;
   const probability = outcome === "cleanWin" ? bracket.cleanWin : bracket.scrappyWin;
   return randomFloat(0, 1, randomSource) < probability
-    ? scoreTry(match, owner, randomSource)
+    ? scoreTry(match, owner, randomSource, true)
     : match;
 }
 
 function scoreTry(
   match: MatchStateData,
   owner: MatchBallOwner,
-  randomSource: RandomSource
+  randomSource: RandomSource,
+  hasJustWonLineout = false
 ): MatchStateData {
+  if (!hasJustWonLineout && !hasWonRecentLineout(match, owner)) return match;
   const points = randomFloat(0, 1, randomSource) < BALANCE.conversionSuccessProbability
     ? BALANCE.points.convertedTry
     : BALANCE.points.unconvertedTry;
   return applyScore(match, owner, points);
+}
+
+function hasWonRecentLineout(match: MatchStateData, owner: MatchBallOwner): boolean {
+  const earliestEligibleMinute = match.minute - BALANCE.tryEligibilityLineoutWindowMinutes;
+  return match.lineoutHistory.some((lineout) => {
+    if (lineout.minute < earliestEligibleMinute || lineout.minute > match.minute) return false;
+    if (lineout.officialOutcome === "cleanWin" || lineout.officialOutcome === "scrappyWin") {
+      return owner === ownerForThrowingSide(lineout.throwingSide);
+    }
+    if (lineout.officialOutcome === "cleanSteal" || lineout.officialOutcome === "deflectedTurnover") {
+      return owner === oppositeOwner(ownerForThrowingSide(lineout.throwingSide));
+    }
+    return false;
+  });
+}
+
+function ownerForThrowingSide(throwingSide: "us" | "opponent"): MatchBallOwner {
+  return throwingSide === "us" ? "player" : "opponent";
 }
 
 function applyScore(

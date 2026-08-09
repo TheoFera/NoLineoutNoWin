@@ -1,9 +1,8 @@
 import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2, SaveGameV3, SaveGameV4 } from "../models/SaveGame";
 import type { MatchStateData } from "../models/Match";
 import type { Team } from "../models/Team";
-import { DEFAULT_COMBINATIONS } from "../data/defaultCombinations";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
-import type { Combination } from "../models/Combination";
+import type { Combination, OffensiveRepertoire } from "../models/Combination";
 import { normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { applyMatchToChampionship, createChampionshipState, normalizeChampionshipState } from "../rules/ChampionshipRules";
 import { normalizePlayerProgressionUsage, resolvePlayerProgression } from "../rules/PlayerProgression";
@@ -34,6 +33,8 @@ import {
 } from "../ai/LineoutMemory";
 import { createOpponentAiIdentity } from "../ai/LineoutAiIdentity";
 import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
+import { DEFAULT_FFR_LEAGUE_ID } from "../data/frenchRugbyLeagues.ts";
+import type { FfrLeagueId } from "../models/ClubLocation.ts";
 
 type StoredTeam = Parameters<typeof normalizeTeam>[0];
 type StoredSaveGame =
@@ -73,7 +74,8 @@ export class GameStore {
     clubName: string,
     primaryColor = DEFAULT_PRIMARY_COLOR,
     secondaryColor = DEFAULT_SECONDARY_COLOR,
-    playerDrafts?: readonly TeamPlayerDraft[]
+    playerDrafts?: readonly TeamPlayerDraft[],
+    clubLeagueId: FfrLeagueId = DEFAULT_FFR_LEAGUE_ID
   ): SaveGame {
     const now = new Date().toISOString();
     const team = createDefaultPlayerTeam(
@@ -82,25 +84,17 @@ export class GameStore {
       undefined,
       playerDrafts
     );
-    const offensiveCombinations = normalizeOffensiveCombinations(
-      team.offensiveCombinations ?? DEFAULT_COMBINATIONS
-    );
-    const division = getDivision("regionale_3");
-    const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision.regionale_3;
+    const offensiveCombinations = normalizeOffensiveCombinations();
     const save: SaveGame = {
       version: 6,
       language: getLanguage(),
       currentDivisionId: "regionale_3",
       season: 1,
       playerTeam: team,
-      championship: createChampionshipState("regionale_3", 1, team.name),
+      clubLeagueId,
+      championship: createChampionshipState("regionale_3", 1, team.name, clubLeagueId),
       offensiveCombinations,
-      offensiveRepertoire: normalizeOffensiveRepertoire(
-        offensiveCombinations.map((combination) => combination.id),
-        division.offensiveCombinations,
-        team.offensiveRepertoire,
-        repertoireLimits.reserve
-      ),
+      offensiveRepertoire: createEmptyOffensiveRepertoire(),
       defensivePriority: normalizeDefensivePriority([], team),
       defenseMemory: createDefaultDefenseMemory(team),
       opponentAiMemories: {},
@@ -260,7 +254,8 @@ export class GameStore {
       this.save.championship,
       this.match.ourScore,
       this.match.opponentScore,
-      this.save.playerTeam.name
+      this.save.playerTeam.name,
+      this.save.clubLeagueId ?? DEFAULT_FFR_LEAGUE_ID
     );
     const nextDivision = getDivision(outcome.divisionId);
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[outcome.divisionId];
@@ -342,6 +337,7 @@ export class GameStore {
     const offensiveCombinations = normalizeOffensiveCombinations(save.offensiveCombinations);
     const division = getDivision(save.currentDivisionId);
     const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[save.currentDivisionId];
+    const clubLeagueId = save.clubLeagueId ?? DEFAULT_FFR_LEAGUE_ID;
     const currentRepertoire = save.version !== 1 ? save.offensiveRepertoire : undefined;
     const hasAiPersistence = save.version === 3 || save.version === 4 || save.version === 6;
     const hasProgressionPersistence = save.version === 4 || save.version === 6;
@@ -354,15 +350,24 @@ export class GameStore {
     return {
       ...save,
       version: 6,
+      clubLeagueId,
       playerTeam,
-      championship: normalizeChampionshipState(save.championship, save.currentDivisionId, save.season, playerTeam.name),
-      offensiveCombinations,
-      offensiveRepertoire: normalizeOffensiveRepertoire(
-        offensiveCombinations.map((combination) => combination.id),
-        division.offensiveCombinations,
-        currentRepertoire,
-        repertoireLimits.reserve
+      championship: normalizeChampionshipState(
+        save.championship,
+        save.currentDivisionId,
+        save.season,
+        playerTeam.name,
+        clubLeagueId
       ),
+      offensiveCombinations,
+      offensiveRepertoire: isEmptyOffensiveRepertoire(currentRepertoire)
+        ? createEmptyOffensiveRepertoire()
+        : normalizeOffensiveRepertoire(
+          offensiveCombinations.map((combination) => combination.id),
+          division.offensiveCombinations,
+          currentRepertoire,
+          repertoireLimits.reserve
+        ),
       defensivePriority: normalizeDefensivePriority(save.defensivePriority, playerTeam),
       defenseMemory: normalizeDefenseMemory(save.defenseMemory, playerTeam),
       opponentAiMemories,
@@ -413,4 +418,21 @@ function withOpponentAppearanceVariation(team: Team): Team {
     fieldPlayers,
     lineoutPlayers: team.lineoutPlayers.map((player) => fieldPlayersById.get(player.id) ?? player)
   };
+}
+
+function createEmptyOffensiveRepertoire(): OffensiveRepertoire {
+  return {
+    activeCombinationIds: [],
+    reserveCombinationIds: []
+  };
+}
+
+function isEmptyOffensiveRepertoire(
+  repertoire?: Partial<OffensiveRepertoire>
+): boolean {
+  return Boolean(
+    repertoire
+    && (repertoire.activeCombinationIds?.length ?? 0) === 0
+    && (repertoire.reserveCombinationIds?.length ?? 0) === 0
+  );
 }

@@ -215,6 +215,8 @@ Si la défense récupère la touche, l’occasion immédiate d’essai est annul
 
 ## 13. Points
 
+Une équipe ne peut marquer un essai que si elle a gagné une touche dans les 20 dernières minutes simulées. Une touche gagnée sur son propre lancer ou volée sur le lancer adverse compte. La touche qui vient d'être gagnée rend immédiatement l'équipe éligible. Cette règle ne bloque pas les pénalités.
+
 Résultats possibles :
 
 - pénalité : 3 points ;

@@ -7,9 +7,11 @@ export function adaptV3ResolutionForPerspective(
   const ourResolutionTeam = perspective === "throwing" ? "throwingTeam" : "defendingTeam";
   const won = resolution.ballTeam === ourResolutionTeam;
   const fault = resolution.outcome === "knockOn" || resolution.outcome === "notStraight";
+  const faultByUs = fault && resolution.offendingTeam === ourResolutionTeam;
   const clean = resolution.outcome === "cleanWin" || resolution.outcome === "cleanSteal";
+  const primaryReason = getV3ReasonKey(resolution, ourResolutionTeam, won);
   return {
-    displayedResult: fault && resolution.offendingTeam === ourResolutionTeam
+    displayedResult: faultByUs
       ? "fault"
       : won
         ? clean ? "won" : "won_dirty"
@@ -25,10 +27,14 @@ export function adaptV3ResolutionForPerspective(
             : "dirty_catch",
     possessionDelta: 0,
     occupationDelta: 0,
-    explanationKey: resolution.primaryReason,
-    presentationTitleKey: won
-      ? clean ? "lineout.v3.title.cleanWin" : "lineout.v3.title.scrappyWin"
-      : fault ? "lineout.v3.title.fault" : "lineout.v3.title.lost",
+    explanationKey: primaryReason,
+    presentationTitleKey: resolution.outcome === "knockOn"
+      ? "lineout.outcome.knockOn"
+      : resolution.outcome === "notStraight"
+        ? faultByUs ? "lineout.v3.title.fault" : "lineout.v3.title.cleanWin"
+        : won
+          ? clean ? "lineout.v3.title.cleanWin" : "lineout.v3.title.scrappyWin"
+          : fault ? "lineout.v3.title.fault" : "lineout.v3.title.lost",
     calculationScore: numericDetail(resolution.details.contactScore),
     calculationDetails: [
       {
@@ -44,8 +50,46 @@ export function adaptV3ResolutionForPerspective(
         value: numericDetail(resolution.details.contactScore)
       }
     ],
-    resolution
+    resolution: primaryReason === resolution.primaryReason
+      ? resolution
+      : { ...resolution, primaryReason }
   };
+}
+
+function getV3ReasonKey(
+  resolution: LineoutResolution,
+  ourResolutionTeam: "throwingTeam" | "defendingTeam",
+  won: boolean
+): string {
+  if (resolution.primaryReason === "lineout.v3.reason.spatialContact") {
+    return won
+      ? "lineout.v3.reason.catchWonByUs"
+      : "lineout.v3.reason.catchWonByOpponent";
+  }
+  if (resolution.outcome === "knockOn") {
+    return resolution.offendingTeam === ourResolutionTeam
+      ? "lineout.v3.reason.knockOnByUs"
+      : "lineout.v3.reason.knockOnByOpponent";
+  }
+  if (resolution.outcome === "notStraight") {
+    return resolution.offendingTeam === ourResolutionTeam
+      ? "lineout.v3.reason.notStraightByUs"
+      : "lineout.v3.reason.notStraightByOpponent";
+  }
+  if (resolution.primaryReason === "lineout.v3.reason.groundRecovery") {
+    const trajectory = resolution.details.trajectory;
+    const trajectoryKey = trajectory === "precise" || trajectory === "low" || trajectory === "high"
+      ? trajectory
+      : "unknown";
+    const teamKey = won ? "ByUs" : "ByOpponent";
+    return `lineout.v3.reason.groundRecovery.${trajectoryKey}${teamKey}`;
+  }
+  if (resolution.primaryReason === "lineout.v3.reason.untouched") {
+    return won
+      ? "lineout.v3.reason.untouchedByUs"
+      : "lineout.v3.reason.untouchedByOpponent";
+  }
+  return resolution.primaryReason;
 }
 
 function numericDetail(value: number | string | boolean | undefined): number {

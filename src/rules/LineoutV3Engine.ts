@@ -18,14 +18,19 @@ import type { FieldPlayer } from "../models/Player";
 import { clamp } from "../utils/Clamp";
 import { MATH_RANDOM_SOURCE, randomFloat, type RandomSource } from "../utils/Random";
 import { calculateBaseKnockOnProbability } from "./LineoutReceptionResolver";
+import { isLineoutV3AerialStructureEligible } from "./LineoutV3ActionEligibility";
 import { getV3CombinationPlan } from "./LineoutV3Combination";
-import { getLineoutV3DepthForPosition } from "./LineoutV3Geometry";
+import {
+  getLineoutV3DepthForPosition,
+  getLineoutV3PositionForDepth
+} from "./LineoutV3Geometry";
 
 const V3 = LINEOUT_BALANCE.gameplayV3;
 
 type TimedContact = {
   player: LineoutV3PlayerState;
   reachScore: number;
+  ballPosition: LineoutV3BallState["position"];
 };
 
 export class LineoutV3Engine {
@@ -41,6 +46,9 @@ export class LineoutV3Engine {
   private ball: LineoutV3BallState | null = null;
   private resolution: LineoutResolution | null = null;
   private feedback: LineoutV3Feedback[] = [];
+  private contactWindowStartedAtMs: number | null = null;
+  private readonly bestContactByPlayerId = new Map<string, TimedContact>();
+  private contestContactAnnounced = false;
 
   constructor(setup: LineoutV3Setup, rng: RandomSource = MATH_RANDOM_SOURCE) {
     this.setup = setup;
@@ -115,8 +123,8 @@ export class LineoutV3Engine {
 
   getCompatibleLifterIds(jumperId: string): string[] {
     const jumper = this.playersById.get(jumperId);
-    if (!jumper || jumper.side !== "defendingTeam") return [];
-    return this.findCompatibleLifters(jumper, 2).map((player) => player.player.id);
+    if (!jumper || jumper.side !== "defendingTeam" || !this.canMove(jumper)) return [];
+    return this.findMovableGroupLifters(jumper).map((player) => player.player.id);
   }
 
   moveDefensiveGroup(
@@ -126,20 +134,33 @@ export class LineoutV3Engine {
   ): LineoutV3Event[] {
     if (this.defenseLocked || this.resolution) return [];
     const jumper = this.playersById.get(jumperId);
-    if (!jumper || jumper.side !== "defendingTeam") return [];
+    if (!jumper || jumper.side !== "defendingTeam" || !this.canMove(jumper)) return [];
     const lifters = frozenLifterIds
       ? frozenLifterIds
         .map((playerId) => this.playersById.get(playerId))
         .filter((player): player is LineoutV3PlayerState => Boolean(player))
-        .filter((player) => this.isAvailableLifter(player, jumper))
+        .filter((player) => this.isMovableGroupLifter(player, jumper))
         .slice(0, 2)
-      : this.findCompatibleLifters(jumper, 2);
+      : this.findMovableGroupLifters(jumper);
     const group = [jumper, ...lifters];
-    const offset = destinationDepthMeters - jumper.position.depthMeters;
+    const groupPlayerIds = new Set(group.map((player) => player.player.id));
+    const groupSpeed = Math.min(...group.map((player) => this.baseMovementSpeed(player)));
+    const destinations = this.findFreeGroupDestinations(
+      group,
+      jumper,
+      destinationDepthMeters,
+      groupPlayerIds
+    );
+    if (!destinations) return [];
     const events: LineoutV3Event[] = [];
     group.forEach((player) => {
       if (!this.canMove(player)) return;
-      this.assignMovement(player, player.position.depthMeters + offset);
+      this.assignMovement(
+        player,
+        destinations.get(player.player.id) ?? player.position.depthMeters,
+        groupPlayerIds,
+        groupSpeed
+      );
       events.push({ type: "playerMoved", playerId: player.player.id });
     });
     return events;
@@ -149,7 +170,9 @@ export class LineoutV3Engine {
     if (!this.defenseLocked || !this.ball || this.resolution) return [];
     const player = this.playersById.get(playerId);
     if (!player || player.side !== "defendingTeam") return [];
-    return this.startJump(player, this.findCompatibleLifters(player, 2), false);
+    const lifters = this.findEligibleDefensiveJumpLifters(player);
+    if (lifters.length === 0) return [];
+    return this.startJump(player, lifters, false);
   }
 
   update(deltaMs: number): LineoutV3Event[] {
@@ -252,9 +275,9 @@ export class LineoutV3Engine {
     lifters: LineoutV3PlayerState[],
     feint: boolean
   ): LineoutV3Event[] {
-    if (jumper.hasJumped || jumper.activity !== "ready") return [];
+    if ((!feint && jumper.hasJumped) || jumper.activity !== "ready") return [];
     jumper.movement = undefined;
-    jumper.hasJumped = true;
+    if (!feint) jumper.hasJumped = true;
     const effectiveSpeed = this.effectiveStat(jumper, jumper.player.speed);
     const movementDurationMs = feint
       ? V3.jump.feintDurationMs
@@ -292,7 +315,7 @@ export class LineoutV3Engine {
       lifterIds: lifters.map((lifter) => lifter.player.id),
       feint
     };
-    jumper.lastJump = { startedAtMs: this.elapsedMs, durationMs };
+    if (!feint) jumper.lastJump = { startedAtMs: this.elapsedMs, durationMs };
     lifters.forEach((lifter) => {
       lifter.movement = undefined;
       lifter.activity = "lifting";
@@ -370,7 +393,7 @@ export class LineoutV3Engine {
 
     player.position.heightMeters = 0;
     player.handHeightMeters = V3.jump.standingHandHeightMeters;
-    player.activity = "unavailable";
+    player.activity = jump.feint ? "ready" : "unavailable";
     jump.lifterIds.forEach((lifterId) => {
       const lifter = this.playersById.get(lifterId);
       if (lifter?.engagedByPlayerId === player.player.id) {
@@ -409,17 +432,42 @@ export class LineoutV3Engine {
   private updateBall(): LineoutV3Event[] {
     const ball = this.ball;
     if (!ball || ball.completed || this.resolution) return [];
+    const events: LineoutV3Event[] = [];
     const flightElapsed = this.elapsedMs - ball.releasedAtMs;
     const progress = clamp(flightElapsed / ball.trajectory.flightDurationMs, 0, 1);
     ball.position = this.sampleBallPosition(ball.trajectory, progress);
     const contacts = this.findBallContacts(ball);
-    if (contacts.length > 0) {
-      const result = this.resolveContacts(contacts);
-      if (result.outcome && result.winner) {
-        const events: LineoutV3Event[] = [{
+    if (contacts.length > 0) this.collectBallContacts(contacts);
+    if (!this.contestContactAnnounced) {
+      const collectedContacts = [...this.bestContactByPlayerId.values()];
+      const attackingContact = this.bestContact(collectedContacts, "throwingTeam");
+      const defendingContact = this.bestContact(collectedContacts, "defendingTeam");
+      if (attackingContact && defendingContact) {
+        this.contestContactAnnounced = true;
+        events.push({
           type: "ballContact",
-          playerIds: contacts.map((contact) => contact.player.player.id)
-        }];
+          playerIds: [
+            attackingContact.player.player.id,
+            defendingContact.player.player.id
+          ]
+        });
+      }
+    }
+    const contactWindowComplete = this.contactWindowStartedAtMs !== null
+      && (
+        this.elapsedMs - this.contactWindowStartedAtMs >= V3.reach.simultaneousWindowMs
+        || progress >= 1
+      );
+    if (contactWindowComplete) {
+      const bestContacts = [...this.bestContactByPlayerId.values()];
+      this.contactWindowStartedAtMs = null;
+      this.bestContactByPlayerId.clear();
+      const result = this.resolveContacts(bestContacts);
+      if (result.outcome && result.winner) {
+        const winningContact = bestContacts.find((contact) => (
+          contact.player.player.id === result.playerId
+        ));
+        if (winningContact) ball.position = { ...winningContact.ballPosition };
         this.completeWithContact(result);
         const resolution = this.resolution;
         if (!resolution) return events;
@@ -430,12 +478,25 @@ export class LineoutV3Engine {
         });
         return events;
       }
-      contacts.forEach((contact) => {
+      bestContacts.forEach((contact) => {
         contact.player.attemptedBall = true;
       });
+      this.contestContactAnnounced = false;
     }
-    if (progress >= 1) return this.completeUncaughtBall();
-    return [];
+    if (progress >= 1) return [...events, ...this.completeUncaughtBall()];
+    return events;
+  }
+
+  private collectBallContacts(contacts: readonly TimedContact[]): void {
+    if (this.contactWindowStartedAtMs === null) {
+      this.contactWindowStartedAtMs = this.elapsedMs;
+    }
+    contacts.forEach((contact) => {
+      const previous = this.bestContactByPlayerId.get(contact.player.player.id);
+      if (!previous || contact.reachScore > previous.reachScore) {
+        this.bestContactByPlayerId.set(contact.player.player.id, contact);
+      }
+    });
   }
 
   private findBallContacts(ball: LineoutV3BallState): TimedContact[] {
@@ -455,7 +516,11 @@ export class LineoutV3Engine {
         + lateralDistance / V3.reach.lateralMeters
         + heightDistance / V3.reach.heightMeters
       ) / 3 * 100, 0, 100);
-      contacts.push({ player, reachScore });
+      contacts.push({
+        player,
+        reachScore,
+        ballPosition: { ...ball.position }
+      });
     });
     return contacts;
   }
@@ -779,55 +844,180 @@ export class LineoutV3Engine {
       && Math.abs(candidate.position.depthMeters - jumper.position.depthMeters) <= V3.jump.lifterReachMeters;
   }
 
-  private assignMovement(player: LineoutV3PlayerState, destinationDepthMeters: number): void {
+  private isMovableGroupLifter(
+    candidate: LineoutV3PlayerState,
+    jumper: LineoutV3PlayerState
+  ): boolean {
+    return candidate.player.id !== jumper.player.id
+      && candidate.side === jumper.side
+      && !candidate.engagedByPlayerId
+      && !candidate.hasJumped
+      && ["ready", "moving"].includes(candidate.activity)
+      && Math.abs(this.getReservedDepth(candidate) - this.getReservedDepth(jumper))
+        <= V3.jump.lifterReachMeters;
+  }
+
+  private findMovableGroupLifters(
+    jumper: LineoutV3PlayerState
+  ): LineoutV3PlayerState[] {
+    const candidates = [...this.playersById.values()]
+      .filter((candidate) => this.isMovableGroupLifter(candidate, jumper));
+    return this.selectEligibleDefensiveLifters(jumper, candidates);
+  }
+
+  private findEligibleDefensiveJumpLifters(
+    jumper: LineoutV3PlayerState
+  ): LineoutV3PlayerState[] {
+    const candidates = [...this.playersById.values()]
+      .filter((candidate) => this.isAvailableLifter(candidate, jumper));
+    return this.selectEligibleDefensiveLifters(jumper, candidates);
+  }
+
+  private selectEligibleDefensiveLifters(
+    jumper: LineoutV3PlayerState,
+    candidates: readonly LineoutV3PlayerState[]
+  ): LineoutV3PlayerState[] {
+    const jumperDepth = this.getReservedDepth(jumper);
+    const frontLifter = candidates
+      .filter((candidate) => this.getReservedDepth(candidate) < jumperDepth)
+      .sort((left, right) => this.getReservedDepth(right) - this.getReservedDepth(left))[0];
+    const rearLifter = candidates
+      .filter((candidate) => this.getReservedDepth(candidate) > jumperDepth)
+      .sort((left, right) => this.getReservedDepth(left) - this.getReservedDepth(right))[0];
+    if (!isLineoutV3AerialStructureEligible(
+      jumper.player,
+      frontLifter?.player,
+      rearLifter?.player
+    )) return [];
+    return [frontLifter, rearLifter]
+      .filter((player): player is LineoutV3PlayerState => player !== undefined);
+  }
+
+  private assignMovement(
+    player: LineoutV3PlayerState,
+    destinationDepthMeters: number,
+    ignoredPlayerIds: ReadonlySet<string> = new Set(),
+    speedMetersPerSecond?: number
+  ): void {
     const requestedDestination = clamp(
       destinationDepthMeters,
       V3.depth.minimumMeters,
       V3.depth.maximumMeters
     );
-    const destination = this.findFreeDestination(player, requestedDestination);
-    const waypoints = this.buildMovementWaypoints(player, destination);
-    player.movement = { destinationDepthMeters: destination, waypoints, waypointIndex: 0 };
+    const destination = this.findFreeDestination(player, requestedDestination, ignoredPlayerIds);
+    const waypoints = this.buildMovementWaypoints(player, destination, ignoredPlayerIds);
+    player.movement = {
+      destinationDepthMeters: destination,
+      waypoints,
+      waypointIndex: 0,
+      ...(speedMetersPerSecond === undefined ? {} : { speedMetersPerSecond })
+    };
     player.activity = "moving";
   }
 
   private findFreeDestination(
     player: LineoutV3PlayerState,
-    requestedDestination: number
+    requestedDestination: number,
+    ignoredPlayerIds: ReadonlySet<string>
   ): number {
-    let destination = requestedDestination;
-    const direction = Math.sign(requestedDestination - player.position.depthMeters) || 1;
-    const teammates = [...this.playersById.values()]
-      .filter((candidate) => candidate.player.id !== player.player.id && candidate.side === player.side);
-    for (let pass = 0; pass < teammates.length; pass += 1) {
-      const blocker = teammates.find((candidate) => {
-        const occupiedDepth = candidate.movement?.destinationDepthMeters
-          ?? candidate.position.depthMeters;
-        return Math.abs(occupiedDepth - destination) < V3.movement.minimumPlayerSeparationMeters;
-      });
-      if (!blocker) break;
-      const occupiedDepth = blocker.movement?.destinationDepthMeters
-        ?? blocker.position.depthMeters;
-      destination = clamp(
-        occupiedDepth - direction * V3.movement.minimumPlayerSeparationMeters,
-        V3.depth.minimumMeters,
-        V3.depth.maximumMeters
-      );
-    }
-    return destination;
+    const requestedPosition = getLineoutV3PositionForDepth(requestedDestination);
+    const currentPosition = this.getReservedPosition(player);
+    const direction = Math.sign(requestedPosition - currentPosition);
+    const occupiedPositions = new Set([...this.playersById.values()]
+      .filter((candidate) => (
+        candidate.player.id !== player.player.id
+        && candidate.side === player.side
+        && !ignoredPlayerIds.has(candidate.player.id)
+      ))
+      .map((candidate) => this.getReservedPosition(candidate)));
+    const destinationPosition = this.sortedLineoutPositions(requestedPosition, direction)
+      .find((position) => !occupiedPositions.has(position))
+      ?? currentPosition;
+    return this.depthForPosition(destinationPosition);
   }
 
-  private buildMovementWaypoints(player: LineoutV3PlayerState, destinationDepthMeters: number) {
+  private findFreeGroupDestinations(
+    group: readonly LineoutV3PlayerState[],
+    jumper: LineoutV3PlayerState,
+    requestedDepthMeters: number,
+    groupPlayerIds: ReadonlySet<string>
+  ): Map<string, number> | null {
+    const jumperPosition = this.getReservedPosition(jumper);
+    const requestedPosition = getLineoutV3PositionForDepth(requestedDepthMeters);
+    const direction = Math.sign(requestedPosition - jumperPosition);
+    const relativePositions = group.map((player) => ({
+      player,
+      offset: this.getReservedPosition(player) - jumperPosition
+    }));
+    const occupiedPositions = new Set([...this.playersById.values()]
+      .filter((candidate) => (
+        candidate.side === jumper.side
+        && !groupPlayerIds.has(candidate.player.id)
+      ))
+      .map((candidate) => this.getReservedPosition(candidate)));
+
+    const destinationJumperPosition = this.sortedLineoutPositions(requestedPosition, direction)
+      .find((candidatePosition) => {
+        const groupPositions = relativePositions.map(({ offset }) => candidatePosition + offset);
+        return groupPositions.every((position) => (
+          position >= 1
+          && position <= 7
+          && !occupiedPositions.has(position as LineoutPosition)
+        )) && new Set(groupPositions).size === groupPositions.length;
+      });
+    if (!destinationJumperPosition) return null;
+
+    return new Map(relativePositions.map(({ player, offset }) => [
+      player.player.id,
+      this.depthForPosition((destinationJumperPosition + offset) as LineoutPosition)
+    ]));
+  }
+
+  private getReservedPosition(player: LineoutV3PlayerState): LineoutPosition {
+    return getLineoutV3PositionForDepth(this.getReservedDepth(player));
+  }
+
+  private getReservedDepth(player: LineoutV3PlayerState): number {
+    return player.movement?.destinationDepthMeters ?? player.position.depthMeters;
+  }
+
+  private sortedLineoutPositions(
+    requestedPosition: LineoutPosition,
+    direction: number
+  ): LineoutPosition[] {
+    return ([1, 2, 3, 4, 5, 6, 7] as LineoutPosition[]).sort((left, right) => {
+      const distanceDifference = Math.abs(left - requestedPosition) - Math.abs(right - requestedPosition);
+      if (distanceDifference !== 0) return distanceDifference;
+      if (direction > 0) return left - right;
+      if (direction < 0) return right - left;
+      return left - right;
+    });
+  }
+
+  private buildMovementWaypoints(
+    player: LineoutV3PlayerState,
+    destinationDepthMeters: number,
+    ignoredPlayerIds: ReadonlySet<string>
+  ) {
     const movingTowardHooker = destinationDepthMeters < player.position.depthMeters;
+    const movementDirection = Math.sign(destinationDepthMeters - player.position.depthMeters);
     const blockingPlayer = [...this.playersById.values()]
-      .filter((candidate) => candidate.player.id !== player.player.id && candidate.side === player.side)
+      .filter((candidate) => (
+        candidate.player.id !== player.player.id
+        && candidate.side === player.side
+        && !ignoredPlayerIds.has(candidate.player.id)
+      ))
       .filter((candidate) => {
         const liesBetween = movingTowardHooker
           ? candidate.position.depthMeters < player.position.depthMeters
             && candidate.position.depthMeters > destinationDepthMeters
           : candidate.position.depthMeters > player.position.depthMeters
             && candidate.position.depthMeters < destinationDepthMeters;
+        const candidateDirection = candidate.movement
+          ? Math.sign(candidate.movement.destinationDepthMeters - candidate.position.depthMeters)
+          : 0;
         return liesBetween
+          && candidateDirection !== movementDirection
           && Math.abs(candidate.position.lateralMeters - player.position.lateralMeters)
             < V3.movement.avoidanceClearanceMeters;
       })
@@ -861,6 +1051,43 @@ export class LineoutV3Engine {
   }
 
   private movementSpeed(player: LineoutV3PlayerState): number {
+    const ownSpeed = player.movement?.speedMetersPerSecond ?? this.baseMovementSpeed(player);
+    const destination = player.movement?.destinationDepthMeters;
+    if (destination === undefined) return ownSpeed;
+    const direction = Math.sign(destination - player.position.depthMeters);
+    if (direction === 0) return ownSpeed;
+    const maximumAheadDistance = Math.abs(destination - player.position.depthMeters)
+      + V3.movement.minimumPlayerSeparationMeters;
+    const leader = [...this.playersById.values()]
+      .filter((candidate) => (
+        candidate.player.id !== player.player.id
+        && candidate.side === player.side
+        && candidate.activity === "moving"
+        && candidate.movement !== undefined
+      ))
+      .filter((candidate) => {
+        const aheadDistance = (candidate.position.depthMeters - player.position.depthMeters) * direction;
+        const candidateDirection = Math.sign(
+          (candidate.movement?.destinationDepthMeters ?? candidate.position.depthMeters)
+            - candidate.position.depthMeters
+        );
+        return aheadDistance > 0
+          && aheadDistance <= maximumAheadDistance
+          && candidateDirection === direction
+          && Math.abs(candidate.position.lateralMeters - player.position.lateralMeters)
+            < V3.movement.avoidanceClearanceMeters;
+      })
+      .sort((left, right) => (
+        Math.abs(left.position.depthMeters - player.position.depthMeters)
+        - Math.abs(right.position.depthMeters - player.position.depthMeters)
+      ))[0];
+    const leaderSpeed = leader
+      ? leader.movement?.speedMetersPerSecond ?? this.baseMovementSpeed(leader)
+      : ownSpeed;
+    return Math.min(ownSpeed, leaderSpeed);
+  }
+
+  private baseMovementSpeed(player: LineoutV3PlayerState): number {
     return this.interpolateByStat(
       this.effectiveStat(player, player.player.speed),
       V3.movement.minimumMetersPerSecond,

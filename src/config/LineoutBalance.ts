@@ -124,9 +124,11 @@ export const LINEOUT_BALANCE = {
       accidentalTouchProtectionMs: 35
     },
     timing: {
-      combinationLeadMs: 650,
+      combinationLeadMs: 300,
       phaseDurationMs: 460,
       movementPhaseLeadMs: 120,
+      opponentPreparationMs: 4_500,
+      resultOverlayDelayMs: 900,
       baseFlightDurationMs: 430,
       flightDurationPerMeterMs: 47,
       minimumFlightDurationMs: 500,
@@ -200,20 +202,70 @@ export const LINEOUT_BALANCE = {
   generation: {
     roleThreshold: 60,
     clubModifiers: [-3, 0, 3],
-    regionale3Speed: {
-      minimum: 55,
-      maximum: 75
+    qualityOffsets: [-5, -3, -1, 0, 1, 3, 5],
+    genericRandomAmplitude: 4,
+    pointStrengthMinimumGapByDivision: {
+      regionale_3: 6,
+      regionale_2: 6,
+      regionale_1: 6,
+      federale_3: 6,
+      federale_2: 6,
+      federale_1: 6,
+      nationale_2: 6,
+      nationale: 5,
+      pro_d2: 4,
+      top_14: 2
+    },
+    regionale3: {
+      exceptionalRosterProbabilityPercent: 10,
+      usualMaximum: 79,
+      exceptionalMinimum: 80,
+      exceptionalMaximum: 84,
+      ranges: {
+        lifter: {
+          speed: { minimum: 25, maximum: 45 },
+          strength: { minimum: 65, maximum: 74 },
+          technique: { minimum: 25, maximum: 45 }
+        },
+        techniqueHybrid: {
+          speed: { minimum: 45, maximum: 65 },
+          strength: { minimum: 60, maximum: 70 },
+          technique: { minimum: 68, maximum: 79 }
+        },
+        strengthHybrid: {
+          speed: { minimum: 40, maximum: 60 },
+          strength: { minimum: 68, maximum: 79 },
+          technique: { minimum: 60, maximum: 68 }
+        },
+        jumper: {
+          speed: { minimum: 45, maximum: 70 },
+          strength: { minimum: 25, maximum: 45 },
+          technique: { minimum: 70, maximum: 79 }
+        },
+        speedHybrid: {
+          speed: { minimum: 68, maximum: 79 },
+          strength: { minimum: 60, maximum: 68 },
+          technique: { minimum: 60, maximum: 70 }
+        }
+      }
+    },
+    profileOffsets: {
+      lifter: { speed: 0, strength: 10, technique: -16 },
+      techniqueHybrid: { speed: -5, strength: 2, technique: 9 },
+      strengthHybrid: { speed: -8, strength: 10, technique: 2 },
+      jumper: { speed: 0, strength: -16, technique: 10 },
+      speedHybrid: { speed: 10, strength: 0, technique: 2 }
     },
     divisionStats: {
-      regionale_3: { mean: 65, minimum: 60, maximum: 70 },
-      regionale_2: { mean: 68, minimum: 61, maximum: 74 },
-      regionale_1: { mean: 71, minimum: 63, maximum: 77 },
-      federale_3: { mean: 74, minimum: 66, maximum: 80 },
-      federale_2: { mean: 77, minimum: 69, maximum: 83 },
-      federale_1: { mean: 80, minimum: 72, maximum: 86 },
-      nationale_2: { mean: 83, minimum: 75, maximum: 89 },
-      nationale: { mean: 86, minimum: 78, maximum: 92 },
-      pro_d2: { mean: 90, minimum: 82, maximum: 96 },
+      regionale_3: { mean: 60, minimum: 50, maximum: 70 },
+      regionale_2: { mean: 65, minimum: 55, maximum: 75 },
+      regionale_1: { mean: 70, minimum: 60, maximum: 80 },
+      federale_3: { mean: 74, minimum: 64, maximum: 84 },
+      federale_2: { mean: 78, minimum: 68, maximum: 88 },
+      federale_1: { mean: 82, minimum: 72, maximum: 92 },
+      nationale_2: { mean: 85, minimum: 75, maximum: 95 },
+      nationale: { mean: 88, minimum: 78, maximum: 98 },
+      pro_d2: { mean: 91, minimum: 82, maximum: 100 },
       top_14: { mean: 94, minimum: 86, maximum: 100 }
     },
     fullVersatilityFromDivision: "federale_1",
@@ -349,6 +401,7 @@ export const LINEOUT_BALANCE = {
       distance0To7: { cleanWin: 0.8, scrappyWin: 0.5 }
     },
     conversionSuccessProbability: 0.75,
+    tryEligibilityLineoutWindowMinutes: 20,
     scoringOpportunityProbabilityPerMinute: 0.35,
     penaltyProbabilityOutsideAttacking22: 0.35,
     cleanLineoutProgressMeters: 5,

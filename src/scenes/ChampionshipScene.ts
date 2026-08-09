@@ -7,6 +7,7 @@ import { renderMenuPanel } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 import type { ChampionshipTeamRecord } from "../models/Championship";
+import { fitTextToWidth } from "../ui/TextFit";
 
 export class ChampionshipScene extends Phaser.Scene {
   constructor() {
@@ -37,7 +38,7 @@ export class ChampionshipScene extends Phaser.Scene {
     const goalAverageColumnBaseX = standingsPanelCenterX + standingsPanelWidth / 2 - contentSideInset - 6;
     const goalAverageColumnCenterX = goalAverageColumnBaseX + 7;
     const pointsColumnCenterX = goalAverageColumnBaseX - 46 + 9;
-    const nextMatchBadgeCenterX = goalAverageColumnBaseX - 46 - 60 + 18;
+    const teamNameMaximumWidth = pointsColumnCenterX - teamNameX - 18;
     const standingsHeaderY = 288;
     const firstStandingRowY = 318;
 
@@ -92,7 +93,11 @@ export class ChampionshipScene extends Phaser.Scene {
         this.add.rectangle(28, y, 6, 24, 0x60a5fa, 0.95);
       }
       this.add.text(32, y, `${rank}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(teamNameX, y, record.name, { font: UI.font.body, color: nameColor }).setOrigin(0, 0.5);
+      const teamName = this.add.text(teamNameX, y, record.name, {
+        font: UI.font.body,
+        color: nameColor
+      }).setOrigin(0, 0.5);
+      fitTextToWidth(teamName, teamNameMaximumWidth, 14);
       this.add.text(goalAverageColumnCenterX, y, formattedGoalAverage, {
         font: UI.font.small,
         color: statisticsColor
@@ -101,14 +106,6 @@ export class ChampionshipScene extends Phaser.Scene {
         font: UI.font.small,
         color: statisticsColor
       }).setOrigin(0.5);
-
-      if (isNextOpponent) {
-        this.add.rectangle(nextMatchBadgeCenterX, y, 42, 16, 0x1d4ed8, 1).setStrokeStyle(1, 0xbfdbfe, 0.9);
-        this.add.text(nextMatchBadgeCenterX, y, t("championship.nextMatchShort"), {
-          font: "bold 9px Arial",
-          color: UI.colors.text
-        }).setOrigin(0.5);
-      }
     });
 
     new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"));

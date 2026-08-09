@@ -4,6 +4,7 @@ import type { DivisionId } from "./Division";
 import type { Team } from "./Team";
 import type { LineoutVideoMatch, OpponentAiMemory } from "./LineoutAI";
 import type { PlayerProgressionUsage } from "./PlayerProgression";
+import type { FfrLeagueId } from "./ClubLocation";
 
 export const DEFENSIVE_LINEOUT_SIZES = [2, 3, 4, 5, 6, 7] as const;
 
@@ -20,6 +21,7 @@ type SaveGameBase = {
   season: number;
   playerTeam: Team;
   championship: ChampionshipState;
+  clubLeagueId?: FfrLeagueId;
   offensiveCombinations: Combination[];
   defensivePriority: string[];
   defenseMemory: DefenseMemory;

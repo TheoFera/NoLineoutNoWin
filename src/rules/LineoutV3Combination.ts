@@ -1,5 +1,6 @@
 import type {
   Combination,
+  CombinationPhaseAction,
   CombinationPlan
 } from "../models/Combination";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
@@ -28,9 +29,42 @@ export function getV3CombinationPlan(combination: Combination): CombinationPlan 
         return { ...action };
       })
     }));
-  return phases && phases.length > 0
-    ? { phases }
-    : buildDefaultV3CombinationPlan(combination);
+  return moveV3JumpsToFinalPhase(
+    phases && phases.length > 0
+      ? { phases }
+      : buildDefaultV3CombinationPlan(combination)
+  );
+}
+
+export function moveV3JumpsToFinalPhase(plan: CombinationPlan): CombinationPlan {
+  const jumpByPlayerPosition = new Map<
+    CombinationPhaseAction["playerPosition"],
+    Extract<CombinationPhaseAction, { type: "jump" }>
+  >();
+  plan.phases.forEach((phase) => {
+    phase.actions.forEach((action) => {
+      if (action.type === "jump") {
+        jumpByPlayerPosition.set(action.playerPosition, {
+          ...action,
+          lifterPositions: [...action.lifterPositions]
+        });
+      }
+    });
+  });
+  const jumpPositions = new Set(jumpByPlayerPosition.keys());
+  const finalPhaseIndex = plan.phases.length - 1;
+  return {
+    phases: plan.phases.map((phase, phaseIndex) => ({
+      ...phase,
+      actions: [
+        ...phase.actions.filter((action) => (
+          action.type !== "jump"
+          && (phaseIndex !== finalPhaseIndex || !jumpPositions.has(action.playerPosition))
+        )).map((action) => ({ ...action })),
+        ...(phaseIndex === finalPhaseIndex ? [...jumpByPlayerPosition.values()] : [])
+      ]
+    }))
+  };
 }
 
 function snapDepthToLineoutPosition(depthMeters: number): number {

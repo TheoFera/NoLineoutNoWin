@@ -1,5 +1,10 @@
 import Phaser from "phaser";
 import type { JerseyColors } from "../models/Team";
+import {
+  getActiveOffensiveCombinations,
+  getCombinationDisplayName,
+  normalizeOffensiveCombinations
+} from "../rules/CombinationRules";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
@@ -56,6 +61,15 @@ export class ResultScene extends Phaser.Scene {
     const defenseWon = defenseLineouts.filter((item) => item.success).length;
     const outcome = this.getMatchOutcome(match.ourScore, match.opponentScore);
     const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
+    const save = GameStore.getSave();
+    const activeCombinations = getActiveOffensiveCombinations(
+      normalizeOffensiveCombinations(save.offensiveCombinations),
+      save.offensiveRepertoire
+    );
+    const currentCombinationNames = new Map(activeCombinations.map((combination, index) => [
+      combination.id,
+      getCombinationDisplayName(combination, t, index)
+    ]));
 
     this.renderResultHeader();
     this.renderScorePanel(
@@ -120,7 +134,9 @@ export class ResultScene extends Phaser.Scene {
           if (index > 0) {
             this.add.rectangle(SCREEN_CENTER_X, y - 23, 326, 1, 0xf8fafc, 0.16);
           }
-          this.add.text(32, y - 7, stat.combinationName.toUpperCase(), {
+          const combinationName = currentCombinationNames.get(stat.combinationId)
+            ?? stat.combinationName;
+          this.add.text(32, y - 7, combinationName.toUpperCase(), {
             font: "bold 12px Arial",
             color: UI.colors.text
           }).setOrigin(0, 0.5);

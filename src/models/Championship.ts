@@ -1,4 +1,5 @@
 import type { DivisionId } from "./Division";
+import type { FfrLeagueId } from "./ClubLocation";
 
 export type ChampionshipTeamRecord = {
   teamId: string;
@@ -15,6 +16,8 @@ export type ChampionshipTeamRecord = {
 export type ChampionshipState = {
   season: number;
   divisionId: DivisionId;
+  leagueId: FfrLeagueId | null;
+  poolId: string;
   nextRound: number;
   totalRounds: number;
   schedule: string[];

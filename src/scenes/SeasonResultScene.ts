@@ -215,8 +215,6 @@ export class SeasonResultScene extends Phaser.Scene {
   private getDivisionChanges(summary: SeasonSummary): DivisionChange[] {
     const previousDivision = getDivision(summary.previousDivisionId);
     const nextDivision = getDivision(summary.nextDivisionId);
-    const previousRepertoire = LINEOUT_BALANCE.ai.repertoireByDivision[summary.previousDivisionId];
-    const nextRepertoire = LINEOUT_BALANCE.ai.repertoireByDivision[summary.nextDivisionId];
     const previousLevel = LINEOUT_BALANCE.generation.divisionStats[summary.previousDivisionId].mean;
     const nextLevel = LINEOUT_BALANCE.generation.divisionStats[summary.nextDivisionId].mean;
     const candidates: Array<DivisionChange & { changed: boolean }> = [
@@ -232,12 +230,6 @@ export class SeasonResultScene extends Phaser.Scene {
         previousValue: String(previousDivision.offensiveCombinations),
         nextValue: String(nextDivision.offensiveCombinations),
         changed: previousDivision.offensiveCombinations !== nextDivision.offensiveCombinations
-      },
-      {
-        label: t("seasonResult.change.reserveCombinations"),
-        previousValue: String(previousRepertoire.reserve),
-        nextValue: String(nextRepertoire.reserve),
-        changed: previousRepertoire.reserve !== nextRepertoire.reserve
       },
       {
         label: t("seasonResult.change.divisionLevel"),

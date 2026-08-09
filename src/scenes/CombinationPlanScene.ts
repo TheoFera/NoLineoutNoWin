@@ -4,7 +4,12 @@ import type {
   CombinationPhaseAction,
   LineoutPosition
 } from "../models/Combination";
-import { getCombinationDisplayName, normalizeOffensiveCombinations, replaceCombinationPlan } from "../rules/CombinationRules";
+import {
+  getActiveOffensiveCombinations,
+  getCombinationDisplayName,
+  normalizeOffensiveCombinations,
+  replaceCombinationPlan
+} from "../rules/CombinationRules";
 import { getV3CombinationPlan } from "../rules/LineoutV3Combination";
 import { getLineoutV3DepthForPosition, getLineoutV3PositionForDepth } from "../rules/LineoutV3Geometry";
 import { GameStore } from "../state/GameStore";
@@ -41,7 +46,12 @@ export class CombinationPlanScene extends Phaser.Scene {
   }
 
   create(): void {
-    const combinations = normalizeOffensiveCombinations(GameStore.getSave().offensiveCombinations);
+    const save = GameStore.getSave();
+    const combinations = normalizeOffensiveCombinations(save.offensiveCombinations);
+    const activeCombinations = getActiveOffensiveCombinations(
+      combinations,
+      save.offensiveRepertoire
+    );
     this.combination = combinations.find((item) => item.id === this.combinationId) ?? combinations[0];
     if (!this.combination) {
       navigateTo(this, "CombinationListScene");
@@ -52,7 +62,12 @@ export class CombinationPlanScene extends Phaser.Scene {
 
     this.add.rectangle(195, 422, 390, 844, 0x07111a);
     this.add.rectangle(195, 60, 354, 82, 0x10271b, 0.98).setStrokeStyle(2, UI.colors.accent);
-    this.add.text(195, 42, getCombinationDisplayName(this.combination, t), {
+    const activeIndex = activeCombinations.findIndex((item) => item.id === this.combination.id);
+    this.add.text(195, 42, getCombinationDisplayName(
+      this.combination,
+      t,
+      activeIndex >= 0 ? activeIndex : undefined
+    ), {
       font: "bold 20px Arial",
       color: UI.colors.text,
       align: "center",

@@ -14,16 +14,21 @@ Version : 2026-07-15
 
 | Division | Moyenne | Plage habituelle générale |
 |---|---:|---:|
-| Régionale 3 | 65 | 60–70 |
-| Régionale 2 | 68 | 61–74 |
-| Régionale 1 | 71 | 63–77 |
-| Fédérale 3 | 74 | 66–80 |
-| Fédérale 2 | 77 | 69–83 |
-| Fédérale 1 | 80 | 72–86 |
-| Nationale 2 | 83 | 75–89 |
-| Nationale | 86 | 78–92 |
-| Pro D2 | 90 | 82–96 |
+| Régionale 3 | 60 | 50–70 |
+| Régionale 2 | 65 | 55–75 |
+| Régionale 1 | 70 | 60–80 |
+| Fédérale 3 | 74 | 64–84 |
+| Fédérale 2 | 78 | 68–88 |
+| Fédérale 1 | 82 | 72–92 |
+| Nationale 2 | 85 | 75–95 |
+| Nationale | 88 | 78–98 |
+| Pro D2 | 91 | 82–100 |
 | Top 14 | 94 | 86–100 |
+
+La moyenne est un budget collectif exact pour les trois statistiques des sept
+joueurs de champ. Elle n'impose pas la même moyenne à chaque joueur : les
+niveaux individuels sont volontairement dispersés, mais leur somme conserve la
+moyenne de la division après application du modificateur du club.
 
 Les statistiques `jump` et `lift` peuvent être inférieures à 60 dans les divisions basses, même si le niveau général du joueur est supérieur.
 
@@ -38,6 +43,10 @@ club fort : +3
 ```
 
 Cette différence reste faible afin que les décisions de touche aient davantage d’impact que l’écart brut entre équipes.
+
+Le modificateur est appliqué à la moyenne collective avant la répartition des
+points. Il ne doit pas être ajouté séparément à certaines statistiques, ce qui
+fausserait le budget final.
 
 ## 4. Déduction automatique des rôles
 
@@ -68,6 +77,23 @@ Pour les sept joueurs d’alignement :
 Les sept joueurs possèdent donc déjà un rôle aérien.
 
 Les profils de génération servent uniquement à orienter les valeurs. Après génération, le rôle affiché et utilisé est toujours déduit des statistiques réelles.
+
+La Régionale 3 accepte volontairement de vrais points faibles :
+
+- point faible : `25–45` ;
+- statistique médiocre : `46–54` ;
+- statistique normale : `55–67` ;
+- point fort habituel : `68–79` ;
+- point fort exceptionnel : `80–84`.
+
+Une statistique ordinaire ne dépasse pas `79`. Une équipe de Régionale 3 a
+`10 %` de chances de posséder un unique point fort exceptionnel entre `80` et
+`84`. Aucun autre joueur de cette équipe ne dépasse alors `79` à la génération.
+
+Chaque joueur possède un point fort relatif à ses deux autres statistiques. Un
+lifteur peut donc avoir une Force normale autour de `70`, tout en ayant une
+Vitesse et une Technique très faibles. Un point fort ne signifie pas forcément
+une statistique exceptionnelle à l'échelle de la division.
 
 ## 6. Progression jusqu’à Fédérale 1
 
@@ -127,6 +153,12 @@ Les propriétés suivantes doivent être déduites du positionnement et ne doive
 - nombre de réceptions directes.
 
 ## 9. Attribution des combinaisons à une équipe
+
+Cette attribution automatique concerne les équipes adverses générées. Lors de
+la création du club et de l'équipe du joueur, aucune combinaison offensive
+n'est définie, active ou placée en réserve. Les modèles vierges restent
+disponibles dans l'éditeur afin que le joueur construise lui-même sa première
+combinaison.
 
 Ordre des filtres :
 
@@ -202,8 +234,12 @@ Un joueur ne peut occuper qu’un rôle dans une option donnée. Il peut avoir u
 Générer les statistiques
 → déduire les rôles
 → vérifier les contraintes de la division
-→ corriger uniquement les statistiques incompatibles
+→ transférer les points nécessaires sans modifier le budget collectif
 → attribuer les combinaisons
 ```
+
+Une correction ne doit jamais créer gratuitement des points. Par exemple, un
+gain de deux points en Technique doit être compensé par le retrait de deux
+points dans une autre statistique du même effectif.
 
 Ne pas régénérer sans fin toute l’équipe. Le générateur doit être déterministe avec une graine et produire un rapport de validation exploitable dans les tests.
