@@ -187,6 +187,16 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     );
   }
 
+  getWorldPointAtRelativeHeightFromFeet(
+    sourceXRatio: number,
+    heightFromFeetRatio: number
+  ): { x: number; y: number } {
+    return this.getWorldPointAtHeightFromFeet(
+      this.bodyLayer.width * sourceXRatio,
+      this.bodyLayer.height * heightFromFeetRatio
+    );
+  }
+
   getVisualHeight(): number {
     return this.bodyLayer.displayHeight * Math.abs(this.scaleY);
   }

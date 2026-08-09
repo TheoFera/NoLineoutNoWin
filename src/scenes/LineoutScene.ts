@@ -2100,8 +2100,13 @@ export class LineoutScene extends Phaser.Scene {
     }
     if (snapshot.ball && this.v3BallSprite) {
       this.v3BallSprite.x = SCREEN_WIDTH / 2 + snapshot.ball.position.lateralMeters * lateralScale;
-      this.v3BallSprite.y = this.v3YFromDepth(snapshot.ball.position.depthMeters, layout)
-        - snapshot.ball.position.heightMeters * 34;
+      const ballGroundY = this.v3YFromDepth(snapshot.ball.position.depthMeters, layout);
+      this.v3BallSprite.y = ballGroundY - snapshot.ball.position.heightMeters * 34;
+      this.v3BallSprite.setDepth(
+        snapshot.ball.completed
+          ? this.getPlayerDepth(ballGroundY) + 0.05
+          : LINEOUT_ACTION_DEPTH - 10
+      );
       this.v3BallSprite.setAngle(snapshot.ball.completed ? 90 : -8);
     }
   }
@@ -3310,9 +3315,9 @@ export class LineoutScene extends Phaser.Scene {
       * layout.playerHeight
       / Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO)
     );
-    const hookerBallPoint = this.hookerSprite?.getWorldPointAtHeightFromFeet(
-      LINEOUT_THROW_ANIMATION.hookerBallSourceX,
-      LINEOUT_THROW_ANIMATION.hookerBallHeightFromFeet
+    const hookerBallPoint = this.hookerSprite?.getWorldPointAtRelativeHeightFromFeet(
+      LINEOUT_THROW_ANIMATION.hookerBallSourceXRatio,
+      LINEOUT_THROW_ANIMATION.hookerBallHeightFromFeetRatio
     );
 
     return hookerBallPoint ?? {

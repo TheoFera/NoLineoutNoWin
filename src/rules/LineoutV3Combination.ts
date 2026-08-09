@@ -4,7 +4,7 @@ import type {
 } from "../models/Combination";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 
-export const LINEOUT_V3_MAX_PHASES = 3;
+export const LINEOUT_V3_MAX_PHASES = 4;
 
 export function buildDefaultV3CombinationPlan(_combination: Combination): CombinationPlan {
   return {
