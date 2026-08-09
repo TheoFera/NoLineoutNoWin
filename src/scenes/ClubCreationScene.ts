@@ -54,7 +54,7 @@ export class ClubCreationScene extends Phaser.Scene {
     const previewPlayerWidth = 84;
 
     this.renderCreateClubBackground();
-    renderMenuHeader(this, t("club.title"));
+    renderMenuHeader(this, t("club.title"), { y: 86 });
     this.add.text(35, 126, t("club.locationQuestion"), {
       font: UI.font.subtitle,
       color: UI.colors.text
