@@ -260,11 +260,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.shortsLayer.setTint(this.kit.shortsPrimary);
     this.socksLayer.setTint(this.kit.socksPrimary);
     this.detailsLayer?.setTint(this.kit.detailsSecondary);
-    if (this.hairStyleId === "bald") {
-      this.hairStyleLayer?.setTint(this.bodyTint);
-    } else {
-      this.hairStyleLayer?.clearTint();
-    }
+    this.hairStyleLayer?.setTint(this.bodyTint);
     this.accessoryLayers.forEach((layer, accessoryId) => {
       if (accessoryId === "moustache" || accessoryId === "beard") {
         layer.setTint(this.bodyTint);
