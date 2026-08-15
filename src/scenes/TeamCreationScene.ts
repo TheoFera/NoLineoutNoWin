@@ -120,7 +120,7 @@ export class TeamCreationScene extends Phaser.Scene {
       this.selectedPlayer.appearance.bodyShape,
       getSkinToneTint(this.selectedPlayer.appearance.skinToneId),
       this.selectedPlayer.appearance.hairStyleId,
-      this.selectedPlayer.appearance.accessoryId
+      this.selectedPlayer.appearance.accessoryIds
     ).setVisualSize(104, 190);
 
     new UIButton(this, 83, 405, 52, 58, t("teamCreation.previousBodyShape"), () => this.cycleBodyShape(-1), {
@@ -321,12 +321,9 @@ export class TeamCreationScene extends Phaser.Scene {
     )) {
       this.selectedPlayer.appearance.hairStyleId = "short";
     }
-    if (!canUsePlayerAccessory(
-      this.selectedPlayer.appearance.bodyShape,
-      this.selectedPlayer.appearance.accessoryId
-    )) {
-      this.selectedPlayer.appearance.accessoryId = "none";
-    }
+    this.selectedPlayer.appearance.accessoryIds = this.selectedPlayer.appearance.accessoryIds.filter(
+      (accessoryId) => canUsePlayerAccessory(this.selectedPlayer.appearance.bodyShape, accessoryId)
+    );
     this.refreshSelectedPlayer();
   }
 
@@ -342,9 +339,10 @@ export class TeamCreationScene extends Phaser.Scene {
     if (!canUsePlayerAccessory(this.selectedPlayer.appearance.bodyShape, accessoryId)) {
       return;
     }
-    this.selectedPlayer.appearance.accessoryId = this.selectedPlayer.appearance.accessoryId === accessoryId
-      ? "none"
-      : accessoryId;
+    const accessoryIds = this.selectedPlayer.appearance.accessoryIds;
+    this.selectedPlayer.appearance.accessoryIds = accessoryIds.includes(accessoryId)
+      ? accessoryIds.filter((selectedAccessoryId) => selectedAccessoryId !== accessoryId)
+      : [...accessoryIds, accessoryId];
     this.refreshSelectedPlayer();
   }
 
@@ -357,7 +355,7 @@ export class TeamCreationScene extends Phaser.Scene {
       .setBodyShape(this.selectedPlayer.appearance.bodyShape)
       .setBodyTint(getSkinToneTint(this.selectedPlayer.appearance.skinToneId))
       .setHairStyle(this.selectedPlayer.appearance.hairStyleId)
-      .setAccessory(this.selectedPlayer.appearance.accessoryId);
+      .setAccessories(this.selectedPlayer.appearance.accessoryIds);
 
     this.numberSelectors.forEach(({ background, label }, index) => {
       const selected = index === this.selectedPlayerIndex;
@@ -388,7 +386,7 @@ export class TeamCreationScene extends Phaser.Scene {
 
     this.accessorySelectors.forEach(({ accessoryId, background, label }) => {
       const available = canUsePlayerAccessory(this.selectedPlayer.appearance.bodyShape, accessoryId);
-      const selected = accessoryId === this.selectedPlayer.appearance.accessoryId;
+      const selected = this.selectedPlayer.appearance.accessoryIds.includes(accessoryId);
       this.refreshAppearanceSelector(background, label, available, selected);
     });
   }

@@ -138,12 +138,24 @@ export function createDefaultPlayerTeam(
     ...generated.hooker,
     id: "h2",
     nickname: hookerDraft?.nickname ?? "Dédé",
-    appearance: hookerDraft ? { ...hookerDraft.appearance } : createDefaultPlayerAppearance(2)
+    appearance: hookerDraft
+      ? {
+          ...hookerDraft.appearance,
+          accessoryIds: [...hookerDraft.appearance.accessoryIds]
+        }
+      : createDefaultPlayerAppearance(2)
   };
   const fieldPlayers = generated.fieldPlayers.map((player) => {
     const draft = draftsByNumber.get(player.number);
     return draft
-      ? { ...player, nickname: draft.nickname, appearance: { ...draft.appearance } }
+      ? {
+          ...player,
+          nickname: draft.nickname,
+          appearance: {
+            ...draft.appearance,
+            accessoryIds: [...draft.appearance.accessoryIds]
+          }
+        }
       : { ...player, appearance: createDefaultPlayerAppearance(player.number) };
   });
 
@@ -249,18 +261,18 @@ function normalizePlayerAppearance(
   const hairStyleId = canUsePlayerHairStyle(bodyShape, storedHairStyleId)
     ? storedHairStyleId
     : fallback.hairStyleId;
-  const storedAccessoryId = PLAYER_ACCESSORY_IDS.includes(appearance?.accessoryId as PlayerAccessoryId)
-    ? appearance?.accessoryId as PlayerAccessoryId
-    : appearance?.headStyleId === "helmet"
-      ? "helmet"
-      : fallback.accessoryId;
-  const accessoryId = canUsePlayerAccessory(bodyShape, storedAccessoryId)
-    ? storedAccessoryId
-    : fallback.accessoryId;
+  const storedAccessoryIds = Array.isArray(appearance?.accessoryIds)
+    ? appearance.accessoryIds.filter((accessoryId): accessoryId is PlayerAccessoryId => (
+        PLAYER_ACCESSORY_IDS.includes(accessoryId as PlayerAccessoryId)
+      ))
+    : fallback.accessoryIds;
+  const accessoryIds = [...new Set(storedAccessoryIds)].filter((accessoryId) => (
+    canUsePlayerAccessory(bodyShape, accessoryId)
+  ));
   return {
     bodyShape,
     skinToneId,
     hairStyleId,
-    accessoryId
+    accessoryIds
   };
 }

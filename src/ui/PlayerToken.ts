@@ -252,7 +252,7 @@ export class PlayerToken extends Phaser.GameObjects.Container {
         visualConfig.bodyShape,
         getPlayerSkinTint(this.player),
         this.player.appearance.hairStyleId,
-        this.player.appearance.accessoryId
+        this.player.appearance.accessoryIds
       )
         .setVisualSize(visualConfig.displayWidth, visualConfig.displayHeight);
       return this.rugbyPlayer;

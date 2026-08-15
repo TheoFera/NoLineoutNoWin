@@ -42,9 +42,8 @@ export function canUsePlayerHairStyle(
 
 export function canUsePlayerAccessory(
   bodyShape: BodyShapeName,
-  accessoryId: PlayerAccessoryId
+  _accessoryId: PlayerAccessoryId
 ): boolean {
-  if (accessoryId === "none") return true;
   return bodyShape === "medium_standard";
 }
 
@@ -53,7 +52,7 @@ export function createDefaultPlayerAppearance(number: number): PlayerAppearance 
     bodyShape: number === 1 || number === 3 ? "medium_large" : "medium_standard",
     skinToneId: "base",
     hairStyleId: "short",
-    accessoryId: "none"
+    accessoryIds: []
   };
 }
 
@@ -68,7 +67,10 @@ export function createDefaultTeamPlayerDrafts(): TeamPlayerDraft[] {
 export function cloneTeamPlayerDrafts(players: readonly TeamPlayerDraft[]): TeamPlayerDraft[] {
   return players.map((player) => ({
     ...player,
-    appearance: { ...player.appearance }
+    appearance: {
+      ...player.appearance,
+      accessoryIds: [...player.appearance.accessoryIds]
+    }
   }));
 }
 
@@ -93,19 +95,28 @@ export function getGeneratedTeamPlayerAppearance(
   const hairStyles = PLAYER_HAIR_STYLE_OPTIONS.filter((hairStyleId) => (
     canUsePlayerHairStyle(baseAppearance.bodyShape, hairStyleId)
   ));
-  const accessories: PlayerAccessoryId[] = [
-    "none",
-    ...PLAYER_ACCESSORY_OPTIONS.filter((accessoryId) => (
-      canUsePlayerAccessory(baseAppearance.bodyShape, accessoryId)
-    ))
-  ];
+  const accessoryIds = PLAYER_ACCESSORY_OPTIONS
+    .filter((accessoryId) => canUsePlayerAccessory(baseAppearance.bodyShape, accessoryId))
+    .filter((accessoryId) => isStableAppearanceOptionEnabled(
+      teamId,
+      rosterIndex,
+      `accessory:${accessoryId}`
+    ));
 
   return {
     ...baseAppearance,
     skinToneId: getGeneratedTeamSkinToneId(teamId, rosterIndex),
     hairStyleId: selectStableAppearanceOption(hairStyles, teamId, rosterIndex, "hair"),
-    accessoryId: selectStableAppearanceOption(accessories, teamId, rosterIndex, "accessory")
+    accessoryIds
   };
+}
+
+function isStableAppearanceOptionEnabled(
+  teamId: string,
+  rosterIndex: number,
+  category: string
+): boolean {
+  return getStableAppearanceHash(teamId, rosterIndex, category) % 3 === 0;
 }
 
 function selectStableAppearanceOption<T>(
@@ -114,9 +125,18 @@ function selectStableAppearanceOption<T>(
   rosterIndex: number,
   category: string
 ): T {
+  const hash = getStableAppearanceHash(teamId, rosterIndex, category);
+  return options[hash % options.length];
+}
+
+function getStableAppearanceHash(
+  teamId: string,
+  rosterIndex: number,
+  category: string
+): number {
   let hash = 0;
   for (const character of `${teamId}:${rosterIndex}:${category}`) {
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   }
-  return options[hash % options.length];
+  return hash;
 }

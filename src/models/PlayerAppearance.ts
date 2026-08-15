@@ -32,7 +32,6 @@ export const PLAYER_HAIR_STYLE_IDS = [
 export type PlayerHairStyleId = typeof PLAYER_HAIR_STYLE_IDS[number];
 
 export const PLAYER_ACCESSORY_IDS = [
-  "none",
   "helmet",
   "strap",
   "moustache",
@@ -45,5 +44,5 @@ export type PlayerAppearance = {
   bodyShape: BodyShapeName;
   skinToneId: PlayerSkinToneId;
   hairStyleId: PlayerHairStyleId;
-  accessoryId: PlayerAccessoryId;
+  accessoryIds: PlayerAccessoryId[];
 };

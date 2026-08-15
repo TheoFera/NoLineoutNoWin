@@ -665,7 +665,7 @@ export class LineoutScene extends Phaser.Scene {
       hookerBodyShape,
       getPlayerSkinTint(hooker),
       hooker.appearance.hairStyleId,
-      hooker.appearance.accessoryId
+      hooker.appearance.accessoryIds
     ).setVisualSize(layout.playerWidth, layout.playerHeight);
     this.hookerSprite.setKit(hookerKit);
 

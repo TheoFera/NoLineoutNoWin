@@ -18,20 +18,27 @@ import type {
   RugbyPlayerWalkingFrame
 } from "./RugbyPlayerTypes";
 
+const ACCESSORY_RENDER_ORDER = [
+  "strap",
+  "beard",
+  "moustache",
+  "helmet"
+] as const satisfies readonly PlayerAccessoryId[];
+
 export class RugbyPlayer extends Phaser.GameObjects.Container {
   private pose: PoseName;
   private bodyShape: BodyShapeName;
   private kit: Kit;
   private bodyTint: number;
   private hairStyleId: PlayerHairStyleId;
-  private accessoryId: PlayerAccessoryId;
+  private accessoryIds: PlayerAccessoryId[];
   private bodyLayer: Phaser.GameObjects.Image;
   private jerseyLayer: Phaser.GameObjects.Image;
   private shortsLayer: Phaser.GameObjects.Image;
   private socksLayer: Phaser.GameObjects.Image;
   private detailsLayer?: Phaser.GameObjects.Image;
   private hairStyleLayer?: Phaser.GameObjects.Image;
-  private accessoryLayer?: Phaser.GameObjects.Image;
+  private accessoryLayers = new Map<PlayerAccessoryId, Phaser.GameObjects.Image>();
   private requestedVisualWidth?: number;
   private requestedVisualHeight?: number;
   private walkingFrame?: RugbyPlayerWalkingFrame;
@@ -45,7 +52,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     bodyShape: BodyShapeName,
     bodyTint = 0xffffff,
     hairStyleId: PlayerHairStyleId = "short",
-    accessoryId: PlayerAccessoryId = "none"
+    accessoryIds: readonly PlayerAccessoryId[] = []
   ) {
     super(scene, x, y);
     this.pose = pose;
@@ -53,7 +60,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.kit = { ...kit };
     this.bodyTint = bodyTint;
     this.hairStyleId = hairStyleId;
-    this.accessoryId = accessoryId;
+    this.accessoryIds = [...new Set(accessoryIds)];
 
     // Tous les calques partagent un ancrage par les pieds pour garder le meme repere visuel entre poses.
     this.bodyLayer = this.createLayer(scene, this.usesBaldBody() ? "bodychauve" : "body");
@@ -70,10 +77,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     if (this.hairStyleLayer) {
       this.add(this.hairStyleLayer);
     }
-    this.accessoryLayer = this.createOptionalAccessoryLayer(scene);
-    if (this.accessoryLayer) {
-      this.add(this.accessoryLayer);
-    }
+    this.refreshAccessoryLayers();
     this.setSize(RUGBY_PLAYER_FRAME_WIDTH, RUGBY_PLAYER_FRAME_HEIGHT);
 
     this.applyTints();
@@ -136,12 +140,16 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return this;
   }
 
-  setAccessory(accessoryId: PlayerAccessoryId): this {
-    if (this.accessoryId === accessoryId) {
+  setAccessories(accessoryIds: readonly PlayerAccessoryId[]): this {
+    const normalizedAccessoryIds = [...new Set(accessoryIds)];
+    if (
+      this.accessoryIds.length === normalizedAccessoryIds.length
+      && this.accessoryIds.every((accessoryId) => normalizedAccessoryIds.includes(accessoryId))
+    ) {
       return this;
     }
 
-    this.accessoryId = accessoryId;
+    this.accessoryIds = normalizedAccessoryIds;
     this.refreshTextures();
     this.applyTints();
     return this;
@@ -172,7 +180,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.socksLayer.setDisplaySize(displayWidth, displayHeight);
     this.detailsLayer?.setDisplaySize(displayWidth, displayHeight);
     this.hairStyleLayer?.setDisplaySize(displayWidth, displayHeight);
-    this.accessoryLayer?.setDisplaySize(displayWidth, displayHeight);
+    this.accessoryLayers.forEach((layer) => layer.setDisplaySize(displayWidth, displayHeight));
     this.setSize(displayWidth, displayHeight);
   }
 
@@ -233,11 +241,6 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return layer ? this.createLayer(scene, layer) : undefined;
   }
 
-  private createOptionalAccessoryLayer(scene: Phaser.Scene): Phaser.GameObjects.Image | undefined {
-    const layer = this.getAccessoryLayerName();
-    return layer ? this.createLayer(scene, layer) : undefined;
-  }
-
   private refreshTextures(): void {
     const bodyLayerName = this.usesBaldBody() ? "bodychauve" : "body";
     this.bodyLayer.setTexture(this.getLayerTextureKey(bodyLayerName));
@@ -246,10 +249,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.socksLayer.setTexture(this.getLayerTextureKey("socks"));
     this.refreshDetailsLayer();
     this.refreshHairStyleLayer();
-    this.refreshAccessoryLayer();
-    if (this.accessoryLayer) {
-      this.bringToTop(this.accessoryLayer);
-    }
+    this.refreshAccessoryLayers();
     this.applyVisualSize();
   }
 
@@ -265,11 +265,13 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     } else {
       this.hairStyleLayer?.clearTint();
     }
-    if (this.accessoryId === "moustache" || this.accessoryId === "beard") {
-      this.accessoryLayer?.setTint(this.bodyTint);
-    } else {
-      this.accessoryLayer?.clearTint();
-    }
+    this.accessoryLayers.forEach((layer, accessoryId) => {
+      if (accessoryId === "moustache" || accessoryId === "beard") {
+        layer.setTint(this.bodyTint);
+      } else {
+        layer.clearTint();
+      }
+    });
   }
 
   private refreshDetailsLayer(): void {
@@ -307,22 +309,31 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.hairStyleLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer));
   }
 
-  private refreshAccessoryLayer(): void {
-    const layer = this.getAccessoryLayerName();
-    if (!layer) {
-      this.accessoryLayer?.destroy();
-      this.accessoryLayer = undefined;
-      return;
-    }
+  private refreshAccessoryLayers(): void {
+    const selectedAccessoryIds = new Set(this.accessoryIds);
+    this.accessoryLayers.forEach((layer, accessoryId) => {
+      if (!selectedAccessoryIds.has(accessoryId) || !this.getAccessoryLayerName(accessoryId)) {
+        layer.destroy();
+        this.accessoryLayers.delete(accessoryId);
+      }
+    });
 
-    if (!this.accessoryLayer) {
-      this.accessoryLayer = this.createLayer(this.scene, layer);
-      this.accessoryLayer.setDisplaySize(this.bodyLayer.displayWidth, this.bodyLayer.displayHeight);
-      this.add(this.accessoryLayer);
-      return;
-    }
+    for (const accessoryId of ACCESSORY_RENDER_ORDER) {
+      if (!selectedAccessoryIds.has(accessoryId)) continue;
+      const layerName = this.getAccessoryLayerName(accessoryId);
+      if (!layerName) continue;
 
-    this.accessoryLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer));
+      let layer = this.accessoryLayers.get(accessoryId);
+      if (!layer) {
+        layer = this.createLayer(this.scene, layerName);
+        layer.setDisplaySize(this.bodyLayer.displayWidth, this.bodyLayer.displayHeight);
+        this.add(layer);
+        this.accessoryLayers.set(accessoryId, layer);
+      } else {
+        layer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, layerName));
+      }
+      this.bringToTop(layer);
+    }
   }
 
   private getHairStyleLayerName(): "chauve" | "chignon" | "mulet" | undefined {
@@ -338,17 +349,19 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return undefined;
   }
 
-  private getAccessoryLayerName(): "barbe" | "casque" | "moustache" | "strap" | undefined {
-    if (this.accessoryId === "helmet" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "casque")) {
+  private getAccessoryLayerName(
+    accessoryId: PlayerAccessoryId
+  ): "barbe" | "casque" | "moustache" | "strap" | undefined {
+    if (accessoryId === "helmet" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "casque")) {
       return "casque";
     }
-    if (this.accessoryId === "strap" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "strap")) {
+    if (accessoryId === "strap" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "strap")) {
       return "strap";
     }
-    if (this.accessoryId === "moustache" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "moustache")) {
+    if (accessoryId === "moustache" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "moustache")) {
       return "moustache";
     }
-    if (this.accessoryId === "beard" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "barbe")) {
+    if (accessoryId === "beard" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "barbe")) {
       return "barbe";
     }
     return undefined;
