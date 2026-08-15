@@ -79,6 +79,22 @@ const BALD_ASSET_SET_KEYS = new Set([
   "medium_large:hooker_throw_back"
 ]);
 
+const MULLET_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:hooker_throw_back",
+  "medium_standard:jumper",
+  "medium_standard:lifter_front"
+]);
+
+const BUN_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:hooker_throw_back",
+  "medium_standard:jumper",
+  "medium_standard:lifter_front"
+]);
+
 const STRAP_ASSET_SET_KEYS = new Set([
   "medium_standard:stand_front",
   "medium_standard:hand",
@@ -100,6 +116,8 @@ export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseNam
     bodychauve: `${basePath}/bodychauve.png`,
     casque: `${basePath}/casque.png`,
     chauve: `${basePath}/chauve.png`,
+    chignon: `${basePath}/chignon.png`,
+    mulet: `${basePath}/mulet.png`,
     strap: `${basePath}/strap.png`
   };
 }
@@ -142,6 +160,12 @@ export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseNam
   }
   if (layer === "bodychauve" || layer === "chauve") {
     return BALD_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "mulet") {
+    return MULLET_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "chignon") {
+    return BUN_ASSET_SET_KEYS.has(assetSetKey);
   }
   if (layer === "strap") {
     return STRAP_ASSET_SET_KEYS.has(assetSetKey);

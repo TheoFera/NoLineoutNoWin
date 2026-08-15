@@ -15,6 +15,12 @@ export type MatchMaximumFatigue = Record<string, number>;
 
 export type MatchBallOwner = "player" | "opponent";
 
+export type PendingTryCelebration = {
+  scoringOwner: MatchBallOwner;
+  lateralPosition: number;
+  points: number;
+};
+
 export type MatchSimulationActionKind =
   | "handPlay"
   | "ruck"
@@ -95,6 +101,7 @@ export type MatchStateData = {
   opponentOccupationTimeMinutes: number;
   playerAttackingPressure: number;
   opponentAttackingPressure: number;
+  pendingTryCelebration?: PendingTryCelebration;
   lineouts: MatchLineoutEvent[];
   currentLineoutIndex: number;
   playerUsage: Record<string, MatchPlayerUsage>;

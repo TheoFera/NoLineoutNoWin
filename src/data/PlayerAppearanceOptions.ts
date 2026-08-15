@@ -33,7 +33,11 @@ export function canUsePlayerHairStyle(
   bodyShape: BodyShapeName,
   hairStyleId: PlayerHairStyleId
 ): boolean {
-  return hairStyleId === "short" || (hairStyleId === "bald" && bodyShape === "medium_standard");
+  return hairStyleId === "short"
+    || (
+      bodyShape === "medium_standard"
+      && (hairStyleId === "bald" || hairStyleId === "mullet" || hairStyleId === "bun")
+    );
 }
 
 export function canUsePlayerAccessory(

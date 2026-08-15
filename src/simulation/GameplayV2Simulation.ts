@@ -15,6 +15,7 @@ import {
   advanceToNextScheduledLineout,
   generateMatchMaximumFatigue,
   generateMatchSchedule,
+  getKickoffReceptionLateralPosition,
   getKickoffReceptionPosition
 } from "../rules/MatchSimulator.ts";
 import { calculateCurrentFatiguePercent, generateMaximumFatiguePercent, resolveLineoutThrow } from "../rules/LineoutThrowResolver.ts";
@@ -497,7 +498,8 @@ function createMatchState(
     possession: 50,
     occupation: 50,
     ballOwner: firstHalfReceivingTeam,
-    ballPositionMeters: getKickoffReceptionPosition(firstHalfReceivingTeam),
+    ballPositionMeters: getKickoffReceptionPosition(firstHalfReceivingTeam, rng),
+    ballLateralPosition: getKickoffReceptionLateralPosition(rng),
     playerPossessionTimeMinutes: 0,
     opponentPossessionTimeMinutes: 0,
     playerOccupationTimeMinutes: 0,

@@ -127,6 +127,10 @@ const GROUND_SHADOW_DEPTH = PLAYER_DEPTH_BASE - 1;
 const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
 const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
 const LINEOUT_ACTION_DEPTH = 1500;
+const TRAINING_TOOLBAR_CENTER_Y = MATCH_SCORE_OVERLAY_LAYOUT.y
+  + MATCH_SCORE_OVERLAY_LAYOUT.height / 2;
+const TRAINING_TOOLBAR_HORIZONTAL_INSET = 22;
+const TRAINING_TIMELINE_SLOT_COUNT = LINEOUT_V3_MAX_PHASES + 4;
 const V3_METERS_TO_PIXELS = 34;
 const TRAINING_ACTION_OVERLAY_DATA_KEY = "training-action-overlay";
 const RUGBY_DASH_WIDTH = 18;
@@ -140,15 +144,67 @@ const TRAINING_HOOKER_FEET_OFFSET = 34;
 const TRAINING_THROW_START_OFFSET = 24;
 const THROW_GESTURE_ZONE_TOP_OFFSET = 12;
 const PLAYER_ALIGNMENT_HORIZONTAL_VARIATION_PIXELS = 2;
+const LINEOUT_PREPARATION_ANIMATION = {
+  attackingMinimumPixels: 2,
+  attackingMaximumPixels: 5,
+  defendingMinimumPixels: 1,
+  defendingMaximumPixels: 3,
+  attackingDurationMs: 130,
+  defendingDelayMs: 60,
+  defendingDurationMs: 140
+} as const;
+const LINEOUT_CAMERA_ANIMATION = {
+  releaseZoom: 1.025,
+  flightZoom: 1.04,
+  contestZoom: 1.06,
+  receptionZoom: 1.035,
+  horizontalFollowRatio: 0.25,
+  verticalFollowRatio: 0.18,
+  maximumHorizontalShiftPixels: 8,
+  maximumVerticalShiftPixels: 12,
+  responseDurationMs: 120,
+  releaseRampDurationMs: 300,
+  resultHoldDurationMs: 220,
+  returnDurationMs: 450,
+  cleanupDelayMs: 720,
+  contestShakeDurationMs: 80,
+  contestShakeIntensity: 0.002
+} as const;
 
-function getPlayerAlignmentOffsetX(playerId: string): number {
+type LineoutCameraPhase = "idle" | "flight" | "contest" | "reception" | "return";
+
+function getPlayerVisualSeed(playerId: string): number {
   let hash = 0;
   for (const character of playerId) {
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   }
+  return hash;
+}
 
-  return hash % (PLAYER_ALIGNMENT_HORIZONTAL_VARIATION_PIXELS * 2 + 1)
+function getPlayerAlignmentOffsetX(playerId: string): number {
+  return getPlayerVisualSeed(playerId) % (PLAYER_ALIGNMENT_HORIZONTAL_VARIATION_PIXELS * 2 + 1)
     - PLAYER_ALIGNMENT_HORIZONTAL_VARIATION_PIXELS;
+}
+
+function getPlayerPreparationDistanceX(playerId: string, attacking: boolean): number {
+  const minimum = attacking
+    ? LINEOUT_PREPARATION_ANIMATION.attackingMinimumPixels
+    : LINEOUT_PREPARATION_ANIMATION.defendingMinimumPixels;
+  const maximum = attacking
+    ? LINEOUT_PREPARATION_ANIMATION.attackingMaximumPixels
+    : LINEOUT_PREPARATION_ANIMATION.defendingMaximumPixels;
+  return minimum + getPlayerVisualSeed(playerId) % (maximum - minimum + 1);
+}
+
+function clearCameraFilterRecursively(
+  gameObject: Phaser.GameObjects.GameObject,
+  cameraId: number
+): void {
+  gameObject.cameraFilter &= ~cameraId;
+  const parent = gameObject as Phaser.GameObjects.GameObject & {
+    getChildren?: () => Phaser.GameObjects.GameObject[];
+  };
+  parent.getChildren?.().forEach((child) => clearCameraFilterRecursively(child, cameraId));
 }
 
 type SecondaryAttemptMode = "smallJump" | "jumperOnGround" | "hand";
@@ -275,12 +331,13 @@ export class LineoutScene extends Phaser.Scene {
   private opponentTargetPosition: LineoutPosition | null = null;
   private opponentTargetOptionId: string | null = null;
   private opponentCombination: Combination | null = null;
-  private armedDefensiveJumperId: string | null = null;
+  private readonly armedDefensiveBlocks = new Map<string, readonly string[]>();
   private dragState: DragState | null = null;
   private inspectedPlayer: FieldPlayer | null = null;
   private inspectorPanel?: PlayerStatsOverlay;
   private statusText?: Phaser.GameObjects.Text;
   private statusClearTimer?: Phaser.Time.TimerEvent;
+  private matchScoreOverlay?: MatchScoreOverlay;
   private hookerSprite?: RugbyPlayer;
   private hookerShadow?: PlayerGroundShadow;
   private hookerHeldBall?: Phaser.GameObjects.Container;
@@ -296,6 +353,19 @@ export class LineoutScene extends Phaser.Scene {
   private v3OpponentCombinationStartsAtMs: number | null = null;
   private v3OpponentThrowAtMs: number | null = null;
   private v3AiJumpAtMs: number | null = null;
+  private v3AttackingPreparationProgress = 0;
+  private v3DefendingPreparationProgress = 0;
+  private v3PreparationTweens: Phaser.Tweens.Tween[] = [];
+  private v3HudCamera?: Phaser.Cameras.Scene2D.Camera;
+  private v3CameraHudObjects: Phaser.GameObjects.GameObject[] = [];
+  private v3CameraWorldObjects: Phaser.GameObjects.GameObject[] = [];
+  private v3CameraPhase: LineoutCameraPhase = "idle";
+  private v3CameraFocusX = SCREEN_WIDTH / 2;
+  private v3CameraFocusY = SCREEN_HEIGHT / 2;
+  private v3CameraZoom = 1;
+  private v3CameraBaseZoom = 1;
+  private v3CameraFlightStartedAtMs = 0;
+  private v3CameraReceptionTargetId: string | null = null;
   private v3ResolutionHandled = false;
   private v3GroupHandles = new Map<string, Phaser.GameObjects.Container>();
   private v3GroupDrag: DefensiveGroupDragState | null = null;
@@ -393,6 +463,7 @@ export class LineoutScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.updateV3Runtime(delta);
+    this.updateV3DynamicCamera(delta);
     if (this.v3ThrowGesture) {
       this.updateV3ThrowPowerGauge(this.getPointerWorldPosition(this.v3ThrowGesture.pointer));
     }
@@ -448,7 +519,7 @@ export class LineoutScene extends Phaser.Scene {
 
     const minute = this.currentMatchLineout?.minute ?? match.minute;
     const opponentColors = getContrastingOpponentColors(match.home.colors, match.away.colors);
-    new MatchScoreOverlay(this, {
+    this.matchScoreOverlay = new MatchScoreOverlay(this, {
       homeName: match.home.name,
       awayName: match.away.name,
       homeScore: match.ourScore,
@@ -1106,22 +1177,33 @@ export class LineoutScene extends Phaser.Scene {
     }
 
     this.renderTrainingToolbarPanel();
-    this.createTrainingTimelineBubble(28, "P", this.trainingEditorPhaseIndex === null, () => {
-      this.restartTrainingEditor({ editorPhaseIndex: null });
-    });
-    this.createTrainingTimelineBubble(70, "−", false, () => this.removeTrainingPhase(), phaseCount > 1);
+    this.createTrainingTimelineBubble(
+      this.getTrainingToolbarSlotX(0, TRAINING_TIMELINE_SLOT_COUNT),
+      "P",
+      this.trainingEditorPhaseIndex === null,
+      () => {
+        this.restartTrainingEditor({ editorPhaseIndex: null });
+      }
+    );
+    this.createTrainingTimelineBubble(
+      this.getTrainingToolbarSlotX(1, TRAINING_TIMELINE_SLOT_COUNT),
+      "−",
+      false,
+      () => this.removeTrainingPhase(),
+      phaseCount > 1
+    );
 
-    const firstPhaseX = 116;
-    const phaseGap = 50;
     plan.phases.forEach((_phase, index) => {
+      const phaseX = this.getTrainingToolbarSlotX(index + 2, TRAINING_TIMELINE_SLOT_COUNT);
       if (index > 0) {
-        this.add.text(firstPhaseX + index * phaseGap - phaseGap / 2, 48, "→", {
-          font: "bold 15px Arial",
+        const previousPhaseX = this.getTrainingToolbarSlotX(index + 1, TRAINING_TIMELINE_SLOT_COUNT);
+        this.add.text((previousPhaseX + phaseX) / 2, TRAINING_TOOLBAR_CENTER_Y, "→", {
+          font: "bold 10px Arial",
           color: UI.colors.text
         }).setOrigin(0.5).setDepth(LINEOUT_ACTION_DEPTH + 0.1);
       }
       this.createTrainingTimelineBubble(
-        firstPhaseX + index * phaseGap,
+        phaseX,
         String(index + 1),
         this.trainingEditorPhaseIndex === index,
         () => this.restartTrainingEditor({
@@ -1130,28 +1212,32 @@ export class LineoutScene extends Phaser.Scene {
         })
       );
     });
-    const plusX = firstPhaseX + phaseCount * phaseGap;
     this.createTrainingTimelineBubble(
-      plusX,
+      this.getTrainingToolbarSlotX(phaseCount + 2, TRAINING_TIMELINE_SLOT_COUNT),
       "+",
       false,
       () => this.addTrainingPhase(),
       phaseCount < LINEOUT_V3_MAX_PHASES
     );
-    this.createTrainingTimelineBubble(356, ">", false, () => {
-      navigateTo(this, "LineoutScene", {
-        mode: "training",
-        trainingMode: "practice",
-        combinationId: this.selectedCombination.id
-      } satisfies LineoutSceneData);
-    });
+    this.createTrainingTimelineBubble(
+      this.getTrainingToolbarSlotX(TRAINING_TIMELINE_SLOT_COUNT - 1, TRAINING_TIMELINE_SLOT_COUNT),
+      ">",
+      false,
+      () => {
+        navigateTo(this, "LineoutScene", {
+          mode: "training",
+          trainingMode: "practice",
+          combinationId: this.selectedCombination.id
+        } satisfies LineoutSceneData);
+      }
+    );
   }
 
   private renderDefensiveSizeToolbar(): void {
     this.renderTrainingToolbarPanel();
     DEFENSIVE_LINEOUT_SIZES.forEach((size, index) => {
       this.createTrainingTimelineBubble(
-        45 + index * 60,
+        this.getTrainingToolbarSlotX(index, DEFENSIVE_LINEOUT_SIZES.length),
         String(size),
         size === this.defensiveEditorSize,
         () => this.restartDefensiveEditor(size)
@@ -1201,20 +1287,20 @@ export class LineoutScene extends Phaser.Scene {
     enabled = true
   ): void {
     const style = BUTTON_STYLES[active ? "primary" : "secondary"];
-    this.add.circle(x, 51, 18, 0x020617, enabled ? 0.48 : 0.2)
+    this.add.circle(x, TRAINING_TOOLBAR_CENTER_Y + 3, 18, 0x020617, enabled ? 0.48 : 0.2)
       .setDepth(LINEOUT_ACTION_DEPTH + 0.05);
     const bubble = this.add.circle(
       x,
-      48,
+      TRAINING_TOOLBAR_CENTER_Y,
       18,
       style.background,
       enabled ? 1 : 0.42
     )
       .setStrokeStyle(2, style.border, enabled ? 1 : 0.35)
       .setDepth(LINEOUT_ACTION_DEPTH + 0.1);
-    this.add.ellipse(x, 42, 23, 7, style.bevel, enabled ? 0.58 : 0.18)
+    this.add.ellipse(x, TRAINING_TOOLBAR_CENTER_Y - 6, 23, 7, style.bevel, enabled ? 0.58 : 0.18)
       .setDepth(LINEOUT_ACTION_DEPTH + 0.15);
-    const text = this.add.text(x, 48, label, {
+    const text = this.add.text(x, TRAINING_TOOLBAR_CENTER_Y, label, {
       font: "bold 17px Arial",
       color: style.textColor
     }).setOrigin(0.5).setAlpha(enabled ? 1 : 0.4).setDepth(LINEOUT_ACTION_DEPTH + 0.2);
@@ -1223,12 +1309,21 @@ export class LineoutScene extends Phaser.Scene {
     text.setInteractive({ useHandCursor: true }).on("pointerup", onSelect);
   }
 
+  private getTrainingToolbarSlotX(slotIndex: number, slotCount: number): number {
+    const left = MATCH_SCORE_OVERLAY_LAYOUT.x + TRAINING_TOOLBAR_HORIZONTAL_INSET;
+    const right = MATCH_SCORE_OVERLAY_LAYOUT.x
+      + MATCH_SCORE_OVERLAY_LAYOUT.width
+      - TRAINING_TOOLBAR_HORIZONTAL_INSET;
+    if (slotCount <= 1) return (left + right) / 2;
+    return left + slotIndex * ((right - left) / (slotCount - 1));
+  }
+
   private renderTrainingToolbarPanel(): void {
     renderMenuPanel(this, {
-      x: 195,
-      y: 48,
-      width: 374,
-      height: 58,
+      x: MATCH_SCORE_OVERLAY_LAYOUT.x + MATCH_SCORE_OVERLAY_LAYOUT.width / 2,
+      y: TRAINING_TOOLBAR_CENTER_Y,
+      width: MATCH_SCORE_OVERLAY_LAYOUT.width,
+      height: MATCH_SCORE_OVERLAY_LAYOUT.height,
       accentColor: UI.colors.accent,
       fillColor: UI.colors.panelDark,
       showAccent: false
@@ -1738,7 +1833,7 @@ export class LineoutScene extends Phaser.Scene {
       this.setInspectedPlayer(token.player);
       return;
     }
-    this.armedDefensiveJumperId = null;
+    this.armedDefensiveBlocks.delete(token.player.id);
     this.hidePlayerInspector();
     this.handleV3Events(this.v3Engine?.jumpDefender(token.player.id) ?? []);
     this.syncV3Objects();
@@ -1752,9 +1847,17 @@ export class LineoutScene extends Phaser.Scene {
       return;
     }
 
-    this.armedDefensiveJumperId = token.player.id;
+    const lifterIds = this.v3Engine?.getCompatibleLifterIds(token.player.id) ?? [];
+    if (lifterIds.length === 0) return;
+    const newParticipants = new Set([token.player.id, ...lifterIds]);
+    this.armedDefensiveBlocks.forEach((armedLifterIds, armedJumperId) => {
+      const armedParticipants = [armedJumperId, ...armedLifterIds];
+      if (!armedParticipants.some((playerId) => newParticipants.has(playerId))) return;
+      this.armedDefensiveBlocks.delete(armedJumperId);
+      this.findV3Token(armedJumperId)?.resetPose();
+    });
+    this.armedDefensiveBlocks.set(token.player.id, lifterIds);
     this.hidePlayerInspector();
-    this.attackTokens.forEach((candidate) => candidate.setSelected(false));
     token.setPose("hand");
   }
 
@@ -1791,6 +1894,27 @@ export class LineoutScene extends Phaser.Scene {
   private finishMatchDefenseReorder(token: PlayerToken): void {
     if (this.v3Engine) {
       const layout = this.getLayout();
+      const gesture = LINEOUT_BALANCE.gameplayV3.gesture;
+      const swapRadius = Math.max(
+        layout.playerHeight * gesture.playerSwapTargetRadiusHeightRatio,
+        layout.slotGap * gesture.playerSwapTargetRadiusSlotRatio
+      );
+      const swapTarget = this.attackTokens
+        .filter((candidate) => candidate !== token)
+        .map((candidate) => ({
+          token: candidate,
+          distance: Math.abs(candidate.y - token.y)
+        }))
+        .filter((candidate) => candidate.distance <= swapRadius)
+        .sort((left, right) => left.distance - right.distance)[0]?.token;
+      if (swapTarget) {
+        this.handleV3Events(this.v3Engine.swapDefenders(
+          token.player.id,
+          swapTarget.player.id
+        ));
+        this.syncV3Objects();
+        return;
+      }
       const destinationDepthMeters = this.v3DepthFromY(token.y, layout);
       this.handleV3Events(this.v3Engine.moveDefender(token.player.id, destinationDepthMeters));
       this.syncV3Objects();
@@ -1847,6 +1971,47 @@ export class LineoutScene extends Phaser.Scene {
     const plan = getV3CombinationPlan(this.selectedCombination);
     const phase = plan.phases[this.trainingEditorPhaseIndex];
     const playerPosition = drag.origin.playerPosition;
+    const layout = this.getLayout();
+    const swapTargetPosition = this.findTrainingActionSwapTarget(drag, layout);
+    if (swapTargetPosition !== null) {
+      const sourceDepth = this.getTrainingPreviewDepth(
+        playerPosition,
+        this.trainingEditorPhaseIndex
+      );
+      const targetDepth = this.getTrainingPreviewDepth(
+        swapTargetPosition,
+        this.trainingEditorPhaseIndex
+      );
+      const sourceStartingDepth = this.getTrainingPreviewDepth(
+        playerPosition,
+        this.trainingEditorPhaseIndex - 1
+      );
+      const targetStartingDepth = this.getTrainingPreviewDepth(
+        swapTargetPosition,
+        this.trainingEditorPhaseIndex - 1
+      );
+      phase.actions = phase.actions.filter((action) => (
+        action.playerPosition !== playerPosition
+        && action.playerPosition !== swapTargetPosition
+      ));
+      if (Math.abs(targetDepth - sourceStartingDepth) > 0.01) {
+        phase.actions.push({
+          type: "move",
+          playerPosition,
+          destinationDepthMeters: targetDepth
+        });
+      }
+      if (Math.abs(sourceDepth - targetStartingDepth) > 0.01) {
+        phase.actions.push({
+          type: "move",
+          playerPosition: swapTargetPosition,
+          destinationDepthMeters: sourceDepth
+        });
+      }
+      this.persistTrainingPlan(plan, this.trainingEditorPhaseIndex);
+      return;
+    }
+
     const previousPlayerActions = phase.actions.filter(
       (action) => action.playerPosition === playerPosition
     );
@@ -1856,7 +2021,7 @@ export class LineoutScene extends Phaser.Scene {
       this.trainingEditorPhaseIndex - 1
     );
     const destinationDepthMeters = getLineoutV3DepthForPosition(
-      getLineoutV3PositionForDepth(this.v3DepthFromY(drag.token.y, this.getLayout()))
+      getLineoutV3PositionForDepth(this.v3DepthFromY(drag.token.y, layout))
     );
     if (Math.abs(destinationDepthMeters - startingDepthMeters) > 0.01) {
       actions.push({
@@ -1869,6 +2034,28 @@ export class LineoutScene extends Phaser.Scene {
     }
     phase.actions = actions;
     this.persistTrainingPlan(plan, this.trainingEditorPhaseIndex);
+  }
+
+  private findTrainingActionSwapTarget(
+    drag: DragState,
+    layout: LineoutLayout
+  ): LineoutPosition | null {
+    if (drag.origin.kind !== "training-action") return null;
+    const gesture = LINEOUT_BALANCE.gameplayV3.gesture;
+    const swapRadius = Math.max(
+      layout.playerHeight * gesture.playerSwapTargetRadiusHeightRatio,
+      layout.slotGap * gesture.playerSwapTargetRadiusSlotRatio
+    );
+    return this.attackTokens
+      .filter((candidate) => candidate !== drag.token)
+      .map((candidate) => ({
+        position: candidate.getData("lineoutPosition") as LineoutPosition | undefined,
+        distance: Math.abs(candidate.y - drag.token.y)
+      }))
+      .filter((candidate): candidate is { position: LineoutPosition; distance: number } => (
+        candidate.position !== undefined && candidate.distance <= swapRadius
+      ))
+      .sort((left, right) => left.distance - right.distance)[0]?.position ?? null;
   }
 
   private handleDefensiveTrainingDrop(drag: DragState): void {
@@ -2146,6 +2333,202 @@ export class LineoutScene extends Phaser.Scene {
     this.scheduleV3AiDefensiveJump();
   }
 
+  private animateV3PlayerPreparation(): void {
+    this.v3PreparationTweens.forEach((tween) => tween.stop());
+    this.v3PreparationTweens = [];
+    this.v3AttackingPreparationProgress = 0;
+    this.v3DefendingPreparationProgress = 0;
+
+    const attackingState = { progress: 0 };
+    const defendingState = { progress: 0 };
+    this.v3PreparationTweens.push(
+      this.tweens.add({
+        targets: attackingState,
+        progress: 1,
+        duration: LINEOUT_PREPARATION_ANIMATION.attackingDurationMs,
+        ease: "Sine.easeOut",
+        onUpdate: () => {
+          this.v3AttackingPreparationProgress = attackingState.progress;
+        }
+      }),
+      this.tweens.add({
+        targets: defendingState,
+        progress: 1,
+        delay: LINEOUT_PREPARATION_ANIMATION.defendingDelayMs,
+        duration: LINEOUT_PREPARATION_ANIMATION.defendingDurationMs,
+        ease: "Sine.easeOut",
+        onUpdate: () => {
+          this.v3DefendingPreparationProgress = defendingState.progress;
+        }
+      })
+    );
+  }
+
+  private startV3DynamicCameraFlight(): void {
+    if (!this.v3HudCamera) {
+      const fieldCamera = this.cameras.main;
+      this.v3CameraBaseZoom = fieldCamera.zoom;
+      const hudCandidates: Array<Phaser.GameObjects.GameObject | undefined> = [
+        this.matchScoreOverlay,
+        this.statusText,
+        this.inspectorPanel
+      ];
+      this.v3CameraHudObjects = hudCandidates.filter(
+        (object): object is Phaser.GameObjects.GameObject => object !== undefined
+      );
+      this.v3CameraWorldObjects = this.children.list.filter((object) => (
+        !this.v3CameraHudObjects.includes(object)
+      ));
+      fieldCamera.ignore(this.v3CameraHudObjects);
+      this.v3HudCamera = this.cameras.add(
+        fieldCamera.x,
+        fieldCamera.y,
+        fieldCamera.width,
+        fieldCamera.height,
+        false,
+        "lineout-interface"
+      );
+      this.v3HudCamera
+        .setZoom(this.v3CameraBaseZoom)
+        .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        .ignore(this.v3CameraWorldObjects);
+    }
+
+    this.v3CameraPhase = "flight";
+    this.v3CameraFocusX = SCREEN_WIDTH / 2;
+    this.v3CameraFocusY = SCREEN_HEIGHT / 2;
+    this.v3CameraZoom = 1;
+    this.v3CameraFlightStartedAtMs = this.time.now;
+    this.v3CameraReceptionTargetId = null;
+  }
+
+  private focusV3DynamicCameraOnContest(): void {
+    if (!this.v3HudCamera) return;
+    this.v3CameraPhase = "contest";
+    this.cameras.main.shake(
+      LINEOUT_CAMERA_ANIMATION.contestShakeDurationMs,
+      LINEOUT_CAMERA_ANIMATION.contestShakeIntensity
+    );
+  }
+
+  private settleV3DynamicCamera(
+    resolution: NonNullable<ReturnType<LineoutV3Engine["getSnapshot"]>["resolution"]>
+  ): void {
+    if (!this.v3HudCamera) return;
+    this.v3CameraReceptionTargetId = typeof resolution.details.catcherId === "string"
+      ? resolution.details.catcherId
+      : null;
+    this.v3CameraPhase = "reception";
+    this.time.delayedCall(LINEOUT_CAMERA_ANIMATION.resultHoldDurationMs, () => {
+      if (this.v3CameraPhase === "reception") this.v3CameraPhase = "return";
+    });
+    this.time.delayedCall(
+      LINEOUT_CAMERA_ANIMATION.cleanupDelayMs,
+      () => this.restoreV3DynamicCamera()
+    );
+  }
+
+  private updateV3DynamicCamera(delta: number): void {
+    if (!this.v3HudCamera || this.v3CameraPhase === "idle") return;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    let focusPoint = { x: centerX, y: centerY };
+    let targetZoom: number = LINEOUT_CAMERA_ANIMATION.releaseZoom;
+
+    if (this.v3CameraPhase === "flight" && this.v3BallSprite) {
+      focusPoint = { x: this.v3BallSprite.x, y: this.v3BallSprite.y };
+      const releaseProgress = Phaser.Math.Clamp(
+        (this.time.now - this.v3CameraFlightStartedAtMs)
+          / LINEOUT_CAMERA_ANIMATION.releaseRampDurationMs,
+        0,
+        1
+      );
+      targetZoom = Phaser.Math.Linear(
+        LINEOUT_CAMERA_ANIMATION.releaseZoom,
+        LINEOUT_CAMERA_ANIMATION.flightZoom,
+        releaseProgress
+      );
+    } else if (this.v3CameraPhase === "contest") {
+      focusPoint = this.getV3CameraPlayersCenter([...this.v3ContestPlayerIds]) ?? focusPoint;
+      targetZoom = LINEOUT_CAMERA_ANIMATION.contestZoom;
+    } else if (this.v3CameraPhase === "reception") {
+      const token = this.v3CameraReceptionTargetId
+        ? this.findV3Token(this.v3CameraReceptionTargetId)
+        : undefined;
+      focusPoint = token
+        ? { x: token.x, y: token.y + token.getVisualCenterOffsetY() }
+        : this.v3BallSprite
+          ? { x: this.v3BallSprite.x, y: this.v3BallSprite.y }
+          : focusPoint;
+      targetZoom = LINEOUT_CAMERA_ANIMATION.receptionZoom;
+    } else if (this.v3CameraPhase === "return") {
+      targetZoom = 1;
+    }
+
+    const targetFocusX = centerX + Phaser.Math.Clamp(
+      (focusPoint.x - centerX) * LINEOUT_CAMERA_ANIMATION.horizontalFollowRatio,
+      -LINEOUT_CAMERA_ANIMATION.maximumHorizontalShiftPixels,
+      LINEOUT_CAMERA_ANIMATION.maximumHorizontalShiftPixels
+    );
+    const targetFocusY = centerY + Phaser.Math.Clamp(
+      (focusPoint.y - centerY) * LINEOUT_CAMERA_ANIMATION.verticalFollowRatio,
+      -LINEOUT_CAMERA_ANIMATION.maximumVerticalShiftPixels,
+      LINEOUT_CAMERA_ANIMATION.maximumVerticalShiftPixels
+    );
+    const responseDuration = this.v3CameraPhase === "return"
+      ? LINEOUT_CAMERA_ANIMATION.returnDurationMs / 4
+      : LINEOUT_CAMERA_ANIMATION.responseDurationMs;
+    const smoothing = 1 - Math.exp(-delta / responseDuration);
+    this.v3CameraFocusX = Phaser.Math.Linear(this.v3CameraFocusX, targetFocusX, smoothing);
+    this.v3CameraFocusY = Phaser.Math.Linear(this.v3CameraFocusY, targetFocusY, smoothing);
+    this.v3CameraZoom = Phaser.Math.Linear(this.v3CameraZoom, targetZoom, smoothing);
+    this.cameras.main
+      .setZoom(this.v3CameraBaseZoom * this.v3CameraZoom)
+      .centerOn(this.v3CameraFocusX, this.v3CameraFocusY);
+  }
+
+  private getV3CameraPlayersCenter(playerIds: readonly string[]): { x: number; y: number } | null {
+    const tokens = playerIds
+      .map((playerId) => this.findV3Token(playerId))
+      .filter((token): token is PlayerToken => Boolean(token));
+    if (tokens.length === 0) return null;
+    return {
+      x: tokens.reduce((total, token) => total + token.x, 0) / tokens.length,
+      y: tokens.reduce(
+        (total, token) => total + token.y + token.getVisualCenterOffsetY(),
+        0
+      ) / tokens.length
+    };
+  }
+
+  private restoreV3DynamicCamera(): void {
+    if (!this.v3HudCamera && this.v3CameraPhase === "idle") return;
+    const fieldCamera = this.cameras.main;
+    this.v3CameraHudObjects.forEach((object) => {
+      clearCameraFilterRecursively(object, fieldCamera.id);
+    });
+    if (this.v3HudCamera) {
+      const hudCameraId = this.v3HudCamera.id;
+      this.v3CameraWorldObjects.forEach((object) => {
+        clearCameraFilterRecursively(object, hudCameraId);
+      });
+      this.cameras.remove(this.v3HudCamera);
+    }
+    fieldCamera
+      .resetFX()
+      .setZoom(this.v3CameraBaseZoom)
+      .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    this.v3HudCamera = undefined;
+    this.v3CameraHudObjects = [];
+    this.v3CameraWorldObjects = [];
+    this.v3CameraPhase = "idle";
+    this.v3CameraFocusX = SCREEN_WIDTH / 2;
+    this.v3CameraFocusY = SCREEN_HEIGHT / 2;
+    this.v3CameraZoom = 1;
+    this.v3CameraBaseZoom = fieldCamera.zoom;
+    this.v3CameraReceptionTargetId = null;
+  }
+
   private scheduleV3AiDefensiveJump(): void {
     if (
       !this.v3Engine
@@ -2359,6 +2742,7 @@ export class LineoutScene extends Phaser.Scene {
   private handleV3Events(events: readonly LineoutV3Event[]): void {
     for (const event of events) {
       if (event.type === "combinationStarted") {
+        this.animateV3PlayerPreparation();
         this.hookerSprite?.setPose("hooker_throw_back");
         this.hookerShadow?.setPose("hooker_throw_back");
       } else if (event.type === "throwReleased") {
@@ -2387,11 +2771,14 @@ export class LineoutScene extends Phaser.Scene {
             .setAngle(PLAYER_GROUND_SHADOW_STYLE.angleDegrees)
             .setDepth(LINEOUT_ACTION_DEPTH - 10.1);
         }
-        const armedJumperId = this.armedDefensiveJumperId;
-        if (armedJumperId) {
-          this.armedDefensiveJumperId = null;
-          this.handleV3Events(this.v3Engine?.jumpDefender(armedJumperId) ?? []);
-        }
+        this.startV3DynamicCameraFlight();
+        const armedBlocks = [...this.armedDefensiveBlocks.entries()];
+        this.armedDefensiveBlocks.clear();
+        armedBlocks.forEach(([armedJumperId, lifterIds]) => {
+          this.handleV3Events(
+            this.v3Engine?.jumpDefender(armedJumperId, lifterIds) ?? []
+          );
+        });
       } else if (event.type === "jumpStarted") {
         const jumpingPlayer = this.v3Engine?.getSnapshot().players.find((state) => (
           state.player.id === event.playerId
@@ -2483,8 +2870,19 @@ export class LineoutScene extends Phaser.Scene {
         jumperApproachProgress,
         contestApproachProgress
       );
+      const alignmentOffsetX = getPlayerAlignmentOffsetX(state.player.id);
+      const preparationProgress = state.side === "throwingTeam"
+        ? this.v3AttackingPreparationProgress
+        : this.v3DefendingPreparationProgress;
+      const preparationDirection = this.mode === "training"
+        ? -Math.sign(alignmentOffsetX)
+        : Math.sign(SCREEN_WIDTH / 2 - baseX);
+      const preparationDistance = this.mode === "training"
+        ? Math.abs(alignmentOffsetX)
+        : getPlayerPreparationDistanceX(state.player.id, state.side === "throwingTeam");
       token.x = baseX
-        + getPlayerAlignmentOffsetX(state.player.id)
+        + alignmentOffsetX
+        + preparationDirection * preparationDistance * preparationProgress
         + corridorDirection * LINEOUT_LIFT_ANIMATION.contestCenterShiftPixels * corridorProgress;
       const elevationPixels = state.position.heightMeters * V3_METERS_TO_PIXELS;
       token.y = groundY + approachY - elevationPixels;
@@ -2500,7 +2898,7 @@ export class LineoutScene extends Phaser.Scene {
         state.position.lateralMeters,
         isMoving
       );
-      if (state.player.id === this.armedDefensiveJumperId) {
+      if (this.armedDefensiveBlocks.has(state.player.id)) {
         token.setPose("hand");
       } else if (
         state.player.id !== this.v3ContactPlayerId
@@ -2577,7 +2975,7 @@ export class LineoutScene extends Phaser.Scene {
         );
         const heightRatio = Phaser.Math.Clamp(
           snapshot.ball.position.heightMeters
-            / trajectoryBalance.maximumControlHeightMeters,
+            / trajectoryBalance.shadowReferenceHeightMeters,
           0,
           1
         );
@@ -2628,6 +3026,7 @@ export class LineoutScene extends Phaser.Scene {
     } else {
       this.retainV3CaughtBall(resolution);
     }
+    this.settleV3DynamicCamera(resolution);
     const perspective = this.isDefensiveMatch() ? "defending" : "throwing";
     const result = adaptV3ResolutionForPerspective(resolution, perspective);
 
@@ -2720,6 +3119,7 @@ export class LineoutScene extends Phaser.Scene {
       contestPlayers.map((state) => state.player.id)
     );
     this.v3ContestStartedAtMs = snapshot.elapsedMs;
+    this.focusV3DynamicCameraOnContest();
     contestPlayers.forEach((state) => {
       const token = this.findV3Token(state.player.id);
       if (!token) return;
@@ -4465,6 +4865,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private showResult(result: LineoutResult): void {
+    this.restoreV3DynamicCamera();
     if (
       this.mode === "match"
       && (result.resolution?.outcome === "knockOn" || result.internalEvent === "knock_on")
@@ -4631,6 +5032,11 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private resetSceneState(): void {
+    this.restoreV3DynamicCamera();
+    this.v3PreparationTweens.forEach((tween) => tween.stop());
+    this.v3PreparationTweens = [];
+    this.v3AttackingPreparationProgress = 0;
+    this.v3DefendingPreparationProgress = 0;
     this.selectedTargetId = null;
     this.selectedTargetPosition = null;
     this.isResolving = false;
@@ -4640,7 +5046,7 @@ export class LineoutScene extends Phaser.Scene {
     this.opponentTargetPosition = null;
     this.opponentTargetOptionId = null;
     this.opponentCombination = null;
-    this.armedDefensiveJumperId = null;
+    this.armedDefensiveBlocks.clear();
     this.attackTokens = [];
     this.defenseTokens = [];
     this.attackSlotPlayers = [];
@@ -4652,6 +5058,7 @@ export class LineoutScene extends Phaser.Scene {
     this.inspectedPlayer = null;
     this.inspectorPanel = undefined;
     this.statusText = undefined;
+    this.matchScoreOverlay = undefined;
     this.hookerSprite = undefined;
     this.hookerShadow = undefined;
     this.hookerHeldBall = undefined;

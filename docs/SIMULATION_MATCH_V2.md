@@ -242,7 +242,8 @@ Après un score :
 
 - ballon replacé visuellement à 50 m pour la remise au centre ;
 - coup d’envoi donné par l’équipe qui vient d’encaisser vers le camp adverse ;
-- réception et possession à l’équipe qui vient de marquer, dans son propre camp ;
+- réception et possession à l’équipe qui vient de marquer, entre ses lignes des 22 et 40 mètres ;
+- trajectoire le plus souvent diagonale vers un couloir latéral, avec une remise en jeu proche du centre seulement occasionnellement ;
 - pression offensive remise à zéro.
 
 ## 14. Fin du match

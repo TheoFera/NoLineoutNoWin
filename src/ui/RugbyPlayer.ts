@@ -56,7 +56,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.accessoryId = accessoryId;
 
     // Tous les calques partagent un ancrage par les pieds pour garder le meme repere visuel entre poses.
-    this.bodyLayer = this.createLayer(scene, this.canRenderBaldHairStyle() ? "bodychauve" : "body");
+    this.bodyLayer = this.createLayer(scene, this.usesBaldBody() ? "bodychauve" : "body");
     this.jerseyLayer = this.createLayer(scene, "jersey");
     this.shortsLayer = this.createLayer(scene, "shorts");
     this.socksLayer = this.createLayer(scene, "socks");
@@ -239,7 +239,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
   }
 
   private refreshTextures(): void {
-    const bodyLayerName = this.canRenderBaldHairStyle() ? "bodychauve" : "body";
+    const bodyLayerName = this.usesBaldBody() ? "bodychauve" : "body";
     this.bodyLayer.setTexture(this.getLayerTextureKey(bodyLayerName));
     this.jerseyLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "jersey"));
     this.shortsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "shorts"));
@@ -321,9 +321,15 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     this.accessoryLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer));
   }
 
-  private getHairStyleLayerName(): "chauve" | undefined {
-    if (this.canRenderBaldHairStyle()) {
+  private getHairStyleLayerName(): "chauve" | "chignon" | "mulet" | undefined {
+    if (this.canRenderHairStyleLayer("bald", "chauve")) {
       return "chauve";
+    }
+    if (this.canRenderHairStyleLayer("mullet", "mulet")) {
+      return "mulet";
+    }
+    if (this.canRenderHairStyleLayer("bun", "chignon")) {
+      return "chignon";
     }
     return undefined;
   }
@@ -338,10 +344,17 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return undefined;
   }
 
-  private canRenderBaldHairStyle(): boolean {
-    return this.hairStyleId === "bald"
+  private usesBaldBody(): boolean {
+    return this.getHairStyleLayerName() !== undefined;
+  }
+
+  private canRenderHairStyleLayer(
+    hairStyleId: PlayerHairStyleId,
+    layer: "chauve" | "chignon" | "mulet"
+  ): boolean {
+    return this.hairStyleId === hairStyleId
       && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "bodychauve")
-      && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "chauve");
+      && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, layer);
   }
 
   private getLayerTextureKey(

@@ -9,6 +9,7 @@ import {
   advanceToNextScheduledLineoutWithTrace,
   generateMatchSchedule,
   generateMatchMaximumFatigue,
+  getKickoffReceptionLateralPosition,
   getKickoffReceptionPosition,
   getPitchZoneFromPosition,
   getRealSecondsForSimulatedMinutes,
@@ -126,7 +127,7 @@ export class MatchScene extends Phaser.Scene {
         occupation: 50,
         ballOwner: firstHalfReceivingTeam,
         ballPositionMeters: getKickoffReceptionPosition(firstHalfReceivingTeam),
-        ballLateralPosition: 0,
+        ballLateralPosition: getKickoffReceptionLateralPosition(),
         ballLateralDirection: 0,
         possessionDurationMinutes: 0,
         playerPossessionTimeMinutes: 0,
@@ -185,6 +186,13 @@ export class MatchScene extends Phaser.Scene {
     const simulationPending = next
       ? match.minute < next.minute
       : match.minute < match.maxMinute;
+
+    if (match.pendingTryCelebration) {
+      this.renderScoreboard(match);
+      this.renderSimulationBoard(match);
+      this.startPendingTryCelebration(match);
+      return;
+    }
 
     if (!match.halfTimeCompleted && match.minute >= match.halfTimeMinute) {
       this.renderScoreboard(match);
@@ -288,20 +296,25 @@ export class MatchScene extends Phaser.Scene {
       font: "bold 12px Arial",
       color: "#fde68a"
     }).setOrigin(0.5);
-    const ownerColors = this.getDisplayedTeamColors(match, match.ballOwner);
+    const pendingTry = match.pendingTryCelebration;
+    const displayedOwner = pendingTry?.scoringOwner ?? match.ballOwner;
+    const ownerColors = this.getDisplayedTeamColors(match, displayedOwner);
     const isInitialKickoff = match.minute === 0;
-    const ballX = isInitialKickoff
+    const ballX = pendingTry
+      ? this.getPitchX(pendingTry.lateralPosition)
+      : isInitialKickoff
       ? SIMULATION_FIELD.centerX
       : this.getPitchX(match.ballLateralPosition);
-    const ballY = this.getPitchY(
-      isInitialKickoff
+    const displayedBallPosition = pendingTry
+      ? pendingTry.scoringOwner === "player" ? 100 : 0
+      : isInitialKickoff
         ? LINEOUT_BALANCE.match.restartPositionMeters
-        : match.ballPositionMeters
-    );
+        : match.ballPositionMeters;
+    const ballY = this.getPitchY(displayedBallPosition);
     this.simulationBall = this.add.image(ballX, ballY, "lineout-ball")
       .setDisplaySize(16, 23)
       .setDepth(SIMULATION_DEPTH.ball);
-    if (isInitialKickoff) {
+    if (isInitialKickoff && !pendingTry) {
       this.setSimulationBallLooseStyle();
     } else {
       this.simulationBall.setTint(ownerColors.primary);
@@ -310,9 +323,7 @@ export class MatchScene extends Phaser.Scene {
       .replace(
         "{meters}",
         String(Math.round(
-          isInitialKickoff
-            ? LINEOUT_BALANCE.match.restartPositionMeters
-            : match.ballPositionMeters
+          displayedBallPosition
         ))
       ), {
       font: UI.font.body,
@@ -396,6 +407,46 @@ export class MatchScene extends Phaser.Scene {
         visualConfig.restartArcHeightPixels,
         visualConfig.halfTimeKickoffDurationMs,
         restartedMatch,
+        true,
+        () => this.scene.restart(),
+        "trajectory"
+      );
+    });
+  }
+
+  private startPendingTryCelebration(match: MatchStateData): void {
+    const pendingTry = match.pendingTryCelebration;
+    if (!pendingTry) return;
+    const visualConfig = LINEOUT_BALANCE.match.visualSimulation;
+    const nextMatch: MatchStateData = {
+      ...match,
+      pendingTryCelebration: undefined
+    };
+    const actionKey = pendingTry.points === LINEOUT_BALANCE.match.points.convertedTry
+      ? "match.action.convertedTryScored"
+      : "match.action.tryScored";
+    this.updateSimulationActionText(actionKey);
+    this.showTryCelebration(
+      match,
+      pendingTry.scoringOwner,
+      visualConfig.tryCelebrationDisplayDurationMs
+    );
+
+    this.time.delayedCall(visualConfig.tryCelebrationDisplayDurationMs, () => {
+      const concedingOwner = pendingTry.scoringOwner === "player" ? "opponent" : "player";
+      GameStore.setMatch(nextMatch);
+      this.simulationBall?.setPosition(
+        SIMULATION_FIELD.centerX,
+        this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+      );
+      this.setSimulationBallTeamStyle(nextMatch, concedingOwner);
+      this.updateSimulationActionText("match.action.restart");
+      this.animateBallFlight(
+        this.getPitchX(nextMatch.ballLateralPosition),
+        this.getPitchY(nextMatch.ballPositionMeters),
+        visualConfig.restartArcHeightPixels,
+        visualConfig.halfTimeKickoffDurationMs,
+        nextMatch,
         true,
         () => this.scene.restart(),
         "trajectory"
@@ -678,7 +729,7 @@ export class MatchScene extends Phaser.Scene {
     const restartDuration = Math.max(1, duration - scoringDuration - celebrationDuration);
 
     this.animateBallFlight(
-      SIMULATION_FIELD.centerX,
+      this.getPitchX(previous.ballLateralPosition),
       scoringLineY,
       scoringArc,
       scoringDuration,

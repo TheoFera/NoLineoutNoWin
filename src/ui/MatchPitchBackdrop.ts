@@ -193,46 +193,121 @@ function renderPitchDecorations(
   const graphics = scene.add.graphics();
   const scaleX = width / SCREEN_WIDTH;
   const scaleY = height / SCREEN_HEIGHT;
-  const mirror = appearance.terrainSeed % 2 === 0 ? 1 : -1;
-  const toX = (ratio: number): number => left + width * (mirror === 1 ? ratio : 1 - ratio);
-  const toY = (ratio: number): number => top + height * ratio;
-  const pixel = Math.max(1, Math.round(Math.min(scaleX, scaleY) * 3));
+  const pixel = Math.max(1, Math.round(Math.min(scaleX, scaleY) * 2));
+  const random = createSeededRandom(appearance.terrainSeed);
+  const randomX = (): number => left + width * (0.1 + random() * 0.8);
+  const randomY = (): number => top + height * (0.08 + random() * 0.84);
 
   if (appearance.decoration === "mud") {
-    drawPixelPatch(graphics, toX(0.16), toY(0.29), pixel, 0x4b3525, 0.48);
-    drawPixelPatch(graphics, toX(0.74), toY(0.65), pixel, 0x3f2f23, 0.4);
-    drawPixelPatch(graphics, toX(0.38), toY(0.82), pixel, 0x493123, 0.34);
-    drawBootMarks(graphics, toX(0.56), toY(0.46), pixel, 0x553b28, 0.42, mirror);
+    for (let index = 0; index < 4; index += 1) {
+      drawScatteredPixelPatch(
+        graphics,
+        randomX(),
+        randomY(),
+        width * (0.035 + random() * 0.03),
+        height * (0.012 + random() * 0.014),
+        pixel,
+        [0x33251b, 0x4b3525, 0x62452d],
+        0.34 + random() * 0.12,
+        18 + Math.floor(random() * 10),
+        random
+      );
+    }
+    drawBootMarks(
+      graphics,
+      randomX(),
+      randomY(),
+      pixel,
+      0x553b28,
+      0.38,
+      random() < 0.5 ? -1 : 1
+    );
     return;
   }
 
   if (appearance.decoration === "worn") {
-    graphics.fillStyle(0x9b8b52, 0.25);
-    graphics.fillRect(toX(0.46), toY(0.18), pixel * 7, height * 0.64);
-    graphics.fillRect(toX(0.62), toY(0.26), pixel * 4, height * 0.42);
-    drawPixelPatch(graphics, toX(0.31), toY(0.72), pixel, 0x756239, 0.34);
-    drawBootMarks(graphics, toX(0.7), toY(0.32), pixel, 0x6c5932, 0.28, -mirror);
+    for (let index = 0; index < 2; index += 1) {
+      drawScatteredPixelPatch(
+        graphics,
+        randomX(),
+        randomY(),
+        width * (0.018 + random() * 0.015),
+        height * (0.16 + random() * 0.08),
+        pixel,
+        [0x756239, 0x8c7744, 0xa18d52],
+        0.24,
+        52,
+        random
+      );
+    }
+    drawScatteredPixelPatch(
+      graphics,
+      randomX(),
+      randomY(),
+      width * 0.055,
+      height * 0.025,
+      pixel,
+      [0x695633, 0x806c3e, 0xa08a50],
+      0.32,
+      25,
+      random
+    );
+    drawBootMarks(
+      graphics,
+      randomX(),
+      randomY(),
+      pixel,
+      0x6c5932,
+      0.3,
+      random() < 0.5 ? -1 : 1
+    );
     return;
   }
 
   if (appearance.decoration === "lush") {
-    graphics.fillStyle(0x064e3b, 0.09);
     for (let stripe = 0; stripe < 5; stripe += 1) {
-      graphics.fillRect(left, top + height * (0.08 + stripe * 0.2), width, height * 0.08);
+      drawBrokenPixelBand(
+        graphics,
+        left,
+        top + height * (0.08 + stripe * 0.2 + random() * 0.025),
+        width,
+        pixel,
+        stripe % 2 === 0 ? 0x064e3b : 0x7dbb57,
+        0.09,
+        random
+      );
     }
-    graphics.fillStyle(0x86c95f, 0.24);
-    graphics.fillRect(toX(0.2), toY(0.36), pixel * 2, pixel * 4);
-    graphics.fillRect(toX(0.8), toY(0.58), pixel * 3, pixel * 5);
-    graphics.fillRect(toX(0.47), toY(0.78), pixel * 2, pixel * 3);
+    for (let index = 0; index < 5; index += 1) {
+      drawScatteredPixelPatch(
+        graphics,
+        randomX(),
+        randomY(),
+        width * 0.018,
+        height * 0.012,
+        pixel,
+        [0x3f8f4d, 0x72b957, 0x91c968],
+        0.22,
+        8,
+        random
+      );
+    }
     return;
   }
 
-  graphics.fillStyle(0xc7b36a, 0.3);
-  graphics.fillRect(toX(0.12), toY(0.16), pixel * 10, pixel * 5);
-  graphics.fillRect(toX(0.71), toY(0.52), pixel * 13, pixel * 7);
-  graphics.fillRect(toX(0.38), toY(0.81), pixel * 7, pixel * 4);
-  graphics.fillStyle(0xe3cd83, 0.26);
-  graphics.fillRect(toX(0.76), toY(0.55), pixel * 6, pixel * 2);
+  for (let index = 0; index < 5; index += 1) {
+    drawScatteredPixelPatch(
+      graphics,
+      randomX(),
+      randomY(),
+      width * (0.03 + random() * 0.035),
+      height * (0.012 + random() * 0.018),
+      pixel,
+      [0xb99d55, 0xc7b36a, 0xe3cd83],
+      0.25 + random() * 0.08,
+      16 + Math.floor(random() * 14),
+      random
+    );
+  }
 }
 
 function renderWeatherEffects(
@@ -253,34 +328,109 @@ function renderWeatherEffects(
   scene.add.rectangle(left + width / 2, top + height / 2, width, height, overlayColor, overlayAlpha);
   if (appearance.weather !== "rain") return;
 
-  const graphics = scene.add.graphics();
   const pixel = Math.max(1, Math.round(Math.min(width / SCREEN_WIDTH, height / SCREEN_HEIGHT) * 2));
   let state = appearance.weatherSeed;
-  graphics.fillStyle(0xcde8f4, 0.34);
-  for (let index = 0; index < 22; index += 1) {
+  const nextRandom = (): number => {
     state = Math.imul(state ^ (state >>> 15), 2246822519) >>> 0;
-    const x = left + pixel * 2 + (state % Math.max(1, Math.floor(width - pixel * 5)));
-    state = Math.imul(state ^ (state >>> 13), 3266489917) >>> 0;
-    const y = top + pixel * 2 + (state % Math.max(1, Math.floor(height - pixel * 8)));
-    graphics.fillRect(x, y, pixel, pixel * 3);
-    graphics.fillRect(x + pixel, y + pixel * 3, pixel, pixel * 3);
+    return state / 0xffffffff;
+  };
+  for (let index = 0; index < 22; index += 1) {
+    const drop = scene.add.graphics();
+    drop.fillStyle(0xcde8f4, 0.42);
+    drop.fillRect(0, 0, pixel, pixel * 3);
+    drop.fillRect(pixel, pixel * 3, pixel, pixel * 3);
+    drop.setPosition(
+      left + pixel * 2 + nextRandom() * Math.max(1, width - pixel * 7),
+      top + nextRandom() * Math.max(1, height - pixel * 7)
+    );
+    animateRainDrop(scene, drop, left, top, width, height, pixel, nextRandom);
   }
 }
 
-function drawPixelPatch(
+function animateRainDrop(
+  scene: Phaser.Scene,
+  drop: Phaser.GameObjects.Graphics,
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  pixel: number,
+  nextRandom: () => number
+): void {
+  const bottomY = top + height - pixel * 6;
+  const remainingRatio = Phaser.Math.Clamp((bottomY - drop.y) / Math.max(1, height), 0.08, 1);
+  const fullDurationMs = 620 + nextRandom() * 360;
+  const horizontalDrift = pixel * (3 + nextRandom() * 4);
+  scene.tweens.add({
+    targets: drop,
+    x: Phaser.Math.Clamp(drop.x + horizontalDrift, left + pixel, left + width - pixel * 3),
+    y: bottomY,
+    duration: fullDurationMs * remainingRatio,
+    ease: "Linear",
+    onComplete: () => {
+      if (!drop.active || !scene.sys.isActive()) return;
+      drop.setPosition(
+        left + pixel + nextRandom() * Math.max(1, width - pixel * 5),
+        top
+      );
+      animateRainDrop(scene, drop, left, top, width, height, pixel, nextRandom);
+    }
+  });
+}
+
+function createSeededRandom(seed: number): () => number {
+  let state = (seed ^ 0x9e3779b9) >>> 0 || 1;
+  return (): number => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0xffffffff;
+  };
+}
+
+function drawScatteredPixelPatch(
   graphics: Phaser.GameObjects.Graphics,
-  x: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  pixel: number,
+  colors: readonly number[],
+  alpha: number,
+  count: number,
+  random: () => number
+): void {
+  for (let index = 0; index < count; index += 1) {
+    const angle = random() * Math.PI * 2;
+    const distance = Math.sqrt(random());
+    const x = Math.round((centerX + Math.cos(angle) * radiusX * distance) / pixel) * pixel;
+    const y = Math.round((centerY + Math.sin(angle) * radiusY * distance) / pixel) * pixel;
+    const size = random() < 0.78 ? 1 : 2;
+    graphics.fillStyle(
+      colors[Math.floor(random() * colors.length)],
+      alpha * (0.62 + random() * 0.38)
+    );
+    graphics.fillRect(x, y, pixel * size, pixel * (random() < 0.86 ? 1 : 2));
+  }
+}
+
+function drawBrokenPixelBand(
+  graphics: Phaser.GameObjects.Graphics,
+  left: number,
   y: number,
+  width: number,
   pixel: number,
   color: number,
-  alpha: number
+  alpha: number,
+  random: () => number
 ): void {
-  graphics.fillStyle(color, alpha);
-  graphics.fillRect(x, y, pixel * 8, pixel * 3);
-  graphics.fillRect(x + pixel * 2, y - pixel * 2, pixel * 9, pixel * 7);
-  graphics.fillRect(x + pixel * 7, y + pixel * 4, pixel * 6, pixel * 3);
-  graphics.fillStyle(0x2b211a, alpha * 0.55);
-  graphics.fillRect(x + pixel * 4, y, pixel * 5, pixel * 2);
+  let x = left + random() * pixel * 4;
+  while (x < left + width) {
+    const segmentWidth = pixel * (2 + Math.floor(random() * 5));
+    graphics.fillStyle(color, alpha * (0.55 + random() * 0.45));
+    graphics.fillRect(x, y + Math.round((random() - 0.5) * pixel * 2), segmentWidth, pixel);
+    x += segmentWidth + pixel * (2 + Math.floor(random() * 5));
+  }
 }
 
 function drawBootMarks(

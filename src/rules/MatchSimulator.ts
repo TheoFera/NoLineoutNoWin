@@ -173,7 +173,7 @@ export function advanceMatchSimulationWithTrace(
   const endMinute = Math.min(targetMinute, match.maxMinute);
   while (current.minute < endMinute) {
     if (!current.halfTimeCompleted && current.minute >= current.halfTimeMinute) {
-      current = startSecondHalf(current);
+      current = startSecondHalf(current, randomSource);
     }
     const stepMinutes = Math.min(
       BALANCE.simulationStepMinutes,
@@ -183,13 +183,18 @@ export function advanceMatchSimulationWithTrace(
         : current.halfTimeMinute - current.minute
     );
     const step = simulateStep(current, stepMinutes, randomSource);
-    const lateralResolution = resolveActionLateralPosition(
-      current.ballLateralPosition ?? 0,
-      current.ballLateralDirection ?? 0,
-      step.action.kind,
-      actions.length,
-      randomSource
-    );
+    const lateralResolution = step.action.kind === "score"
+      ? {
+        position: step.state.ballLateralPosition ?? 0,
+        direction: 0 as const
+      }
+      : resolveActionLateralPosition(
+        current.ballLateralPosition ?? 0,
+        current.ballLateralDirection ?? 0,
+        step.action.kind,
+        actions.length,
+        randomSource
+      );
     current = {
       ...step.state,
       ballLateralPosition: lateralResolution.position,
@@ -339,15 +344,18 @@ export function getTurnoverProbability(stepMinutes: number): number {
   return 1 - Math.pow(1 - BALANCE.turnoverProbabilityPerMinute, stepMinutes);
 }
 
-export function startSecondHalf(match: MatchStateData): MatchStateData {
+export function startSecondHalf(
+  match: MatchStateData,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): MatchStateData {
   const secondHalfKickoffTeam = oppositeOwner(match.firstHalfKickoffTeam);
   const receivingTeam = oppositeOwner(secondHalfKickoffTeam);
   return {
     ...match,
     halfTimeCompleted: true,
     ballOwner: receivingTeam,
-    ballPositionMeters: getKickoffReceptionPosition(receivingTeam),
-    ballLateralPosition: 0,
+    ballPositionMeters: getKickoffReceptionPosition(receivingTeam, randomSource),
+    ballLateralPosition: getKickoffReceptionLateralPosition(randomSource),
     ballLateralDirection: 0,
     possessionDurationMinutes: 0,
     playerAttackingPressure: 0,
@@ -355,12 +363,35 @@ export function startSecondHalf(match: MatchStateData): MatchStateData {
   };
 }
 
-export function getKickoffReceptionPosition(receivingTeam: MatchBallOwner): number {
-  const direction = receivingTeam === "player" ? -1 : 1;
-  return clamp(
-    BALANCE.restartPositionMeters + direction * BALANCE.restartKickDistanceMeters,
-    0,
-    BALANCE.pitchLengthMeters
+export function getKickoffReceptionPosition(
+  receivingTeam: MatchBallOwner,
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): number {
+  const distanceFromReceivingTryLine = randomFloat(
+    BALANCE.restartLandingMinimumDistanceFromTryLineMeters,
+    BALANCE.restartLandingMaximumDistanceFromTryLineMeters,
+    randomSource
+  );
+  return receivingTeam === "player"
+    ? distanceFromReceivingTryLine
+    : BALANCE.pitchLengthMeters - distanceFromReceivingTryLine;
+}
+
+export function getKickoffReceptionLateralPosition(
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): number {
+  if (randomFloat(0, 1, randomSource) >= BALANCE.restartDiagonalProbability) {
+    return randomFloat(
+      -BALANCE.restartCentralMaximumLateralRatio,
+      BALANCE.restartCentralMaximumLateralRatio,
+      randomSource
+    );
+  }
+  const direction = randomFloat(0, 1, randomSource) < 0.5 ? -1 : 1;
+  return direction * randomFloat(
+    BALANCE.restartDiagonalMinimumLateralRatio,
+    BALANCE.restartDiagonalMaximumLateralRatio,
+    randomSource
   );
 }
 
@@ -673,7 +704,7 @@ function attemptPressureScore(
     return scoreTry(match, owner, randomSource);
   }
   if (randomFloat(0, 1, randomSource) < BALANCE.penaltyProbabilityOutsideAttacking22) {
-    return applyScore(match, owner, BALANCE.points.penalty);
+    return applyScore(match, owner, BALANCE.points.penalty, randomSource);
   }
   return match;
 }
@@ -692,9 +723,22 @@ function attemptImmediateLineoutTry(
       ? BALANCE.immediateTryProbability.distance8To15
       : BALANCE.immediateTryProbability.distance16To22;
   const probability = outcome === "cleanWin" ? bracket.cleanWin : bracket.scrappyWin;
-  return randomFloat(0, 1, randomSource) < probability
-    ? scoreTry(match, owner, randomSource, true)
-    : match;
+  if (randomFloat(0, 1, randomSource) >= probability) return match;
+
+  const scoredMatch = scoreTry(match, owner, randomSource, true);
+  const points = owner === "player"
+    ? scoredMatch.ourScore - match.ourScore
+    : scoredMatch.opponentScore - match.opponentScore;
+  return points > 0
+    ? {
+      ...scoredMatch,
+      pendingTryCelebration: {
+        scoringOwner: owner,
+        lateralPosition: match.ballLateralPosition ?? 0,
+        points
+      }
+    }
+    : scoredMatch;
 }
 
 function scoreTry(
@@ -707,7 +751,7 @@ function scoreTry(
   const points = randomFloat(0, 1, randomSource) < BALANCE.conversionSuccessProbability
     ? BALANCE.points.convertedTry
     : BALANCE.points.unconvertedTry;
-  return applyScore(match, owner, points);
+  return applyScore(match, owner, points, randomSource);
 }
 
 function hasWonRecentLineout(match: MatchStateData, owner: MatchBallOwner): boolean {
@@ -731,19 +775,16 @@ function ownerForThrowingSide(throwingSide: "us" | "opponent"): MatchBallOwner {
 function applyScore(
   match: MatchStateData,
   scoringOwner: MatchBallOwner,
-  points: number
+  points: number,
+  randomSource: RandomSource
 ): MatchStateData {
   const receivingOwner = scoringOwner;
-  const kickoffDirection = scoringOwner === "player" ? -1 : 1;
   return {
     ...match,
     ourScore: match.ourScore + (scoringOwner === "player" ? points : 0),
     opponentScore: match.opponentScore + (scoringOwner === "opponent" ? points : 0),
-    ballPositionMeters: clamp(
-      BALANCE.restartPositionMeters + kickoffDirection * BALANCE.restartKickDistanceMeters,
-      0,
-      BALANCE.pitchLengthMeters
-    ),
+    ballPositionMeters: getKickoffReceptionPosition(receivingOwner, randomSource),
+    ballLateralPosition: getKickoffReceptionLateralPosition(randomSource),
     ballLateralDirection: 0,
     ballOwner: receivingOwner,
     possessionDurationMinutes: 0,

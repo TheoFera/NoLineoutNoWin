@@ -157,6 +157,30 @@ export class LineoutV3Engine {
     return [{ type: "playerMoved", playerId }];
   }
 
+  swapDefenders(firstPlayerId: string, secondPlayerId: string): LineoutV3Event[] {
+    if (this.defenseLocked || this.resolution || firstPlayerId === secondPlayerId) return [];
+    const firstPlayer = this.playersById.get(firstPlayerId);
+    const secondPlayer = this.playersById.get(secondPlayerId);
+    if (
+      !firstPlayer
+      || !secondPlayer
+      || firstPlayer.side !== "defendingTeam"
+      || secondPlayer.side !== "defendingTeam"
+      || !this.canMove(firstPlayer)
+      || !this.canMove(secondPlayer)
+    ) return [];
+
+    const firstDestination = secondPlayer.position.depthMeters;
+    const secondDestination = firstPlayer.position.depthMeters;
+    const firstAvoidanceDirection = Math.sign(firstPlayer.standingLateralMeters) || 1;
+    this.assignSwapMovement(firstPlayer, firstDestination, firstAvoidanceDirection);
+    this.assignSwapMovement(secondPlayer, secondDestination, -firstAvoidanceDirection);
+    return [
+      { type: "playerMoved", playerId: firstPlayerId },
+      { type: "playerMoved", playerId: secondPlayerId }
+    ];
+  }
+
   getCompatibleLifterIds(jumperId: string): string[] {
     const jumper = this.playersById.get(jumperId);
     if (!jumper || jumper.side !== "defendingTeam" || !this.canMove(jumper)) return [];
@@ -202,7 +226,7 @@ export class LineoutV3Engine {
     return events;
   }
 
-  jumpDefender(playerId: string): LineoutV3Event[] {
+  jumpDefender(playerId: string, preferredLifterIds?: readonly string[]): LineoutV3Event[] {
     if (!this.defenseLocked || !this.ball || this.resolution) return [];
     const player = this.playersById.get(playerId);
     if (
@@ -212,7 +236,7 @@ export class LineoutV3Engine {
       || player.hasJumped
       || !["ready", "moving"].includes(player.activity)
     ) return [];
-    const lifters = this.findEligibleDefensiveJumpLifters(player);
+    const lifters = this.findEligibleDefensiveJumpLifters(player, preferredLifterIds);
     if (lifters.length === 0) return [];
     this.stopMovementForJump(player);
     lifters.forEach((lifter) => this.stopMovementForJump(lifter));
@@ -830,13 +854,13 @@ export class LineoutV3Engine {
         ? V3.trajectory.highTargetHeightMeters
         : preciseTargetHeight;
     const targetHeightMeters = clamp(baseTargetHeight + heightError, 1.9, 4.3);
-    const groundDepthMeters = actualDepthMeters + V3.depth.ballContinuationMeters;
-    const targetProgress = actualDepthMeters / groundDepthMeters;
-    const controlHeightMeters = clamp(
-      this.solveQuadraticControlHeight(targetProgress, targetHeightMeters),
-      V3.trajectory.minimumControlHeightMeters,
-      V3.trajectory.maximumControlHeightMeters
+    const ballisticArc = this.solveBallisticArc(
+      actualDepthMeters,
+      targetHeightMeters,
+      classification
     );
+    const groundDepthMeters = ballisticArc.groundDepthMeters;
+    const controlHeightMeters = ballisticArc.controlHeightMeters;
     const flightDurationMs = clamp(
       V3.timing.baseFlightDurationMs + groundDepthMeters * V3.timing.flightDurationPerMeterMs,
       V3.timing.minimumFlightDurationMs,
@@ -870,10 +894,37 @@ export class LineoutV3Engine {
     };
   }
 
-  private solveQuadraticControlHeight(progress: number, desiredHeight: number): number {
-    const inverse = 1 - progress;
-    const denominator = Math.max(0.001, 2 * inverse * progress);
-    return (desiredHeight - inverse * inverse * V3.trajectory.startHeightMeters) / denominator;
+  private solveBallisticArc(
+    targetDepthMeters: number,
+    targetHeightMeters: number,
+    classification: LineoutV3BallTrajectory["classification"]
+  ): Pick<LineoutV3BallTrajectory, "groundDepthMeters" | "controlHeightMeters"> {
+    const launchAngleDegrees = classification === "low"
+      ? V3.trajectory.lowLaunchAngleDegrees
+      : classification === "high"
+        ? V3.trajectory.highLaunchAngleDegrees
+        : V3.trajectory.preciseLaunchAngleDegrees;
+    const angleSlope = Math.tan(launchAngleDegrees * Math.PI / 180);
+    const startHeightMeters = V3.trajectory.startHeightMeters;
+    const minimumDescendingSlope = 2 * (targetHeightMeters - startHeightMeters)
+      / Math.max(0.1, targetDepthMeters)
+      + V3.trajectory.minimumTargetDescentSlope;
+    const launchSlope = Math.max(angleSlope, minimumDescendingSlope);
+    const curvature = Math.max(
+      0.001,
+      (startHeightMeters + launchSlope * targetDepthMeters - targetHeightMeters)
+        / (targetDepthMeters * targetDepthMeters)
+    );
+    const groundDepthMeters = (
+      launchSlope
+      + Math.sqrt(launchSlope * launchSlope + 4 * curvature * startHeightMeters)
+    ) / (2 * curvature);
+
+    // Cette hauteur de contrôle est la représentation Bézier de la parabole
+    // h(x) = hauteurInitiale + penteInitiale * x - courbure * x².
+    const controlHeightMeters = startHeightMeters
+      + launchSlope * groundDepthMeters / 2;
+    return { groundDepthMeters, controlHeightMeters };
   }
 
   private contactScore(contact: TimedContact, throwingTeam: boolean): number {
@@ -951,11 +1002,14 @@ export class LineoutV3Engine {
   }
 
   private findEligibleDefensiveJumpLifters(
-    jumper: LineoutV3PlayerState
+    jumper: LineoutV3PlayerState,
+    preferredLifterIds?: readonly string[]
   ): LineoutV3PlayerState[] {
+    const preferredIds = preferredLifterIds ? new Set(preferredLifterIds) : null;
     const candidates = [...this.playersById.values()]
       .filter((candidate) => (
         candidate.player.id !== jumper.player.id
+        && (!preferredIds || preferredIds.has(candidate.player.id))
         && candidate.side === jumper.side
         && !candidate.engagedByPlayerId
         && !candidate.hasJumped
@@ -1021,6 +1075,30 @@ export class LineoutV3Engine {
       waypoints,
       waypointIndex: 0,
       ...(speedMetersPerSecond === undefined ? {} : { speedMetersPerSecond })
+    };
+    player.activity = "moving";
+  }
+
+  private assignSwapMovement(
+    player: LineoutV3PlayerState,
+    destinationDepthMeters: number,
+    avoidanceDirection: number
+  ): void {
+    const destination = clamp(
+      destinationDepthMeters,
+      V3.depth.minimumMeters,
+      V3.depth.maximumMeters
+    );
+    const middleDepth = (player.position.depthMeters + destination) / 2;
+    const avoidanceLateral = player.standingLateralMeters
+      + avoidanceDirection * V3.movement.avoidanceLateralMeters;
+    player.movement = {
+      destinationDepthMeters: destination,
+      waypoints: [
+        { depthMeters: middleDepth, lateralMeters: avoidanceLateral },
+        { depthMeters: destination, lateralMeters: player.standingLateralMeters }
+      ],
+      waypointIndex: 0
     };
     player.activity = "moving";
   }

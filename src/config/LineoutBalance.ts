@@ -125,7 +125,9 @@ export const LINEOUT_BALANCE = {
       longThrowMinimumSpeedPixelsPerSecond: 360,
       accidentalTouchProtectionMs: 35,
       playerActionSwipeMinimumPixels: 24,
-      playerActionSwipeDominanceRatio: 1.15
+      playerActionSwipeDominanceRatio: 1.15,
+      playerSwapTargetRadiusSlotRatio: 0.42,
+      playerSwapTargetRadiusHeightRatio: 0.55
     },
     timing: {
       combinationLeadMs: 300,
@@ -172,8 +174,11 @@ export const LINEOUT_BALANCE = {
       preciseTargetHeightMeters: 3.05,
       lowTargetHeightMeters: 2.35,
       highTargetHeightMeters: 3.78,
-      minimumControlHeightMeters: 3.4,
-      maximumControlHeightMeters: 8.5,
+      preciseLaunchAngleDegrees: 48,
+      lowLaunchAngleDegrees: 34,
+      highLaunchAngleDegrees: 58,
+      minimumTargetDescentSlope: 0.08,
+      shadowReferenceHeightMeters: 8.5,
       notStraightLateralMeters: 0.68,
       maximumLateralErrorMeters: 1.15
     },
@@ -434,7 +439,12 @@ export const LINEOUT_BALANCE = {
       convertedTry: 7
     },
     restartPositionMeters: 50,
-    restartKickDistanceMeters: 20,
+    restartLandingMinimumDistanceFromTryLineMeters: 22,
+    restartLandingMaximumDistanceFromTryLineMeters: 40,
+    restartDiagonalProbability: 0.85,
+    restartDiagonalMinimumLateralRatio: 0.28,
+    restartDiagonalMaximumLateralRatio: 0.78,
+    restartCentralMaximumLateralRatio: 0.12,
     visualSimulation: {
       ballFlightDurationRatio: 0.88,
       passVerticalDistancePixels: 50,

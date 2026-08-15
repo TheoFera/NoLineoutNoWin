@@ -66,7 +66,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "teamCreation.hairStyle.short": { fr: "Courts", en: "Short" },
   "teamCreation.hairStyle.bald": { fr: "Chauve", en: "Bald" },
   "teamCreation.hairStyle.mullet": { fr: "Mulet", en: "Mullet" },
-  "teamCreation.hairStyle.bun": { fr: "Chignons", en: "Buns" },
+  "teamCreation.hairStyle.bun": { fr: "Chignon", en: "Bun" },
   "teamCreation.accessory": { fr: "Accessoires", en: "Accessories" },
   "teamCreation.accessory.helmet": { fr: "Casque", en: "Headguard" },
   "teamCreation.accessory.strap": { fr: "Strap", en: "Strap" },
