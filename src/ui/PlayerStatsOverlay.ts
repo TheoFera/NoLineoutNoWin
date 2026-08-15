@@ -16,6 +16,9 @@ const IDENTITY_WIDTH = 136;
 const STATS_LEFT = 146;
 const STATS_RIGHT = MATCH_SCORE_OVERLAY_LAYOUT.width - 14;
 const STAT_GAP = 7;
+const HIGH_STAT_THRESHOLD = 60;
+const HIGH_STAT_COLOR = "#fbbf24";
+const DEFAULT_STAT_COLOR = "#f8fafc";
 
 export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
   private readonly shadow: Phaser.GameObjects.Graphics;
@@ -88,6 +91,7 @@ export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
       this.statValues[index]
         .setPosition(centerX, 57)
         .setText(stat ? String(stat.value) : "")
+        .setColor(stat && stat.value > HIGH_STAT_THRESHOLD ? HIGH_STAT_COLOR : DEFAULT_STAT_COLOR)
         .setVisible(visible);
     });
   }

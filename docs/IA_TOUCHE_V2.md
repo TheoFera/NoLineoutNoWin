@@ -39,6 +39,46 @@ interface TargetOption {
 }
 ```
 
+### 2.1 Plan d'exécution offensif de l'IA
+
+La bibliothèque globale reste une bibliothèque de formations et de cibles. Au
+moment où l'IA choisit une cible, elle construit un plan d'exécution adapté à
+sa division : feintes, déplacements de leurres, remise en place et saut final.
+Ce plan temporaire évite de dupliquer une même formation dans la bibliothèque.
+
+Une option `jumpBlock` se termine toujours par le saut réel du joueur ciblé,
+avec un lifteur devant et un lifteur derrière. Une combinaison offensive ne
+peut jamais déclencher un saut ou une feinte avec le seul lifteur arrière. Une
+option `directCatch` reste une
+réception au sol, même si elle est précédée de feintes.
+
+Dans les combinaisons actives comme dans les réserves, le nombre de
+combinaisons ne proposant aucun bloc de saut porté est limité à :
+
+```ts
+Math.floor(nombreDeCombinaisons / 3)
+```
+
+Deux combinaisons n'en autorisent donc aucune, trois en autorisent une, six en
+autorisent deux. Une ancienne équipe enregistrée qui ne respecte pas cette
+limite reçoit un répertoire compatible avant sa prochaine touche offensive.
+
+| Division | Phases possibles | Feintes maximales | Probabilité d'un mouvement de leurre |
+|---|---:|---:|---:|
+| Régionale 3 | 1 | 0 | 0 % |
+| Régionale 2 | 1 à 2 | 1 | 0 % |
+| Régionale 1 | 2 | 1 | 0 % |
+| Fédérale 3 | 2 | 1 | 10 % |
+| Fédérale 2 | 2 à 4 | 2 | 25 % |
+| Fédérale 1 | 3 à 4 | 2 | 40 % |
+| Nationale 2 | 3 à 4 | 2 | 55 % |
+| Nationale | 3 à 4 | 2 | 70 % |
+| Pro D2 | 4 | 3 | 85 % |
+| Top 14 | 4 | 3 | 100 % |
+
+Ces valeurs sont centralisées dans `src/config/LineoutBalance.ts`. Le tirage du
+plan utilise la source aléatoire injectée de l'IA.
+
 ## 3. Style d’une équipe
 
 Le style est enregistré avec un seul champ :

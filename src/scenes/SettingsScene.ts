@@ -60,7 +60,9 @@ export class SettingsScene extends Phaser.Scene {
       variant: currentLanguage === "en" ? "primary" : "secondary"
     });
 
-    new MainMenuButton(this, 195, 500, 300, 58, t("button.resetSave"), () => {
+    this.add.text(195, 466, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
+
+    new MainMenuButton(this, 195, 528, 300, 58, t("button.resetSave"), () => {
       this.showResetConfirmation();
     }, {
       variant: "primary"

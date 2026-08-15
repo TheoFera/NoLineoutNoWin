@@ -236,6 +236,20 @@ export function getCurrentOpponentId(championship: ChampionshipState): string | 
   return championship.schedule[championship.nextRound - 1] ?? null;
 }
 
+export function isCurrentMatchAtHome(championship: ChampionshipState): boolean {
+  const currentIndex = championship.nextRound - 1;
+  const opponentId = championship.schedule[currentIndex];
+  if (!opponentId) return true;
+
+  const previousMeetings = championship.schedule
+    .slice(0, currentIndex)
+    .filter((scheduledOpponentId) => scheduledOpponentId === opponentId)
+    .length;
+  const firstMeetingIndex = championship.schedule.indexOf(opponentId);
+  const firstMeetingAtHome = firstMeetingIndex % 2 === 0;
+  return previousMeetings % 2 === 0 ? firstMeetingAtHome : !firstMeetingAtHome;
+}
+
 export function getCurrentRoundLabel(championship: ChampionshipState): string {
   return `${championship.nextRound}/${championship.totalRounds}`;
 }

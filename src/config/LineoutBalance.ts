@@ -118,10 +118,14 @@ export const LINEOUT_BALANCE = {
       ballContinuationMeters: 3.2
     },
     gesture: {
-      minimumDistancePixels: 34,
-      maximumDistancePixels: 300,
-      minimumSpeedPixelsPerSecond: 420,
-      accidentalTouchProtectionMs: 35
+      minimumDistancePixels: 6,
+      maximumDistancePixels: 560,
+      depthResponseExponent: 2,
+      shortThrowMinimumSpeedPixelsPerSecond: 180,
+      longThrowMinimumSpeedPixelsPerSecond: 360,
+      accidentalTouchProtectionMs: 35,
+      playerActionSwipeMinimumPixels: 24,
+      playerActionSwipeDominanceRatio: 1.15
     },
     timing: {
       combinationLeadMs: 300,
@@ -135,8 +139,9 @@ export const LINEOUT_BALANCE = {
       maximumFlightDurationMs: 1_180
     },
     movement: {
-      minimumMetersPerSecond: 1.25,
-      maximumMetersPerSecond: 3.8,
+      minimumMetersPerSecond: 2.5,
+      middleMetersPerSecond: 4.5,
+      maximumMetersPerSecond: 8,
       avoidanceClearanceMeters: 0.62,
       avoidanceLateralMeters: 0.72,
       minimumPlayerSeparationMeters: 0.58,
@@ -184,6 +189,7 @@ export const LINEOUT_BALANCE = {
       depthMeters: 0.48,
       lateralMeters: 0.9,
       heightMeters: 0.38,
+      maximumSimulationStepMs: 16,
       simultaneousWindowMs: 85,
       groundCatchMaximumHeightMeters: 2.25
     },
@@ -196,7 +202,9 @@ export const LINEOUT_BALANCE = {
       speedWeight: 0.1,
       randomAmplitude: 4,
       throwingTeamInitiative: 3,
-      fatigueMaximumPenalty: 18
+      fatigueMaximumPenalty: 18,
+      movingCatchScorePenalty: 12,
+      movingKnockOnProbabilityBonus: 0.08
     }
   },
   generation: {
@@ -290,6 +298,19 @@ export const LINEOUT_BALANCE = {
     additionalUsesPerDifficultyStep: 1
   },
   ai: {
+    maximumNonAerialCombinationRatio: 1 / 3,
+    offensivePlanByDivision: {
+      regionale_3: { minimumPhases: 1, maximumPhases: 1, maximumFeints: 0, movementProbability: 0 },
+      regionale_2: { minimumPhases: 1, maximumPhases: 2, maximumFeints: 1, movementProbability: 0 },
+      regionale_1: { minimumPhases: 2, maximumPhases: 2, maximumFeints: 1, movementProbability: 0 },
+      federale_3: { minimumPhases: 2, maximumPhases: 2, maximumFeints: 1, movementProbability: 0.1 },
+      federale_2: { minimumPhases: 2, maximumPhases: 4, maximumFeints: 2, movementProbability: 0.25 },
+      federale_1: { minimumPhases: 3, maximumPhases: 4, maximumFeints: 2, movementProbability: 0.4 },
+      nationale_2: { minimumPhases: 3, maximumPhases: 4, maximumFeints: 2, movementProbability: 0.55 },
+      nationale: { minimumPhases: 3, maximumPhases: 4, maximumFeints: 2, movementProbability: 0.7 },
+      pro_d2: { minimumPhases: 4, maximumPhases: 4, maximumFeints: 3, movementProbability: 0.85 },
+      top_14: { minimumPhases: 4, maximumPhases: 4, maximumFeints: 3, movementProbability: 1 }
+    },
     repertoireByDivision: {
       regionale_3: { active: 2, reserve: 0 },
       regionale_2: { active: 3, reserve: 1 },
@@ -362,6 +383,7 @@ export const LINEOUT_BALANCE = {
     simulatedMinutesPerRealSecond: 6,
     pitchLengthMeters: 100,
     simulationStepMinutes: 0.5,
+    halfTimeMinuteOptions: [40.5, 41.5],
     movement: {
       strongProgress: { probability: 0.15, minimumMeters: 4, maximumMeters: 8 },
       normalProgress: { probability: 0.45, minimumMeters: 1, maximumMeters: 4 },
@@ -405,6 +427,7 @@ export const LINEOUT_BALANCE = {
     scoringOpportunityProbabilityPerMinute: 0.35,
     penaltyProbabilityOutsideAttacking22: 0.35,
     cleanLineoutProgressMeters: 5,
+    tryLineFallbackMeters: 1,
     points: {
       penalty: 3,
       unconvertedTry: 5,
@@ -429,7 +452,11 @@ export const LINEOUT_BALANCE = {
       passDurationRatioMinimum: 2 / 3,
       passDurationRatioMaximum: 3 / 4,
       kickArcHeightPixels: 42,
-      restartArcHeightPixels: 52
+      restartArcHeightPixels: 52,
+      halfTimePauseDurationMs: 1600,
+      halfTimeKickoffDurationMs: 850,
+      tryCelebrationExtraDurationMs: 1200,
+      tryCelebrationDisplayDurationMs: 800
     },
     minimumEndMinute: 80,
     maximumEndMinute: 82

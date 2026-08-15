@@ -17,15 +17,29 @@ export function getLineoutV3PositionForDepth(depthMeters: number): LineoutPositi
   ) as LineoutPosition;
 }
 
+export function getLineoutV3DepthForGestureDistance(distancePixels: number): number {
+  const gestureRatio = clamp(
+    (distancePixels - V3.gesture.minimumDistancePixels)
+      / (V3.gesture.maximumDistancePixels - V3.gesture.minimumDistancePixels),
+    0,
+    1
+  );
+  // Une courbe supérieure à 1 agrandit la zone des lancers proches et espace les lancers longs.
+  const depthRatio = Math.pow(gestureRatio, V3.gesture.depthResponseExponent);
+  return V3.depth.minimumMeters
+    + depthRatio * (V3.depth.maximumMeters - V3.depth.minimumMeters);
+}
+
 export function getLineoutV3GestureDistanceForDepth(depthMeters: number): number {
-  const ratio = clamp(
+  const depthRatio = clamp(
     (depthMeters - V3.depth.minimumMeters)
       / (V3.depth.maximumMeters - V3.depth.minimumMeters),
     0,
     1
   );
+  const gestureRatio = Math.pow(depthRatio, 1 / V3.gesture.depthResponseExponent);
   return V3.gesture.minimumDistancePixels
-    + ratio * (V3.gesture.maximumDistancePixels - V3.gesture.minimumDistancePixels);
+    + gestureRatio * (V3.gesture.maximumDistancePixels - V3.gesture.minimumDistancePixels);
 }
 
 export function getLineoutV3TargetPhaseIndex(
@@ -33,11 +47,12 @@ export function getLineoutV3TargetPhaseIndex(
   targetPosition: LineoutPosition
 ): number {
   const plan = getV3CombinationPlan(combination);
-  return Math.max(0, plan.phases.findIndex((phase) => (
+  const jumpPhaseIndex = plan.phases.findIndex((phase) => (
     phase.actions.some((action) => (
       action.type === "jump" && action.playerPosition === targetPosition
     ))
-  )));
+  ));
+  return jumpPhaseIndex >= 0 ? jumpPhaseIndex : plan.phases.length - 1;
 }
 
 export function calculateAiLineoutV3ThrowReleaseMs(

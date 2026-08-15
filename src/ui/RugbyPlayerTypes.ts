@@ -20,6 +20,10 @@ export const RUGBY_PLAYER_POSE_NAMES = [
 
 export type PoseName = typeof RUGBY_PLAYER_POSE_NAMES[number];
 
+export const RUGBY_PLAYER_WALKING_FRAME_NAMES = ["gauche", "droite"] as const;
+
+export type RugbyPlayerWalkingFrame = typeof RUGBY_PLAYER_WALKING_FRAME_NAMES[number];
+
 export type Kit = {
   jerseyPrimary: number;
   shortsPrimary: number;

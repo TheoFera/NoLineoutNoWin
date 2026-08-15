@@ -144,6 +144,64 @@ export function getTargetOptionPlayerPosition(option: CombinationTargetOption): 
     : option.roles.jumperPosition) ?? option.targetPosition;
 }
 
+export function hasSupportedAerialTarget(combination: {
+  targetOptions?: readonly CombinationTargetOption[];
+}): boolean {
+  return (combination.targetOptions ?? []).some((option) => (
+    option.type === "jumpBlock"
+    && option.roles.frontLifterPosition !== undefined
+    && option.roles.rearLifterPosition !== undefined
+  ));
+}
+
+export function constrainAiAerialRepertoire(
+  combinations: readonly Combination[],
+  repertoire: OffensiveRepertoire,
+  maximumNonAerialRatio: number
+): OffensiveRepertoire {
+  const combinationsById = new Map(combinations.map((combination) => [
+    combination.id,
+    combination
+  ]));
+  const activeLimit = repertoire.activeCombinationIds.length;
+  const maximumNonAerial = Math.floor(
+    activeLimit * Math.max(0, maximumNonAerialRatio)
+  );
+  const activeCombinationIds: string[] = [];
+  let nonAerialCount = 0;
+
+  for (const id of repertoire.activeCombinationIds) {
+    const combination = combinationsById.get(id);
+    if (!combination) continue;
+    if (hasSupportedAerialTarget(combination)) {
+      activeCombinationIds.push(id);
+    } else if (nonAerialCount < maximumNonAerial) {
+      activeCombinationIds.push(id);
+      nonAerialCount += 1;
+    }
+  }
+
+  const orderedCandidateIds = [
+    ...repertoire.reserveCombinationIds,
+    ...combinations.map((combination) => combination.id)
+  ];
+  for (const id of orderedCandidateIds) {
+    if (activeCombinationIds.length >= activeLimit) break;
+    if (activeCombinationIds.includes(id)) continue;
+    const combination = combinationsById.get(id);
+    if (combination && hasSupportedAerialTarget(combination)) {
+      activeCombinationIds.push(id);
+    }
+  }
+
+  const activeIds = new Set(activeCombinationIds);
+  const reserveCombinationIds = [
+    ...repertoire.reserveCombinationIds,
+    ...repertoire.activeCombinationIds
+  ].filter((id, index, ids) => !activeIds.has(id) && ids.indexOf(id) === index);
+  return { activeCombinationIds, reserveCombinationIds };
+}
+
 export function getTargetNaturalWeight(
   option: CombinationTargetOption,
   teamTargetWeights?: Partial<Record<LineoutPosition, number>>

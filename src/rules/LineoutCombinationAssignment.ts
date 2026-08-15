@@ -20,7 +20,10 @@ import {
   calculateDistanceIndex
 } from "./LineoutThrowResolver.ts";
 import { canBeLineoutJumper, canBeLineoutLifter } from "./LineoutPlayerRoles.ts";
-import { getTargetNaturalWeight } from "./CombinationRules.ts";
+import {
+  getTargetNaturalWeight,
+  hasSupportedAerialTarget
+} from "./CombinationRules.ts";
 
 const GENERATION = LINEOUT_BALANCE.generation;
 const THROWING = LINEOUT_BALANCE.throwing;
@@ -141,17 +144,25 @@ export function assignTeamLineoutRepertoire(options: {
   const assigned = library
     .map((definition) => assignPlayersToCombination(definition, options.hooker, options.players))
     .filter((item): item is AssignedLineoutCombination => Boolean(item));
-  const selected = weightedSelectionWithoutReplacement(
+  const active = weightedSelectionWithoutReplacement(
     assigned,
-    Math.min(assigned.length, Math.max(0, options.activeCount + options.reserveCount)),
+    Math.min(assigned.length, Math.max(0, options.activeCount)),
     (item) => calculateCombinationStyleWeight(item, options.style),
-    options.rng
+    options.rng,
+    maximumNonAerialSelection(options.activeCount)
   );
-  const activeCount = Math.min(Math.max(0, options.activeCount), selected.length);
-  const activeCombinationIds = selected.slice(0, activeCount).map((item) => item.combination.id);
-  const reserveCombinationIds = selected
-    .slice(activeCount, activeCount + Math.max(0, options.reserveCount))
-    .map((item) => item.combination.id);
+  const activeIds = new Set(active.map((item) => item.combination.id));
+  const reserveCandidates = assigned.filter((item) => !activeIds.has(item.combination.id));
+  const reserve = weightedSelectionWithoutReplacement(
+    reserveCandidates,
+    Math.min(reserveCandidates.length, Math.max(0, options.reserveCount)),
+    (item) => calculateCombinationStyleWeight(item, options.style),
+    options.rng,
+    maximumNonAerialSelection(options.reserveCount)
+  );
+  const selected = [...active, ...reserve];
+  const activeCombinationIds = active.map((item) => item.combination.id);
+  const reserveCombinationIds = reserve.map((item) => item.combination.id);
   const selectedIds = new Set(selected.map((item) => item.combination.id));
 
   return {
@@ -284,17 +295,24 @@ function calculateCombinationStyleWeight(
   return sizeWeight * targetWeight;
 }
 
-function weightedSelectionWithoutReplacement<T>(
-  values: readonly T[],
+function weightedSelectionWithoutReplacement(
+  values: readonly AssignedLineoutCombination[],
   count: number,
-  getWeight: (value: T) => number,
-  rng: RandomSource
-): T[] {
+  getWeight: (value: AssignedLineoutCombination) => number,
+  rng: RandomSource,
+  maximumNonAerial = Number.POSITIVE_INFINITY
+): AssignedLineoutCombination[] {
   const remaining = [...values];
-  const selected: T[] = [];
+  const selected: AssignedLineoutCombination[] = [];
+  let nonAerialCount = 0;
 
   while (selected.length < count && remaining.length > 0) {
-    const weights = remaining.map((value) => Math.max(0, getWeight(value)));
+    const candidates = remaining.filter((value) => (
+      hasSupportedAerialTarget(value.combination)
+      || nonAerialCount < maximumNonAerial
+    ));
+    if (candidates.length === 0) break;
+    const weights = candidates.map((value) => Math.max(0, getWeight(value)));
     const total = weights.reduce((sum, weight) => sum + weight, 0);
     let selectedIndex = 0;
 
@@ -305,18 +323,29 @@ function weightedSelectionWithoutReplacement<T>(
         cumulative += weight;
         return roll < cumulative;
       });
-      if (selectedIndex < 0) selectedIndex = remaining.length - 1;
+      if (selectedIndex < 0) selectedIndex = candidates.length - 1;
     } else {
       selectedIndex = Math.min(
-        remaining.length - 1,
-        Math.floor(randomFloat(0, remaining.length, rng))
+        candidates.length - 1,
+        Math.floor(randomFloat(0, candidates.length, rng))
       );
     }
 
-    selected.push(remaining.splice(selectedIndex, 1)[0]);
+    const selectedValue = candidates[selectedIndex];
+    if (!hasSupportedAerialTarget(selectedValue.combination)) {
+      nonAerialCount += 1;
+    }
+    selected.push(selectedValue);
+    remaining.splice(remaining.indexOf(selectedValue), 1);
   }
 
   return selected;
+}
+
+function maximumNonAerialSelection(count: number): number {
+  return Math.floor(
+    Math.max(0, count) * LINEOUT_BALANCE.ai.maximumNonAerialCombinationRatio
+  );
 }
 
 function visitAssignments(

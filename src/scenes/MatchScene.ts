@@ -2,14 +2,17 @@ import Phaser from "phaser";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 import { GameStore } from "../state/GameStore";
 import { getDivision } from "../rules/DivisionRules";
-import { getCurrentOpponentId } from "../rules/ChampionshipRules";
+import { getCurrentOpponentId, isCurrentMatchAtHome } from "../rules/ChampionshipRules";
 import { generateOpponentById } from "../ai/OpponentGenerator";
 import {
+  advanceMatchSimulationWithTrace,
   advanceToNextScheduledLineoutWithTrace,
   generateMatchSchedule,
   generateMatchMaximumFatigue,
+  getKickoffReceptionPosition,
   getPitchZoneFromPosition,
-  getRealSecondsForSimulatedMinutes
+  getRealSecondsForSimulatedMinutes,
+  startSecondHalf
 } from "../rules/MatchSimulator";
 import {
   getActiveOffensiveCombinations,
@@ -31,6 +34,7 @@ import { formatMatchMinute } from "../ui/MatchScoreOverlayLayout";
 import { MatchStatsOverlay } from "../ui/MatchStatsOverlay";
 import {
   preloadMatchPitchBackdrop,
+  getMatchPitchAppearance,
   renderMatchPitchBackdrop,
   renderPitchSurface
 } from "../ui/MatchPitchBackdrop";
@@ -43,11 +47,21 @@ const SIMULATION_FIELD = {
   right: 344,
   top: 296,
   bottom: 724,
+  tryLineTop: 320,
+  tryLineBottom: 700,
   centerX: 195,
   centerY: 510,
   width: 298,
   height: 428,
+  playingHeight: 380,
   lateralRange: 139
+} as const;
+
+const SIMULATION_DEPTH = {
+  ball: 20,
+  goalPosts: 30,
+  halfTimePanel: 40,
+  tryCelebration: 50
 } as const;
 
 export class MatchScene extends Phaser.Scene {
@@ -93,6 +107,9 @@ export class MatchScene extends Phaser.Scene {
     );
     if (!match) {
       const schedule = generateMatchSchedule(division);
+      const firstHalfReceivingTeam = schedule.firstHalfKickoffTeam === "player"
+        ? "opponent"
+        : "player";
       match = {
         id: `match_${Date.now()}`,
         divisionId: division.id,
@@ -100,13 +117,15 @@ export class MatchScene extends Phaser.Scene {
         away: opponent,
         minute: 0,
         maxMinute: schedule.maxMinute,
+        halfTimeMinute: schedule.halfTimeMinute,
+        halfTimeCompleted: false,
+        firstHalfKickoffTeam: schedule.firstHalfKickoffTeam,
         ourScore: 0,
         opponentScore: 0,
         possession: 50,
         occupation: 50,
-        ballOwner: "player",
-        ballPositionMeters: LINEOUT_BALANCE.match.restartPositionMeters
-          - LINEOUT_BALANCE.match.restartKickDistanceMeters,
+        ballOwner: firstHalfReceivingTeam,
+        ballPositionMeters: getKickoffReceptionPosition(firstHalfReceivingTeam),
         ballLateralPosition: 0,
         ballLateralDirection: 0,
         possessionDurationMinutes: 0,
@@ -153,12 +172,26 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private render(match: MatchStateData): void {
-    renderMatchPitchBackdrop(this, 0.5);
+    const save = GameStore.getSave();
+    const isHomeMatch = isCurrentMatchAtHome(save.championship);
+    const pitchAppearance = getMatchPitchAppearance(
+      isHomeMatch ? match.home.id : match.away.id,
+      match.id,
+      isHomeMatch
+    );
+    renderMatchPitchBackdrop(this, 0.5, pitchAppearance);
 
     const next = match.lineouts[match.currentLineoutIndex];
     const simulationPending = next
       ? match.minute < next.minute
       : match.minute < match.maxMinute;
+
+    if (!match.halfTimeCompleted && match.minute >= match.halfTimeMinute) {
+      this.renderScoreboard(match);
+      this.renderSimulationBoard(match);
+      this.startHalfTimePause(match);
+      return;
+    }
 
     if (!simulationPending && next) {
       navigateTo(this, "LineoutScene", { mode: "match" });
@@ -211,20 +244,19 @@ export class MatchScene extends Phaser.Scene {
 
   private renderSimulationBoard(match: MatchStateData): void {
     const field = SIMULATION_FIELD;
-    renderPitchSurface(this, field.centerX, field.centerY, field.width, field.height);
+    const save = GameStore.getSave();
+    const isHomeMatch = isCurrentMatchAtHome(save.championship);
+    const pitchAppearance = getMatchPitchAppearance(
+      isHomeMatch ? match.home.id : match.away.id,
+      match.id,
+      isHomeMatch
+    );
+    renderPitchSurface(this, field.centerX, field.centerY, field.width, field.height, pitchAppearance);
     this.add.rectangle(field.centerX, field.centerY, field.width, field.height, 0x052e16, 0.18)
       .setStrokeStyle(3, 0xf8fafc, 0.9);
-    const fifteenMeterOffsetX = field.width / 2 - (15 / 70) * field.width;
-    for (const direction of [-1, 1]) {
-      this.add.rectangle(
-        field.centerX + direction * fifteenMeterOffsetX,
-        field.centerY,
-        2,
-        field.height - 4,
-        0xffffff,
-        0.28
-      );
-    }
+    this.renderInGoalAreas();
+    this.renderPixelGoalPosts();
+    this.renderLongitudinalPitchMarkings();
     for (const meter of [22, 50, 78]) {
       const y = this.getPitchY(meter);
       this.add.rectangle(
@@ -239,6 +271,9 @@ export class MatchScene extends Phaser.Scene {
         font: "bold 10px Arial",
         color: "#e2e8f0"
       }).setOrigin(0.5);
+    }
+    for (const meter of [5, 40, 60, 95]) {
+      this.renderDashedTransverseLine(this.getPitchY(meter));
     }
     this.add.text(195, 236, t("match.simulationInProgress"), {
       font: "bold 22px Arial",
@@ -264,7 +299,8 @@ export class MatchScene extends Phaser.Scene {
         : match.ballPositionMeters
     );
     this.simulationBall = this.add.image(ballX, ballY, "lineout-ball")
-      .setDisplaySize(16, 23);
+      .setDisplaySize(16, 23)
+      .setDepth(SIMULATION_DEPTH.ball);
     if (isInitialKickoff) {
       this.setSimulationBallLooseStyle();
     } else {
@@ -285,10 +321,19 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private startAcceleratedSimulation(match: MatchStateData): void {
-    const trace = advanceToNextScheduledLineoutWithTrace(match);
+    const nextLineout = match.lineouts[match.currentLineoutIndex];
+    const normalTargetMinute = nextLineout?.minute ?? match.maxMinute;
+    const mustStopForHalfTime = !match.halfTimeCompleted
+      && match.minute < match.halfTimeMinute
+      && normalTargetMinute >= match.halfTimeMinute;
+    const trace = mustStopForHalfTime
+      ? advanceMatchSimulationWithTrace(match, match.halfTimeMinute)
+      : advanceToNextScheduledLineoutWithTrace(match);
     const target = trace.match;
     const simulatedMinutes = Math.max(0, target.minute - match.minute);
-    const duration = getRealSecondsForSimulatedMinutes(simulatedMinutes) * 1000;
+    const tryCount = this.getTryActionIndexes(match, trace.actions).size;
+    const duration = getRealSecondsForSimulatedMinutes(simulatedMinutes) * 1000
+      + tryCount * LINEOUT_BALANCE.match.visualSimulation.tryCelebrationExtraDurationMs;
     if (duration <= 0) {
       GameStore.setMatch(target);
       this.scene.restart();
@@ -304,8 +349,8 @@ export class MatchScene extends Phaser.Scene {
         this.scoreOverlay?.setMinute(formatMatchMinute(tween.getValue() ?? match.minute));
         if (this.simulationBall) {
           const meters = (
-            (SIMULATION_FIELD.bottom - this.simulationBall.y)
-            / SIMULATION_FIELD.height
+            (SIMULATION_FIELD.tryLineBottom - this.simulationBall.y)
+            / SIMULATION_FIELD.playingHeight
           ) * 100;
           this.ballPositionText?.setText(t("match.ballPosition")
             .replace("{meters}", String(Math.round(Phaser.Math.Clamp(meters, 0, 100)))));
@@ -318,6 +363,105 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
+  private startHalfTimePause(match: MatchStateData): void {
+    const visualConfig = LINEOUT_BALANCE.match.visualSimulation;
+    this.updateSimulationActionText("match.action.halfTime");
+    this.scoreOverlay?.setMinute(t("match.halfTimeShort"));
+
+    const panel = this.add.rectangle(195, 510, 238, 82, 0x07111a, 0.96)
+      .setStrokeStyle(3, 0xfde047, 0.95)
+      .setDepth(SIMULATION_DEPTH.halfTimePanel);
+    const label = this.add.text(195, 510, t("match.halfTime"), {
+      font: "bold 28px Arial",
+      color: "#fde047",
+      stroke: "#020617",
+      strokeThickness: 3
+    }).setOrigin(0.5).setDepth(SIMULATION_DEPTH.halfTimePanel);
+
+    this.time.delayedCall(visualConfig.halfTimePauseDurationMs, () => {
+      panel.setVisible(false);
+      label.setVisible(false);
+      const restartedMatch = startSecondHalf(match);
+      GameStore.setMatch(restartedMatch);
+      this.scoreOverlay?.setMinute(formatMatchMinute(restartedMatch.minute));
+      this.updateSimulationActionText("match.action.secondHalfKickoff");
+      this.simulationBall?.setPosition(
+        SIMULATION_FIELD.centerX,
+        this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+      );
+      this.setSimulationBallLooseStyle();
+      this.animateBallFlight(
+        this.getPitchX(restartedMatch.ballLateralPosition),
+        this.getPitchY(restartedMatch.ballPositionMeters),
+        visualConfig.restartArcHeightPixels,
+        visualConfig.halfTimeKickoffDurationMs,
+        restartedMatch,
+        true,
+        () => this.scene.restart(),
+        "trajectory"
+      );
+    });
+  }
+
+  private renderPixelGoalPosts(): void {
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.goalPosts);
+    const drawUpwardPosts = (goalLineY: number): void => {
+      const uprightHeight = 34;
+      const uprightTop = goalLineY - uprightHeight;
+      const crossbarY = goalLineY - 14;
+
+      graphics.fillStyle(0x020617, 0.65);
+      graphics.fillRect(SIMULATION_FIELD.centerX - 20, uprightTop + 2, 6, uprightHeight);
+      graphics.fillRect(SIMULATION_FIELD.centerX + 16, uprightTop + 2, 6, uprightHeight);
+      graphics.fillRect(SIMULATION_FIELD.centerX - 20, crossbarY + 2, 42, 6);
+
+      graphics.fillStyle(0xf8fafc, 1);
+      graphics.fillRect(SIMULATION_FIELD.centerX - 22, uprightTop, 6, uprightHeight);
+      graphics.fillRect(SIMULATION_FIELD.centerX + 14, uprightTop, 6, uprightHeight);
+      graphics.fillRect(SIMULATION_FIELD.centerX - 22, crossbarY, 42, 6);
+
+      graphics.fillStyle(0xcbd5e1, 1);
+      graphics.fillRect(SIMULATION_FIELD.centerX - 20, uprightTop + 2, 2, uprightHeight - 4);
+      graphics.fillRect(SIMULATION_FIELD.centerX + 16, uprightTop + 2, 2, uprightHeight - 4);
+    };
+
+    drawUpwardPosts(SIMULATION_FIELD.tryLineTop);
+    drawUpwardPosts(SIMULATION_FIELD.tryLineBottom);
+  }
+
+  private renderInGoalAreas(): void {
+    const field = SIMULATION_FIELD;
+    const inGoalHeight = field.tryLineTop - field.top;
+    for (const centerY of [
+      field.top + inGoalHeight / 2,
+      field.bottom - inGoalHeight / 2
+    ]) {
+      this.add.rectangle(field.centerX, centerY, field.width - 4, inGoalHeight, 0x166534, 0.38);
+    }
+    for (const tryLineY of [field.tryLineTop, field.tryLineBottom]) {
+      this.add.rectangle(field.centerX, tryLineY, field.width - 4, 4, 0xffffff, 0.92);
+    }
+  }
+
+  private renderLongitudinalPitchMarkings(): void {
+    const field = SIMULATION_FIELD;
+    for (const distanceFromTouch of [5, 15]) {
+      const offsetX = field.width / 2 - (distanceFromTouch / 70) * field.width;
+      for (const direction of [-1, 1]) {
+        const x = field.centerX + direction * offsetX;
+        for (let y = field.tryLineTop + 5; y < field.tryLineBottom; y += 12) {
+          this.add.rectangle(x, y, 2, 6, 0xffffff, distanceFromTouch === 15 ? 0.4 : 0.28);
+        }
+      }
+    }
+  }
+
+  private renderDashedTransverseLine(y: number): void {
+    for (let x = SIMULATION_FIELD.left + 7; x < SIMULATION_FIELD.right - 4; x += 14) {
+      this.add.rectangle(x, y, 8, 2, 0xffffff, 0.34);
+    }
+  }
+
   private playSimulationActions(
     initial: MatchStateData,
     actions: MatchSimulationAction[],
@@ -326,6 +470,13 @@ export class MatchScene extends Phaser.Scene {
     if (!this.simulationBall || actions.length === 0) return;
     const hasInitialKickoff = initial.minute === 0;
     const kickoffWeight = hasInitialKickoff ? 1.8 : 0;
+    const tryActionIndexes = this.getTryActionIndexes(initial, actions);
+    const celebrationExtraDuration = LINEOUT_BALANCE.match.visualSimulation
+      .tryCelebrationExtraDurationMs;
+    const distributableDuration = Math.max(
+      0,
+      totalDuration - tryActionIndexes.size * celebrationExtraDuration
+    );
     const weights = actions.map((action) => {
       if (action.kind === "score") return 2.5;
       if (["breakthrough", "clearanceKick", "lineout"].includes(action.kind)) return 1.8;
@@ -337,7 +488,8 @@ export class MatchScene extends Phaser.Scene {
       const action = actions[index];
       if (!action) return;
       const previous = index === 0 ? initial : actions[index - 1].state;
-      const actionDuration = totalDuration * weights[index] / totalWeight;
+      const actionDuration = distributableDuration * weights[index] / totalWeight
+        + (tryActionIndexes.has(index) ? celebrationExtraDuration : 0);
       const next = () => playAction(index + 1);
 
       if (action.kind === "score") {
@@ -355,7 +507,7 @@ export class MatchScene extends Phaser.Scene {
         this.getPitchX(initial.ballLateralPosition),
         this.getPitchY(initial.ballPositionMeters),
         LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
-        totalDuration * kickoffWeight / totalWeight,
+        distributableDuration * kickoffWeight / totalWeight,
         initial,
         true,
         () => playAction(0),
@@ -515,28 +667,40 @@ export class MatchScene extends Phaser.Scene {
     const scoringArc = scoreDelta === LINEOUT_BALANCE.match.points.penalty
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
       : 8;
+    const isTry = scoreDelta !== LINEOUT_BALANCE.match.points.penalty;
+    const scoringDuration = duration * (isTry ? 0.2 : 0.3);
+    const celebrationDuration = isTry
+      ? Math.min(
+        LINEOUT_BALANCE.match.visualSimulation.tryCelebrationDisplayDurationMs,
+        duration * 0.6
+      )
+      : duration * 0.12;
+    const restartDuration = Math.max(1, duration - scoringDuration - celebrationDuration);
 
     this.animateBallFlight(
       SIMULATION_FIELD.centerX,
       scoringLineY,
       scoringArc,
-      duration * 0.3,
+      scoringDuration,
       previous,
       scoreDelta === LINEOUT_BALANCE.match.points.penalty,
       () => {
+        if (isTry) {
+          this.showTryCelebration(frame, scoringOwner, celebrationDuration);
+        }
         const concedingOwner = scoringOwner === "player" ? "opponent" : "player";
-        this.simulationBall?.setPosition(
-          SIMULATION_FIELD.centerX,
-          this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
-        );
-        this.setSimulationBallTeamStyle(frame, concedingOwner);
-        this.updateSimulationActionText("match.action.restart");
-        this.time.delayedCall(duration * 0.12, () => {
+        this.time.delayedCall(celebrationDuration, () => {
+          this.simulationBall?.setPosition(
+            SIMULATION_FIELD.centerX,
+            this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+          );
+          this.setSimulationBallTeamStyle(frame, concedingOwner);
+          this.updateSimulationActionText("match.action.restart");
           this.animateBallFlight(
             this.getPitchX(frame.ballLateralPosition),
             this.getPitchY(frame.ballPositionMeters),
             LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
-            duration * 0.58,
+            restartDuration,
             frame,
             true,
             onComplete,
@@ -546,6 +710,102 @@ export class MatchScene extends Phaser.Scene {
       },
       scoreDelta === LINEOUT_BALANCE.match.points.penalty ? "trajectory" : "vertical"
     );
+  }
+
+  private showTryCelebration(
+    match: MatchStateData,
+    scoringOwner: MatchStateData["ballOwner"],
+    duration: number
+  ): void {
+    const colors = this.getDisplayedTeamColors(match, scoringOwner);
+    const flash = this.add.rectangle(
+      SIMULATION_FIELD.centerX,
+      SIMULATION_FIELD.centerY,
+      SIMULATION_FIELD.width,
+      SIMULATION_FIELD.height,
+      colors.primary,
+      0.22
+    ).setDepth(SIMULATION_DEPTH.tryCelebration).setAlpha(0);
+    const panel = this.add.container(195, 500)
+      .setDepth(SIMULATION_DEPTH.tryCelebration + 1)
+      .setAlpha(0)
+      .setScale(0.72);
+    const shadow = this.add.rectangle(0, 6, 230, 82, 0x020617, 0.72);
+    const background = this.add.rectangle(0, 0, 230, 82, colors.primary, 0.96)
+      .setStrokeStyle(4, colors.secondary, 1);
+    const title = this.add.text(0, 0, t("match.tryCelebration.title"), {
+      font: "bold 36px Arial",
+      color: "#ffffff",
+      stroke: "#020617",
+      strokeThickness: 4
+    }).setOrigin(0.5);
+    panel.add([shadow, background, title]);
+
+    for (let index = 0; index < 14; index += 1) {
+      const angle = Phaser.Math.DegToRad(index * (360 / 14));
+      const distance = index % 2 === 0 ? 150 : 120;
+      const piece = this.add.rectangle(
+        SIMULATION_FIELD.centerX,
+        500,
+        index % 3 === 0 ? 8 : 5,
+        12,
+        index % 2 === 0 ? colors.primary : colors.secondary,
+        1
+      ).setDepth(SIMULATION_DEPTH.tryCelebration);
+      this.tweens.add({
+        targets: piece,
+        x: SIMULATION_FIELD.centerX + Math.cos(angle) * distance,
+        y: 500 + Math.sin(angle) * distance,
+        angle: index % 2 === 0 ? 180 : -180,
+        alpha: 0,
+        duration: Math.max(1, duration),
+        ease: "Cubic.easeOut",
+        onComplete: () => piece.destroy()
+      });
+    }
+
+    this.tweens.add({
+      targets: flash,
+      alpha: 1,
+      duration: Math.max(1, duration * 0.18),
+      yoyo: true,
+      onComplete: () => flash.destroy()
+    });
+    this.tweens.add({
+      targets: panel,
+      alpha: 1,
+      scale: 1,
+      duration: Math.max(1, duration * 0.22),
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(Math.max(1, duration * 0.5), () => {
+          this.tweens.add({
+            targets: panel,
+            alpha: 0,
+            y: 480,
+            duration: Math.max(1, duration * 0.25),
+            ease: "Cubic.easeIn",
+            onComplete: () => panel.destroy()
+          });
+        });
+      }
+    });
+  }
+
+  private getTryActionIndexes(
+    initial: MatchStateData,
+    actions: MatchSimulationAction[]
+  ): Set<number> {
+    const indexes = new Set<number>();
+    actions.forEach((action, index) => {
+      if (action.kind !== "score") return;
+      const previous = index === 0 ? initial : actions[index - 1].state;
+      const points = action.state.ourScore > previous.ourScore
+        ? action.state.ourScore - previous.ourScore
+        : action.state.opponentScore - previous.opponentScore;
+      if (points !== LINEOUT_BALANCE.match.points.penalty) indexes.add(index);
+    });
+    return indexes;
   }
 
   private animateBallFlight(
@@ -653,8 +913,8 @@ export class MatchScene extends Phaser.Scene {
 
   private getPitchY(positionMeters: number): number {
     const position = Phaser.Math.Clamp(positionMeters, 0, LINEOUT_BALANCE.match.pitchLengthMeters);
-    return SIMULATION_FIELD.bottom
-      - SIMULATION_FIELD.height * (position / LINEOUT_BALANCE.match.pitchLengthMeters);
+    return SIMULATION_FIELD.tryLineBottom
+      - SIMULATION_FIELD.playingHeight * (position / LINEOUT_BALANCE.match.pitchLengthMeters);
   }
 
   private renderFullTimePanel(): void {

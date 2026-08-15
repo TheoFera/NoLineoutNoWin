@@ -31,7 +31,11 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   private renderBackground(): void {
-    const usedHeroBackground = renderMenuBackdrop(this, { variant: "hero", overlayAlpha: 0.24 });
+    const usedHeroBackground = renderMenuBackdrop(this, {
+      variant: "hero",
+      overlayAlpha: 0.24,
+      showGuideLines: false
+    });
     if (!usedHeroBackground) {
       renderMenuHeader(this, t("app.title"), { y: 136 });
     }

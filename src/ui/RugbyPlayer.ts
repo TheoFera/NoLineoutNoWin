@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import {
+  canUseRugbyPlayerWalkingFrames,
   getRugbyPlayerEqualHeightScale,
   getRugbyPlayerTextureKey,
+  getRugbyPlayerWalkingTextureKey,
   hasRugbyPlayerLayerAsset,
   RUGBY_PLAYER_FRAME_HEIGHT,
   RUGBY_PLAYER_FRAME_WIDTH
@@ -12,7 +14,8 @@ import type {
   PlayerAccessoryId,
   PlayerHairStyleId,
   PlayerLayerName,
-  PoseName
+  PoseName,
+  RugbyPlayerWalkingFrame
 } from "./RugbyPlayerTypes";
 
 export class RugbyPlayer extends Phaser.GameObjects.Container {
@@ -31,6 +34,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
   private accessoryLayer?: Phaser.GameObjects.Image;
   private requestedVisualWidth?: number;
   private requestedVisualHeight?: number;
+  private walkingFrame?: RugbyPlayerWalkingFrame;
 
   constructor(
     scene: Phaser.Scene,
@@ -82,6 +86,17 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     }
 
     this.pose = pose;
+    this.refreshTextures();
+    this.applyTints();
+    return this;
+  }
+
+  setWalkingFrame(frame: RugbyPlayerWalkingFrame | undefined): this {
+    if (this.walkingFrame === frame) {
+      return this;
+    }
+
+    this.walkingFrame = frame;
     this.refreshTextures();
     this.applyTints();
     return this;
@@ -225,10 +240,10 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
 
   private refreshTextures(): void {
     const bodyLayerName = this.canRenderBaldHairStyle() ? "bodychauve" : "body";
-    this.bodyLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, bodyLayerName));
+    this.bodyLayer.setTexture(this.getLayerTextureKey(bodyLayerName));
     this.jerseyLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "jersey"));
     this.shortsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "shorts"));
-    this.socksLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "socks"));
+    this.socksLayer.setTexture(this.getLayerTextureKey("socks"));
     this.refreshDetailsLayer();
     this.refreshHairStyleLayer();
     this.refreshAccessoryLayer();
@@ -267,7 +282,7 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
       return;
     }
 
-    this.detailsLayer.setTexture(getRugbyPlayerTextureKey(this.bodyShape, this.pose, "details"));
+    this.detailsLayer.setTexture(this.getLayerTextureKey("details"));
   }
 
   private refreshHairStyleLayer(): void {
@@ -327,5 +342,22 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return this.hairStyleId === "bald"
       && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "bodychauve")
       && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "chauve");
+  }
+
+  private getLayerTextureKey(
+    layer: "body" | "bodychauve" | "details" | "socks"
+  ): string {
+    if (
+      this.walkingFrame
+      && canUseRugbyPlayerWalkingFrames(this.bodyShape, this.pose)
+    ) {
+      return getRugbyPlayerWalkingTextureKey(
+        this.bodyShape,
+        this.pose,
+        layer,
+        this.walkingFrame
+      );
+    }
+    return getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer);
   }
 }

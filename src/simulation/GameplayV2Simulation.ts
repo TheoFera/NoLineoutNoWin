@@ -14,7 +14,8 @@ import {
   advanceMatchSimulation,
   advanceToNextScheduledLineout,
   generateMatchMaximumFatigue,
-  generateMatchSchedule
+  generateMatchSchedule,
+  getKickoffReceptionPosition
 } from "../rules/MatchSimulator.ts";
 import { calculateCurrentFatiguePercent, generateMaximumFatiguePercent, resolveLineoutThrow } from "../rules/LineoutThrowResolver.ts";
 import { generateTeamForDivision } from "../rules/TeamGeneration.ts";
@@ -478,6 +479,9 @@ function createMatchState(
   rng: RandomSource,
   matchIndex: number
 ): MatchStateData {
+  const firstHalfReceivingTeam = schedule.firstHalfKickoffTeam === "player"
+    ? "opponent"
+    : "player";
   return {
     id: `simulation-${division.id}-${matchIndex}`,
     divisionId: division.id,
@@ -485,12 +489,15 @@ function createMatchState(
     away,
     minute: 0,
     maxMinute: schedule.maxMinute,
+    halfTimeMinute: schedule.halfTimeMinute,
+    halfTimeCompleted: false,
+    firstHalfKickoffTeam: schedule.firstHalfKickoffTeam,
     ourScore: 0,
     opponentScore: 0,
     possession: 50,
     occupation: 50,
-    ballOwner: "player",
-    ballPositionMeters: 50,
+    ballOwner: firstHalfReceivingTeam,
+    ballPositionMeters: getKickoffReceptionPosition(firstHalfReceivingTeam),
     playerPossessionTimeMinutes: 0,
     opponentPossessionTimeMinutes: 0,
     playerOccupationTimeMinutes: 0,

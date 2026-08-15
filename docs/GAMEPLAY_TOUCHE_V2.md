@@ -196,6 +196,14 @@ pTropHaut = (1 - pPrecis) / 2;
 
 ## 6. Qualité du saut
 
+En attaque, un saut ou une feinte exige toujours un lifteur devant et un lifteur
+derrière. La position `1` ne peut donc proposer qu'une réception directe à
+hauteur des mains du joueur au sol. En position `7`, aucun lifteur ne peut être
+placé derrière le joueur : le saut et la feinte y sont donc impossibles. Pour
+les autres positions, la hauteur visée dépend de l'action
+aérienne réellement prévue et valide ; à défaut, le ballon vise les mains d'un
+joueur au sol.
+
 ### 6.1 Pondérations
 
 ```ts
@@ -216,8 +224,11 @@ Le lifteur arrière est plus important que le lifteur avant.
 | Structure | Modificateur |
 |---|---:|
 | Deux lifteurs | +10 |
-| Un seul lifteur | −20 |
+| Un seul lifteur en défense | −20 |
 | Aucun lifteur | saut impossible |
+
+En attaque, deux lifteurs sont obligatoires. La structure à un seul lifteur est
+réservée à la défense.
 
 En défense, la présence d'au moins un lifteur derrière le sauteur est
 obligatoire. Un joueur qui n'a qu'un coéquipier devant lui ne peut jamais être
@@ -400,6 +411,16 @@ margeControle = margeInterception + correctionMainsInterception;
 Un ballon dévié et récupéré par la défense est immédiatement considéré comme gagné par elle ; aucune nouvelle cascade de mains n’est lancée.
 
 ## 9. Risque d’en-avant
+
+Un joueur en déplacement peut réceptionner le ballon. Il subit toutefois un
+malus configurable sur son score de réception et une augmentation configurable
+de son risque d'en-avant.
+
+La détection du contact doit suivre toute la trajectoire du ballon entre deux
+images. Dès que le ballon entre dans le volume de réception autour des mains
+d'un joueur disponible, une interaction est obligatoire : réception propre,
+réception difficile, duel ou en-avant. Le ballon ne peut pas continuer sa
+trajectoire sans réaction comme s'il avait traversé le joueur.
 
 Le risque de base dépend de `hands`, par interpolation linéaire entre ces points :
 

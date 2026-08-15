@@ -111,6 +111,8 @@ export function generateMatchSchedule(
   randomSource: RandomSource = MATH_RANDOM_SOURCE
 ): {
   maxMinute: number;
+  halfTimeMinute: number;
+  firstHalfKickoffTeam: MatchBallOwner;
   totalLineouts: number;
   playerLineoutQuota: number;
   opponentLineoutQuota: number;
@@ -125,9 +127,18 @@ export function generateMatchSchedule(
   const generated = generateLineoutsForTotal(totalLineouts, maxMinute, randomSource);
   return {
     maxMinute,
+    halfTimeMinute: chooseHalfTimeMinute(randomSource),
+    firstHalfKickoffTeam: "opponent",
     totalLineouts,
     ...generated
   };
+}
+
+export function chooseHalfTimeMinute(
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): number {
+  const options = BALANCE.halfTimeMinuteOptions;
+  return options[randomInt(0, options.length - 1, randomSource)];
 }
 
 export function chooseMatchEndMinute(
@@ -161,9 +172,15 @@ export function advanceMatchSimulationWithTrace(
   const actions: MatchSimulationAction[] = [];
   const endMinute = Math.min(targetMinute, match.maxMinute);
   while (current.minute < endMinute) {
+    if (!current.halfTimeCompleted && current.minute >= current.halfTimeMinute) {
+      current = startSecondHalf(current);
+    }
     const stepMinutes = Math.min(
       BALANCE.simulationStepMinutes,
-      endMinute - current.minute
+      endMinute - current.minute,
+      current.halfTimeCompleted
+        ? Number.POSITIVE_INFINITY
+        : current.halfTimeMinute - current.minute
     );
     const step = simulateStep(current, stepMinutes, randomSource);
     const lateralResolution = resolveActionLateralPosition(
@@ -322,6 +339,31 @@ export function getTurnoverProbability(stepMinutes: number): number {
   return 1 - Math.pow(1 - BALANCE.turnoverProbabilityPerMinute, stepMinutes);
 }
 
+export function startSecondHalf(match: MatchStateData): MatchStateData {
+  const secondHalfKickoffTeam = oppositeOwner(match.firstHalfKickoffTeam);
+  const receivingTeam = oppositeOwner(secondHalfKickoffTeam);
+  return {
+    ...match,
+    halfTimeCompleted: true,
+    ballOwner: receivingTeam,
+    ballPositionMeters: getKickoffReceptionPosition(receivingTeam),
+    ballLateralPosition: 0,
+    ballLateralDirection: 0,
+    possessionDurationMinutes: 0,
+    playerAttackingPressure: 0,
+    opponentAttackingPressure: 0
+  };
+}
+
+export function getKickoffReceptionPosition(receivingTeam: MatchBallOwner): number {
+  const direction = receivingTeam === "player" ? -1 : 1;
+  return clamp(
+    BALANCE.restartPositionMeters + direction * BALANCE.restartKickDistanceMeters,
+    0,
+    BALANCE.pitchLengthMeters
+  );
+}
+
 export function getBreakthroughProbability(
   stepMinutes: number,
   lateralPosition: number
@@ -370,16 +412,29 @@ function simulateStep(
     next = addPressureIfAttacking22(next, ownerBeforeMovement, BALANCE.pressure.normalRetention);
   }
 
-  if (movement.kind === "clearanceKick") {
-    next = changePossession(next, oppositeOwner(ownerBeforeMovement));
-  } else if (
-    (next.possessionDurationMinutes ?? 0) >= BALANCE.minimumPossessionMinutesBeforeTurnover
-    && randomFloat(0, 1, randomSource) < getTurnoverProbability(stepMinutes)
+  let tryScoredAtLine = false;
+  if (
+    movement.kind !== "clearanceKick"
+    && hasReachedAttackingTryLine(next, ownerBeforeMovement)
   ) {
-    next = changePossession(next, oppositeOwner(next.ballOwner));
+    const afterTryAttempt = scoreTry(next, ownerBeforeMovement, randomSource);
+    tryScoredAtLine = afterTryAttempt.ourScore + afterTryAttempt.opponentScore > scoreBefore;
+    next = tryScoredAtLine
+      ? afterTryAttempt
+      : keepBallBeforeAttackingTryLine(next, ownerBeforeMovement);
   }
 
-  next = attemptPressureScore(next, stepMinutes, randomSource);
+  if (!tryScoredAtLine) {
+    if (movement.kind === "clearanceKick") {
+      next = changePossession(next, oppositeOwner(ownerBeforeMovement));
+    } else if (
+      (next.possessionDurationMinutes ?? 0) >= BALANCE.minimumPossessionMinutesBeforeTurnover
+      && randomFloat(0, 1, randomSource) < getTurnoverProbability(stepMinutes)
+    ) {
+      next = changePossession(next, oppositeOwner(next.ballOwner));
+    }
+    next = attemptPressureScore(next, stepMinutes, randomSource);
+  }
   next = updateDerivedPercentages(next);
 
   let kind: MatchSimulationActionKind = movement.kind;
@@ -506,6 +561,27 @@ function resolveMovement(
       randomSource
     ),
     kind: "ruck"
+  };
+}
+
+function hasReachedAttackingTryLine(
+  match: MatchStateData,
+  owner: MatchBallOwner
+): boolean {
+  return owner === "player"
+    ? match.ballPositionMeters >= BALANCE.pitchLengthMeters
+    : match.ballPositionMeters <= 0;
+}
+
+function keepBallBeforeAttackingTryLine(
+  match: MatchStateData,
+  owner: MatchBallOwner
+): MatchStateData {
+  return {
+    ...match,
+    ballPositionMeters: owner === "player"
+      ? BALANCE.pitchLengthMeters - BALANCE.tryLineFallbackMeters
+      : BALANCE.tryLineFallbackMeters
   };
 }
 

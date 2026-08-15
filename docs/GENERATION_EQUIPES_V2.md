@@ -213,6 +213,19 @@ minimumExpectedJump = 50;
 
 Une combinaison peut être attribuée même si certaines de ses options sont trop difficiles. Pour cette équipe, retirer uniquement les options non éligibles, à condition qu’il reste au moins une cible valide.
 
+### 9.5 Part maximale de combinaisons sans saut porté
+
+Dans chaque groupe de combinaisons actives ou de réserve attribué à une équipe
+IA, les combinaisons qui ne proposent aucun `jumpBlock` avec un lifteur devant
+et un lifteur derrière sont limitées à :
+
+```ts
+Math.floor(nombreDeCombinaisons / 3)
+```
+
+Avec deux combinaisons, elles sont donc toutes les deux aériennes. Avec trois
+combinaisons, une seule peut ne proposer que des réceptions directes.
+
 ## 10. Attribution des joueurs aux rôles
 
 Pour chaque option de lancer, rechercher l’affectation compatible la plus performante.

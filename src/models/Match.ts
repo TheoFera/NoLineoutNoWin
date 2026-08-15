@@ -77,6 +77,9 @@ export type MatchStateData = {
   away: Team;
   minute: number;
   maxMinute: number;
+  halfTimeMinute: number;
+  halfTimeCompleted: boolean;
+  firstHalfKickoffTeam: MatchBallOwner;
   ourScore: number;
   opponentScore: number;
   possession: number; // 0 to 100

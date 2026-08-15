@@ -219,13 +219,6 @@ export class SeasonResultScene extends Phaser.Scene {
     const nextLevel = LINEOUT_BALANCE.generation.divisionStats[summary.nextDivisionId].mean;
     const candidates: Array<DivisionChange & { changed: boolean }> = [
       {
-        label: t("seasonResult.change.lineouts"),
-        previousValue: `${previousDivision.minimumMatchLineouts}-${previousDivision.maximumMatchLineouts}`,
-        nextValue: `${nextDivision.minimumMatchLineouts}-${nextDivision.maximumMatchLineouts}`,
-        changed: previousDivision.minimumMatchLineouts !== nextDivision.minimumMatchLineouts
-          || previousDivision.maximumMatchLineouts !== nextDivision.maximumMatchLineouts
-      },
-      {
         label: t("seasonResult.change.activeCombinations"),
         previousValue: String(previousDivision.offensiveCombinations),
         nextValue: String(nextDivision.offensiveCombinations),

@@ -7,6 +7,7 @@ import type {
 } from "../models/Combination";
 import type { FieldPlayer } from "../models/Player";
 import { getV3CombinationPlan, moveV3JumpsToFinalPhase } from "./LineoutV3Combination";
+import { getLineoutV3PositionForDepth } from "./LineoutV3Geometry";
 
 export type LineoutV3AerialActionEligibility = {
   eligible: boolean;
@@ -16,10 +17,12 @@ export type LineoutV3AerialActionEligibility = {
 export function isLineoutV3AerialStructureEligible(
   jumper: FieldPlayer,
   frontLifter: FieldPlayer | undefined,
-  rearLifter: FieldPlayer | undefined
+  rearLifter: FieldPlayer | undefined,
+  allowSingleRearLifter = false
 ): boolean {
   if (!rearLifter) return false;
   if (frontLifter) return true;
+  if (!allowSingleRearLifter) return false;
   return rearLifter.strength > JUMP.singleRearLifterMinimumStrengthExclusive
     && jumper.speed > JUMP.singleRearLifterMinimumJumperSpeedExclusive
     && jumper.technique > JUMP.singleRearLifterMinimumJumperTechniqueExclusive;
@@ -63,7 +66,8 @@ export function evaluateLineoutV3AerialActionEligibility(
   const eligible = isLineoutV3AerialStructureEligible(
     jumper.player,
     frontLifter?.player,
-    rearLifter?.player
+    rearLifter?.player,
+    false
   );
   if (!eligible) return { eligible: false, lifterPositions: [] };
 
@@ -88,6 +92,10 @@ export function removeInvalidLineoutV3AerialActions(
           validActions.push({ ...action });
           return validActions;
         }
+        const actionPosition = getLineoutV3PositionForDepth(
+          getPlayerDepthAtPhase(action.playerPosition, normalizedPlan, phaseIndex)
+        );
+        if (action.type === "jump" && actionPosition === 1) return validActions;
         const eligibility = evaluateLineoutV3AerialActionEligibility(
           combination,
           players,

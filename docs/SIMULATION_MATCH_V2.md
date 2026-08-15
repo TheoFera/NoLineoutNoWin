@@ -31,6 +31,10 @@ Le terrain est représenté sur exactement 100 mètres :
 - `78` : entrée dans les 22 mètres adverses ;
 - `100` : ligne d’en-but adverse.
 
+Une zone d’en-but visuelle compacte est affichée derrière chacune des lignes d’en-but. Elle ne fait pas partie des 100 mètres utilisés par les règles. Le terrain affiche aussi les lignes des 5 mètres, des 10 mètres, des 22 mètres, du milieu, ainsi que les repères longitudinaux des 5 et 15 mètres. Les deux paires de poteaux sont orientées vers le haut de l’écran et passent visuellement devant le ballon.
+
+Le ballon ne circule jamais dans les zones d’en-but visuelles. Lorsqu’un porteur atteint la ligne adverse, une équipe éligible marque immédiatement un essai. Si la règle de la touche gagnée récemment la rend inéligible, le ballon reste juste devant la ligne d’essai.
+
 ```ts
 ballPositionMeters: number; // borné entre 0 et 100
 ```
@@ -245,6 +249,8 @@ Après un score :
 
 Le match se termine entre 80 et 82 minutes simulées. La variation doit être tirée au début ou à l’approche de la 80e minute et rester reproductible avec une graine.
 
+La première mi-temps se termine après la 40e minute, à un instant tiré au début du match parmi les valeurs configurées. La simulation marque alors une courte pause visible. L'équipe qui donne le coup d'envoi de la deuxième mi-temps est obligatoirement l'équipe opposée à celle qui a donné le coup d'envoi de la première mi-temps.
+
 ## 15. Affichage
 
 Pendant la simulation :
@@ -257,6 +263,7 @@ Pendant la simulation :
 - possession cumulée ;
 - occupation cumulée.
 - bandeau court indiquant les phases importantes : jeu à la main, point de fixation, dégagement, percée, score, remise en jeu et sortie en touche.
+- lors d’un essai, une courte célébration animée affiche clairement l’essai et l’équipe qui l’a marqué avant la remise en jeu.
 
 Mouvement du ballon : fluide, avec déplacements latéraux sur les passes et trajectoires en cloche sur les coups de pied. La vitesse du ballon est indépendante de celle du chronomètre.
 

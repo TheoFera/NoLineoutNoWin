@@ -4,8 +4,17 @@ import {
   hasRugbyPlayerAssetSet,
   resolveRugbyPlayerAssetSet
 } from "./RugbyPlayerAssetResolver";
-import { RUGBY_PLAYER_BASE_LAYER_NAMES, RUGBY_PLAYER_LAYER_NAMES } from "./RugbyPlayerTypes";
-import type { BodyShapeName, PlayerLayerName, PoseName } from "./RugbyPlayerTypes";
+import {
+  RUGBY_PLAYER_BASE_LAYER_NAMES,
+  RUGBY_PLAYER_LAYER_NAMES,
+  RUGBY_PLAYER_WALKING_FRAME_NAMES
+} from "./RugbyPlayerTypes";
+import type {
+  BodyShapeName,
+  PlayerLayerName,
+  PoseName,
+  RugbyPlayerWalkingFrame
+} from "./RugbyPlayerTypes";
 
 export const RUGBY_PLAYER_FRAME_WIDTH = 48;
 export const RUGBY_PLAYER_FRAME_HEIGHT = 64;
@@ -13,6 +22,28 @@ export const RUGBY_PLAYER_REFERENCE_SOURCE_WIDTH = 170;
 export const RUGBY_PLAYER_REFERENCE_SOURCE_HEIGHT = 370;
 
 const RUGBY_PLAYER_ASSET_BASE_PATH = "assets/sprites/rugby-player";
+const RUGBY_PLAYER_WALKING_LAYER_NAMES = ["body", "bodychauve", "details", "socks"] as const;
+const RUGBY_PLAYER_WALKING_ASSET_SETS = [
+  {
+    bodyShape: "medium_standard",
+    pose: "hand",
+    layers: RUGBY_PLAYER_WALKING_LAYER_NAMES
+  },
+  {
+    bodyShape: "medium_large",
+    pose: "hand",
+    layers: ["body", "details", "socks"] as const
+  }
+] as const satisfies readonly {
+  bodyShape: BodyShapeName;
+  pose: PoseName;
+  layers: readonly RugbyPlayerWalkingLayer[];
+}[];
+
+type RugbyPlayerWalkingLayer = typeof RUGBY_PLAYER_WALKING_LAYER_NAMES[number];
+const RUGBY_PLAYER_WALKING_ASSET_SET_KEYS = new Set(
+  RUGBY_PLAYER_WALKING_ASSET_SETS.map(({ bodyShape, pose }) => `${bodyShape}:${pose}`)
+);
 
 export function getRugbyPlayerEqualHeightScale(
   sourceHeight: number,
@@ -78,6 +109,23 @@ export function getRugbyPlayerTextureKey(bodyShape: BodyShapeName, pose: PoseNam
   return `rugby-player:${resolvedAssetSet.bodyShape}:${resolvedAssetSet.pose}:${layer}`;
 }
 
+export function getRugbyPlayerWalkingTextureKey(
+  bodyShape: BodyShapeName,
+  pose: PoseName,
+  layer: RugbyPlayerWalkingLayer,
+  frame: RugbyPlayerWalkingFrame
+): string {
+  const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
+  return `rugby-player:${resolvedAssetSet.bodyShape}:${resolvedAssetSet.pose}:${layer}:${frame}`;
+}
+
+export function canUseRugbyPlayerWalkingFrames(bodyShape: BodyShapeName, pose: PoseName): boolean {
+  const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
+  return RUGBY_PLAYER_WALKING_ASSET_SET_KEYS.has(
+    `${resolvedAssetSet.bodyShape}:${resolvedAssetSet.pose}`
+  );
+}
+
 export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseName, layer: PlayerLayerName): boolean {
   const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
   if (!hasRugbyPlayerAssetSet(resolvedAssetSet.bodyShape, resolvedAssetSet.pose)) {
@@ -113,6 +161,17 @@ export function preloadRugbyPlayerAssets(loader: Phaser.Loader.LoaderPlugin): vo
       loader.image(getRugbyPlayerTextureKey(bodyShape, pose, layer), assets[layer]);
     }
   }
+
+  for (const { bodyShape, pose, layers } of RUGBY_PLAYER_WALKING_ASSET_SETS) {
+    for (const frame of RUGBY_PLAYER_WALKING_FRAME_NAMES) {
+      for (const layer of layers) {
+        loader.image(
+          getRugbyPlayerWalkingTextureKey(bodyShape, pose, layer, frame),
+          `${RUGBY_PLAYER_ASSET_BASE_PATH}/${bodyShape}/${pose}/${layer}-${frame}.png`
+        );
+      }
+    }
+  }
 }
 
 export function useCrispRugbyPlayerTextures(textures: Phaser.Textures.TextureManager): void {
@@ -121,6 +180,17 @@ export function useCrispRugbyPlayerTextures(textures: Phaser.Textures.TextureMan
       const textureKey = getRugbyPlayerTextureKey(bodyShape, pose, layer);
       if (textures.exists(textureKey)) {
         textures.get(textureKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
+  }
+
+  for (const { bodyShape, pose, layers } of RUGBY_PLAYER_WALKING_ASSET_SETS) {
+    for (const frame of RUGBY_PLAYER_WALKING_FRAME_NAMES) {
+      for (const layer of layers) {
+        const textureKey = getRugbyPlayerWalkingTextureKey(bodyShape, pose, layer, frame);
+        if (textures.exists(textureKey)) {
+          textures.get(textureKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+        }
       }
     }
   }
