@@ -97,6 +97,7 @@ export type LineoutV3Event =
   | { type: "throwReleased"; trajectory: LineoutV3BallTrajectory }
   | { type: "playerMoved"; playerId: string }
   | { type: "jumpStarted"; playerId: string; lifterIds: string[]; feint: boolean }
+  | { type: "ballAttempt"; playerIds: string[] }
   | { type: "ballContact"; playerIds: string[] }
   | { type: "resolved"; resolution: LineoutResolution; feedback: LineoutV3Feedback[] };
 

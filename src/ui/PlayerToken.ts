@@ -13,6 +13,24 @@ import { UI } from "./UITheme";
 
 export const PLAYER_TOKEN_HIT_AREA_DATA_KEY = "playerTokenHitArea";
 const WALKING_FRAME_DISTANCE_METERS = 1.05;
+const IDLE_BREATHING_MINIMUM_CYCLE_MS = 1_800;
+const IDLE_BREATHING_CYCLE_VARIATION_MS = 800;
+const IDLE_BREATHING_INHALE_RATIO = 0.42;
+const IDLE_BREATHING_EXHALE_END_RATIO = 0.8;
+
+function getIdleAnimationSeed(playerId: string): number {
+  let hash = 2_166_136_261;
+  for (const character of playerId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function smoothStep(value: number): number {
+  const clamped = Phaser.Math.Clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+}
 
 export type PlayerTokenVisualConfig = {
   pose: PoseName;
@@ -35,6 +53,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   private walkingFrame?: RugbyPlayerWalkingFrame;
   private walkingDistanceMeters = 0;
   private lastMovementPosition?: { depthMeters: number; lateralMeters: number };
+  private idleBreathingActive = true;
+  private readonly idleBreathingAmplitudePixels: number;
+  private readonly idleBreathingCycleMs: number;
+  private readonly idleBreathingPhaseOffsetMs: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -46,6 +68,11 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   ) {
     super(scene, x, y);
     this.player = player;
+    const idleAnimationSeed = getIdleAnimationSeed(player.id);
+    this.idleBreathingAmplitudePixels = 1 + idleAnimationSeed % 2;
+    this.idleBreathingCycleMs = IDLE_BREATHING_MINIMUM_CYCLE_MS
+      + (idleAnimationSeed >>> 1) % (IDLE_BREATHING_CYCLE_VARIATION_MS + 1);
+    this.idleBreathingPhaseOffsetMs = (idleAnimationSeed >>> 12) % this.idleBreathingCycleMs;
     const hitboxWidth = visualConfig ? visualConfig.displayWidth + 8 : 48;
     const hitboxHeight = visualConfig ? Math.max(46, Math.round(visualConfig.displayHeight * 0.58)) : 68;
     const ringWidth = visualConfig ? visualConfig.displayWidth + 8 : 44;
@@ -86,8 +113,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
       this.emit("pointerdown", pointer);
     });
     scene.events.on("postupdate", this.syncShadowPosition, this);
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.updateIdleBreathing, this);
     this.once("destroy", () => {
       scene.events.off("postupdate", this.syncShadowPosition, this);
+      scene.events.off(Phaser.Scenes.Events.UPDATE, this.updateIdleBreathing, this);
       this.shadow?.destroy();
     });
     scene.add.existing(this);
@@ -118,6 +147,12 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   setPose(pose: PoseName): this {
     this.rugbyPlayer?.setPose(pose);
     this.shadow?.setPose(pose);
+    return this;
+  }
+
+  setIdleBreathingActive(active: boolean): this {
+    this.idleBreathingActive = active;
+    if (!active) this.rugbyPlayer?.setVerticalCompressionPixels(0);
     return this;
   }
 
@@ -263,6 +298,23 @@ export class PlayerToken extends Phaser.GameObjects.Container {
 
   private syncShadowPosition(): void {
     this.shadow?.setPlayerFeetPosition(this.x, this.y + 4);
+  }
+
+  private updateIdleBreathing(time: number): void {
+    if (!this.rugbyPlayer || !this.idleBreathingActive) return;
+    const phase = ((time + this.idleBreathingPhaseOffsetMs) % this.idleBreathingCycleMs)
+      / this.idleBreathingCycleMs;
+    const compressionRatio = phase < IDLE_BREATHING_INHALE_RATIO
+      ? smoothStep(phase / IDLE_BREATHING_INHALE_RATIO)
+      : phase < IDLE_BREATHING_EXHALE_END_RATIO
+        ? 1 - smoothStep(
+          (phase - IDLE_BREATHING_INHALE_RATIO)
+            / (IDLE_BREATHING_EXHALE_END_RATIO - IDLE_BREATHING_INHALE_RATIO)
+        )
+        : 0;
+    this.rugbyPlayer.setVerticalCompressionPixels(
+      this.idleBreathingAmplitudePixels * compressionRatio
+    );
   }
 
 }

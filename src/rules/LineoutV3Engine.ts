@@ -23,6 +23,7 @@ import { getV3CombinationPlan } from "./LineoutV3Combination";
 import {
   getLineoutV3DepthForGestureDistance,
   getLineoutV3DepthForPosition,
+  getLineoutV3MovementSpeedMetersPerSecond,
   getLineoutV3PositionForDepth
 } from "./LineoutV3Geometry";
 
@@ -52,6 +53,7 @@ export class LineoutV3Engine {
   private feedback: LineoutV3Feedback[] = [];
   private contactWindowStartedAtMs: number | null = null;
   private readonly bestContactByPlayerId = new Map<string, TimedContact>();
+  private readonly announcedBallAttemptPlayerIds = new Set<string>();
   private contestContactAnnounced = false;
 
   constructor(setup: LineoutV3Setup, rng: RandomSource = MATH_RANDOM_SOURCE) {
@@ -536,7 +538,16 @@ export class LineoutV3Engine {
     const progress = clamp(flightElapsed / ball.trajectory.flightDurationMs, 0, 1);
     ball.position = this.sampleBallPosition(ball.trajectory, progress);
     const contacts = this.findBallContacts(ball);
-    if (contacts.length > 0) this.collectBallContacts(contacts);
+    if (contacts.length > 0) {
+      this.collectBallContacts(contacts);
+      const newAttemptPlayerIds = contacts
+        .map((contact) => contact.player.player.id)
+        .filter((playerId) => !this.announcedBallAttemptPlayerIds.has(playerId));
+      if (newAttemptPlayerIds.length > 0) {
+        newAttemptPlayerIds.forEach((playerId) => this.announcedBallAttemptPlayerIds.add(playerId));
+        events.push({ type: "ballAttempt", playerIds: newAttemptPlayerIds });
+      }
+    }
     if (!this.contestContactAnnounced) {
       const collectedContacts = [...this.bestContactByPlayerId.values()];
       const attackingContact = this.bestContact(collectedContacts, "throwingTeam");
@@ -1063,7 +1074,12 @@ export class LineoutV3Engine {
       V3.depth.minimumMeters,
       V3.depth.maximumMeters
     );
-    const destination = this.findFreeDestination(player, requestedDestination, ignoredPlayerIds);
+    const destination = this.findFreeDestination(
+      player,
+      requestedDestination,
+      ignoredPlayerIds,
+      phaseMovementDestinations
+    );
     const waypoints = this.buildMovementWaypoints(
       player,
       destination,
@@ -1106,7 +1122,8 @@ export class LineoutV3Engine {
   private findFreeDestination(
     player: LineoutV3PlayerState,
     requestedDestination: number,
-    ignoredPlayerIds: ReadonlySet<string>
+    ignoredPlayerIds: ReadonlySet<string>,
+    phaseMovementDestinations: PhaseMovementDestinations
   ): number {
     const requestedPosition = getLineoutV3PositionForDepth(requestedDestination);
     const currentPosition = this.getReservedPosition(player);
@@ -1117,7 +1134,14 @@ export class LineoutV3Engine {
         && candidate.side === player.side
         && !ignoredPlayerIds.has(candidate.player.id)
       ))
-      .map((candidate) => this.getReservedPosition(candidate)));
+      .map((candidate) => {
+        // Une phase est simultanée : sa destination est déjà réservée et sa
+        // position de départ peut être libérée pour les autres déplacements.
+        const plannedDestination = phaseMovementDestinations.get(candidate.player.id);
+        return plannedDestination === undefined
+          ? this.getReservedPosition(candidate)
+          : getLineoutV3PositionForDepth(plannedDestination);
+      }));
     const destinationPosition = this.sortedLineoutPositions(requestedPosition, direction)
       .find((position) => !occupiedPositions.has(position))
       ?? currentPosition;
@@ -1280,18 +1304,7 @@ export class LineoutV3Engine {
 
   private baseMovementSpeed(player: LineoutV3PlayerState): number {
     const effectiveSpeed = this.effectiveStat(player, player.player.speed);
-    if (effectiveSpeed <= 50) {
-      return this.interpolate(
-        V3.movement.minimumMetersPerSecond,
-        V3.movement.middleMetersPerSecond,
-        effectiveSpeed / 50
-      );
-    }
-    return this.interpolate(
-      V3.movement.middleMetersPerSecond,
-      V3.movement.maximumMetersPerSecond,
-      (effectiveSpeed - 50) / 50
-    );
+    return getLineoutV3MovementSpeedMetersPerSecond(effectiveSpeed);
   }
 
   private effectiveStat(player: LineoutV3PlayerState, stat: number): number {

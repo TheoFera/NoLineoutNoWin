@@ -8,6 +8,12 @@ import {
 } from "../models/PlayerAppearance.ts";
 import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation.ts";
 import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation.ts";
+import {
+  MATH_RANDOM_SOURCE,
+  pickOne,
+  randomInt,
+  type RandomSource
+} from "../utils/Random.ts";
 import { PLAYER_NICKNAMES } from "./defaultNames.ts";
 
 export const AVAILABLE_PLAYER_BODY_SHAPES = [
@@ -56,12 +62,92 @@ export function createDefaultPlayerAppearance(number: number): PlayerAppearance 
   };
 }
 
-export function createDefaultTeamPlayerDrafts(): TeamPlayerDraft[] {
+export function createDefaultTeamPlayerDrafts(
+  randomSource: RandomSource = MATH_RANDOM_SOURCE
+): TeamPlayerDraft[] {
+  const bodyShapes = TEAM_PLAYER_NUMBERS.map((number) => (
+    createDefaultPlayerAppearance(number).bodyShape
+  ));
+  const skinToneIds = createDiverseAppearanceSequence(
+    PLAYER_SKIN_TONE_IDS,
+    TEAM_PLAYER_NUMBERS.length,
+    randomSource
+  );
+  const standardPlayerIndexes = bodyShapes
+    .map((bodyShape, index) => bodyShape === "medium_standard" ? index : -1)
+    .filter((index) => index >= 0);
+  const hairStyles = createDiverseAppearanceSequence(
+    PLAYER_HAIR_STYLE_OPTIONS,
+    standardPlayerIndexes.length,
+    randomSource
+  );
+  const hairStyleByPlayerIndex = new Map(
+    standardPlayerIndexes.map((playerIndex, index) => [playerIndex, hairStyles[index]])
+  );
+  const accessoryIdsByPlayer = createRandomAccessorySelections(
+    standardPlayerIndexes,
+    TEAM_PLAYER_NUMBERS.length,
+    randomSource
+  );
+
   return TEAM_PLAYER_NUMBERS.map((number, index) => ({
     number,
     nickname: PLAYER_NICKNAMES[index] ?? `J${number}`,
-    appearance: createDefaultPlayerAppearance(number)
+    appearance: {
+      bodyShape: bodyShapes[index],
+      skinToneId: skinToneIds[index],
+      hairStyleId: hairStyleByPlayerIndex.get(index) ?? "short",
+      accessoryIds: accessoryIdsByPlayer[index]
+    }
   }));
+}
+
+function createRandomAccessorySelections(
+  eligiblePlayerIndexes: readonly number[],
+  playerCount: number,
+  randomSource: RandomSource
+): PlayerAccessoryId[][] {
+  const selections = Array.from({ length: playerCount }, () => [] as PlayerAccessoryId[]);
+  if (eligiblePlayerIndexes.length === 0) return selections;
+
+  for (const accessoryId of PLAYER_ACCESSORY_OPTIONS) {
+    const playerIndex = pickOne(eligiblePlayerIndexes, randomSource);
+    selections[playerIndex].push(accessoryId);
+  }
+
+  for (const playerIndex of eligiblePlayerIndexes) {
+    for (const accessoryId of PLAYER_ACCESSORY_OPTIONS) {
+      if (!selections[playerIndex].includes(accessoryId) && randomInt(0, 4, randomSource) === 0) {
+        selections[playerIndex].push(accessoryId);
+      }
+    }
+  }
+
+  return selections;
+}
+
+function createDiverseAppearanceSequence<T>(
+  options: readonly T[],
+  count: number,
+  randomSource: RandomSource
+): T[] {
+  const sequence: T[] = [];
+  while (sequence.length < count) {
+    sequence.push(...shuffleAppearanceOptions(options, randomSource));
+  }
+  return sequence.slice(0, count);
+}
+
+function shuffleAppearanceOptions<T>(
+  options: readonly T[],
+  randomSource: RandomSource
+): T[] {
+  const shuffled = [...options];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(0, index, randomSource);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }
 
 export function cloneTeamPlayerDrafts(players: readonly TeamPlayerDraft[]): TeamPlayerDraft[] {

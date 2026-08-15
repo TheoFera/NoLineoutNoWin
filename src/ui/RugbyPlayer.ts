@@ -224,6 +224,12 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return this.bodyLayer.displayHeight * Math.abs(this.scaleY);
   }
 
+  setVerticalCompressionPixels(compressionPixels: number): this {
+    const visualHeight = Math.max(1, this.bodyLayer.displayHeight);
+    this.setScale(this.scaleX, Math.max(0.9, (visualHeight - compressionPixels) / visualHeight));
+    return this;
+  }
+
   private createLayer(scene: Phaser.Scene, layer: PlayerLayerName): Phaser.GameObjects.Image {
     return scene.add.image(0, 0, getRugbyPlayerTextureKey(this.bodyShape, this.pose, layer)).setOrigin(0.5, 1);
   }

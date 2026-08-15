@@ -49,6 +49,11 @@ export const LINEOUT_THROW_ANIMATION = {
   knockOnBounceDurationMs: 90,
   v3KnockOnContactDurationMs: 120,
   v3KnockOnForwardPixels: 34,
+  v3BallAttemptPoseDurationMs: 220,
+  v3GroundRecoveryMinimumRunDurationMs: 180,
+  v3GroundRecoveryFeetDistancePixels: 12,
+  v3GroundRecoveryPickupDurationMs: 160,
+  v3GroundRecoveryHoldDurationMs: 140,
   caughtHoldDurationMs: 180,
   resultHoldDurationMs: 100
 } as const;

@@ -42,6 +42,18 @@ export function getLineoutV3GestureDistanceForDepth(depthMeters: number): number
     + gestureRatio * (V3.gesture.maximumDistancePixels - V3.gesture.minimumDistancePixels);
 }
 
+export function getLineoutV3MovementSpeedMetersPerSecond(speedStat: number): number {
+  const normalizedSpeed = clamp(speedStat, 0, 100);
+  if (normalizedSpeed <= 50) {
+    return V3.movement.minimumMetersPerSecond
+      + (V3.movement.middleMetersPerSecond - V3.movement.minimumMetersPerSecond)
+        * normalizedSpeed / 50;
+  }
+  return V3.movement.middleMetersPerSecond
+    + (V3.movement.maximumMetersPerSecond - V3.movement.middleMetersPerSecond)
+      * (normalizedSpeed - 50) / 50;
+}
+
 export function getLineoutV3TargetPhaseIndex(
   combination: Combination,
   targetPosition: LineoutPosition
