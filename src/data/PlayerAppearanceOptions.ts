@@ -45,7 +45,7 @@ export function canUsePlayerAccessory(
   accessoryId: PlayerAccessoryId
 ): boolean {
   if (accessoryId === "none") return true;
-  return bodyShape === "medium_standard" && (accessoryId === "helmet" || accessoryId === "strap");
+  return bodyShape === "medium_standard";
 }
 
 export function createDefaultPlayerAppearance(number: number): PlayerAppearance {

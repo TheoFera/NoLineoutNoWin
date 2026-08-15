@@ -103,6 +103,18 @@ const STRAP_ASSET_SET_KEYS = new Set([
   "medium_standard:lifter_front"
 ]);
 
+const MOUSTACHE_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:jumper"
+]);
+
+const BEARD_ASSET_SET_KEYS = new Set([
+  "medium_standard:stand_front",
+  "medium_standard:hand",
+  "medium_standard:jumper"
+]);
+
 export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseName): RugbyPlayerLayerPaths {
   const resolvedAssetSet = resolveAssetSet(bodyShape, pose);
   const basePath = `${RUGBY_PLAYER_ASSET_BASE_PATH}/${resolvedAssetSet.bodyShape}/${resolvedAssetSet.pose}`;
@@ -114,9 +126,11 @@ export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseNam
     socks: `${basePath}/socks.png`,
     details: `${basePath}/details.png`,
     bodychauve: `${basePath}/bodychauve.png`,
+    barbe: `${basePath}/barbe.png`,
     casque: `${basePath}/casque.png`,
     chauve: `${basePath}/chauve.png`,
     chignon: `${basePath}/chignon.png`,
+    moustache: `${basePath}/moustache.png`,
     mulet: `${basePath}/mulet.png`,
     strap: `${basePath}/strap.png`
   };
@@ -169,6 +183,12 @@ export function hasRugbyPlayerLayerAsset(bodyShape: BodyShapeName, pose: PoseNam
   }
   if (layer === "strap") {
     return STRAP_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "moustache") {
+    return MOUSTACHE_ASSET_SET_KEYS.has(assetSetKey);
+  }
+  if (layer === "barbe") {
+    return BEARD_ASSET_SET_KEYS.has(assetSetKey);
   }
   return false;
 }

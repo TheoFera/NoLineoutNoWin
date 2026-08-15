@@ -34,9 +34,11 @@ export type Kit = {
 export const RUGBY_PLAYER_BASE_LAYER_NAMES = ["body", "jersey", "shorts", "socks", "details"] as const;
 export const RUGBY_PLAYER_OPTIONAL_LAYER_NAMES = [
   "bodychauve",
+  "barbe",
   "casque",
   "chauve",
   "chignon",
+  "moustache",
   "mulet",
   "strap"
 ] as const;

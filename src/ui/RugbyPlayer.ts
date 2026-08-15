@@ -265,7 +265,11 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     } else {
       this.hairStyleLayer?.clearTint();
     }
-    this.accessoryLayer?.clearTint();
+    if (this.accessoryId === "moustache" || this.accessoryId === "beard") {
+      this.accessoryLayer?.setTint(this.bodyTint);
+    } else {
+      this.accessoryLayer?.clearTint();
+    }
   }
 
   private refreshDetailsLayer(): void {
@@ -334,12 +338,18 @@ export class RugbyPlayer extends Phaser.GameObjects.Container {
     return undefined;
   }
 
-  private getAccessoryLayerName(): "casque" | "strap" | undefined {
+  private getAccessoryLayerName(): "barbe" | "casque" | "moustache" | "strap" | undefined {
     if (this.accessoryId === "helmet" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "casque")) {
       return "casque";
     }
     if (this.accessoryId === "strap" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "strap")) {
       return "strap";
+    }
+    if (this.accessoryId === "moustache" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "moustache")) {
+      return "moustache";
+    }
+    if (this.accessoryId === "beard" && hasRugbyPlayerLayerAsset(this.bodyShape, this.pose, "barbe")) {
+      return "barbe";
     }
     return undefined;
   }
