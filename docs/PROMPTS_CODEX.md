@@ -1,5 +1,8 @@
 # Prompts prêts à copier dans Codex
 
+> **Archive :** les références au gameplay V2 ci-dessous sont périmées. Pour
+> une nouvelle demande, utiliser `docs/GAMEPLAY_V3.md`.
+
 Les prompts dédiés au nouveau gameplay de touche sont regroupés dans
 `docs/PROMPTS_GAMEPLAY_V2.md`.
 

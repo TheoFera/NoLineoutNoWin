@@ -1,5 +1,8 @@
 # Intelligence artificielle de touche V2 — Source de vérité
 
+> **Archive périmée :** le gameplay officiel est désormais la V3 décrite dans
+> `docs/GAMEPLAY_V3.md`. Ce document ne doit plus guider une modification.
+
 Version : 2026-07-15
 
 ## 1. Principes

@@ -63,13 +63,14 @@ Exemple :
 
 ```text
 LineoutScene.ts
-→ affiche l'alignement
-→ reçoit le clic sur le joueur cible
-→ appelle resolveLineout(...)
+→ affiche l'alignement et reçoit les gestes
+→ anime les événements produits par le moteur
+→ transmet les actions au moteur V3
 
-LineoutResolver.ts
-→ calcule le résultat
-→ renvoie un objet LineoutResult
+LineoutV3Engine.ts
+→ exécute les phases, mouvements, sauts et trajectoires
+→ résout les contacts sans dépendre de Phaser
+→ renvoie des événements et une LineoutResolution
 ```
 
 ## Fichiers les plus importants
@@ -86,7 +87,8 @@ LineoutResolver.ts
 | `src/scenes/PlayerProgressionScene.ts` | présente les hausses de statistiques après le match |
 | `src/scenes/TeamScene.ts` | affiche l'équipe du joueur |
 | `src/scenes/ChampionshipScene.ts` | affiche le championnat |
-| `src/rules/LineoutResolver.ts` | calcul d'une touche |
+| `src/rules/LineoutV3Engine.ts` | moteur officiel d'une touche V3 |
+| `src/rules/LineoutV3Geometry.ts` | géométrie et synchronisation V3 |
 | `src/ai/DefenseAI.ts` | choix défensif adverse |
 | `src/state/GameStore.ts` | état global et sauvegarde |
 | `src/systems/I18n.ts` | traduction |
@@ -95,6 +97,7 @@ LineoutResolver.ts
 ## Données métier à respecter
 
 - 7 positions, pas de targetZone.
-- Joueurs de champ : jump/lift/hands uniquement.
+- Joueurs de champ : speed/strength/technique uniquement.
 - Talonneur : throwing.
+- Geste de lancer et timing défensif conformes à `docs/GAMEPLAY_V3.md`.
 - Toutes les phrases visibles passent par une clé de traduction.

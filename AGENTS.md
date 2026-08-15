@@ -6,7 +6,7 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 
 1. Ne jamais tout réécrire sans raison.
 2. Avancer par petites étapes vérifiables.
-3. Lire `docs/SOMMAIRE_CODEX.md`, puis uniquement les documents indiqués pour le domaine réellement modifié. Ne pas relire tous les documents V2 par défaut.
+3. Lire `docs/SOMMAIRE_CODEX.md`, puis uniquement les documents indiqués pour le domaine réellement modifié. Ne pas relire les documents V2 archivés.
 4. Réutiliser les informations déjà lues dans la conversation tant que les fichiers n'ont pas changé.
 5. Inspecter d'abord les fichiers directement concernés. Ne pas auditer tout le dépôt sauf demande explicite.
 6. Validation proportionnée :
@@ -22,16 +22,12 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 11. Ne pas ajouter de stat joueur non prévue.
 12. Préserver les modifications déjà présentes dans le dépôt et limiter chaque intervention au périmètre demandé.
 
-## Sources de vérité du gameplay V2
+## Source de vérité du gameplay V3
 
-- `docs/GAMEPLAY_TOUCHE_V2.md` décrit la résolution d'une touche.
-- `docs/IA_TOUCHE_V2.md` décrit les décisions, la mémoire et l'adaptation de l'IA.
-- `docs/SIMULATION_MATCH_V2.md` décrit la simulation accélérée entre les touches.
-- `docs/GENERATION_EQUIPES_V2.md` décrit la génération des joueurs, les rôles et l'attribution des combinaisons.
-- `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md` fixe l'ordre des lots et leurs critères de validation.
-- En cas de contradiction avec le code actuel ou un ancien document, le document V2 spécialisé dans le domaine concerné prévaut.
-- Ne pas recopier les formules V2 dans plusieurs fichiers : les documents spécialisés restent les sources uniques.
-- Les valeurs indiquées comme provisoires dans les documents V2 sont les valeurs initiales à implémenter et restent configurables.
+- `docs/GAMEPLAY_V3.md` décrit le gameplay officiel : geste de lancer, plans de combinaison, déplacements, timing défensif, trajectoire et résolution physique.
+- Les documents dont le nom contient `V2` sont périmés et conservés uniquement comme historique. Ils ne doivent plus guider une modification.
+- En cas de contradiction avec un ancien document, `docs/GAMEPLAY_V3.md` et les règles V3 actuelles prévalent.
+- Ne pas réintroduire une règle V2 pour conserver une ancienne formule ou une ancienne sauvegarde sans demande explicite.
 - Les valeurs ajustables doivent être centralisées dans `src/config/LineoutBalance.ts`.
 - Les sources aléatoires des règles et de l'IA doivent être injectables pour permettre des tests déterministes.
 
@@ -39,22 +35,22 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 
 - Le jeu est centré uniquement sur la touche au rugby.
 - Le match complet n'est pas jouable : il est simulé entre les touches.
-- Il y a 7 positions de lancer : `1, 2, 3, 4, 5, 6, 7`.
+- Il y a 7 positions de référence : `1, 2, 3, 4, 5, 6, 7`, puis des déplacements continus exprimés en mètres.
 - Il n'y a pas de `targetZone` abstraite.
-- En attaque, le joueur choisit une combinaison puis une option de lancer réelle : bloc de saut (`jumpBlock`) ou réception directe (`directCatch`).
-- L'option choisie désigne un joueur cible réel de l'alignement ; elle ne doit jamais recréer une zone abstraite.
-- La cible est donc un `targetPlayerId`, dont la position actuelle est calculée dans l'alignement.
+- En attaque, le joueur choisit une combinaison, lance son plan puis effectue un geste vertical dont la distance fixe la profondeur physique demandée.
+- Un geste trop court ou trop lent est refusé ; la précision réelle dépend du talonneur, de la fatigue et de l'aléatoire injecté.
+- En défense, le joueur peut réorganiser et déplacer ses blocs avant le lancer, puis déclenche le saut du défenseur choisi au passage du ballon.
+- Le timing du saut défensif fait partie du gameplay V3.
 - Les joueurs de champ ont uniquement 3 stats :
-  - `jump` = Saut
-  - `lift` = Lift
-  - `hands` = Main
+  - `speed` = Vitesse
+  - `strength` = Force
+  - `technique` = Technique
 - Le talonneur est un rôle spécial avec `throwing` = Lancer.
-- Ne pas ajouter `reading`, `timing`, `strength`, `morale`, `endurance` ou d'autres stats joueur.
+- Ne pas ajouter `reading`, `timing`, `morale`, `endurance`, `agility` ou d'autres stats joueur.
 - La fatigue est une variable temporaire de match exprimée en pourcentage, jamais une stat joueur permanente.
-- Aucun mini-jeu de timing : l'attaque sélectionne une cible et la défense sélectionne un bloc de contre.
-- Une combinaison peut proposer plusieurs options de lancer, chacune désignant une cible réelle de l'alignement.
-- Les rôles d'une combinaison sont définis par option de lancer ; un même joueur peut changer de rôle d'une option à l'autre.
-- Les rôles aériens sont déduits des statistiques réelles des joueurs, jamais l'inverse.
+- Une combinaison V3 contient des phases et des actions `move`, `feint` ou `jump`.
+- Les anciennes options `jumpBlock` et `directCatch` peuvent préparer un plan, mais la résolution dépend toujours de la géométrie réelle.
+- Les rôles aériens et l'éligibilité des lifteurs sont déduits des statistiques et positions réelles, jamais l'inverse.
 - Le nombre total de touches du match est tiré une seule fois selon la division. Il est réparti également entre le joueur et l'IA ; lorsque le total est impair, une équipe dispose d'une seule touche offensive supplémentaire, attribuée aléatoirement.
 - La possession et l'occupation cumulées sont calculées à partir du temps simulé ; elles ne sont pas modifiées directement comme des bonus abstraits.
 - Tous les textes visibles doivent passer par le système de traduction `t(key)`.

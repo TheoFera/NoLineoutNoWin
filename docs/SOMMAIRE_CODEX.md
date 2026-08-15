@@ -10,17 +10,15 @@ Ce fichier sert à choisir la documentation utile sans charger tout le dépôt d
 |---|---|
 | Architecture, dossiers, responsabilités | `docs/ARCHITECTURE.md` |
 | Parcours joueur, périmètre V1, règles générales | `docs/CDC_NORMALISE.md` |
-| Résolution d'une touche, lancer, saut, contre, réception | `docs/GAMEPLAY_TOUCHE_V2.md` |
-| Décisions, mémoire et adaptation de l'IA | `docs/IA_TOUCHE_V2.md` |
-| Chronomètre, terrain, possession, occupation et score | `docs/SIMULATION_MATCH_V2.md` |
-| Génération des joueurs, rôles et combinaisons | `docs/GENERATION_EQUIPES_V2.md` |
-| Travail explicitement demandé par numéro de lot V2 | `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`, puis le document métier du lot |
+| Gameplay officiel, geste de lancer, plans, mouvements, saut, timing et résolution | `docs/GAMEPLAY_V3.md` |
+| IA de touche, génération des joueurs ou simulation entre les touches | `docs/GAMEPLAY_V3.md`, puis les fichiers directement concernés |
 | Choix techniques déjà arbitrés | `docs/DECISIONS_TECHNIQUES.md` |
 | Intégration globale de plusieurs domaines | uniquement les documents des domaines réellement concernés |
 
 ## Documents qui ne sont pas requis pour coder
 
 - `docs/PLAN_DEVELOPPEMENT_CODEX.md` : historique et ordre général des anciens lots.
+- Tous les documents dont le nom contient `V2` : archives du gameplay périmé.
 - `docs/INTEGRATION_GAMEPLAY_V2.md` : procédure historique d'ajout des documents V2.
 - `docs/PROMPTS_CODEX.md` et `docs/PROMPTS_GAMEPLAY_V2.md` : exemples de prompts.
 - `docs/CHECKLIST_RELECTURE.md` : checklist manuelle de fin de jalon.

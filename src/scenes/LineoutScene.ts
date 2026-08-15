@@ -84,6 +84,11 @@ import {
   type BallAnimationPhase,
   type BallAnimationWaypoint
 } from "../ui/LineoutThrowAnimation";
+import {
+  createIdleBreathingProfile,
+  getIdleBreathingCompressionPixels,
+  type IdleBreathingProfile
+} from "../ui/IdleBreathing";
 import { PLAYER_TOKEN_HIT_AREA_DATA_KEY, PlayerToken } from "../ui/PlayerToken";
 import {
   getElevatedObjectShadowOffset,
@@ -146,9 +151,12 @@ const TRAINING_THROW_START_OFFSET = 24;
 const THROW_GESTURE_ZONE_TOP_OFFSET = 12;
 const PLAYER_ALIGNMENT_HORIZONTAL_VARIATION_PIXELS = 2;
 const TRAINING_PREPARATION_REMAINING_ALIGNMENT_OFFSET_PIXELS = 1;
-const TRAINING_MOVEMENT_ARROW_HORIZONTAL_OFFSET_PIXELS = 34;
-const TRAINING_MOVEMENT_ARROW_LANE_GAP_PIXELS = 7;
-const TRAINING_MOVEMENT_ARROW_FEET_OFFSET_Y = 4;
+const TRAINING_MOVEMENT_ARROW_HORIZONTAL_OFFSET_PIXELS = 36;
+const TRAINING_MOVEMENT_ARROW_LANE_GAP_PIXELS = 8;
+const TRAINING_MOVEMENT_ARROW_ANCHOR_HEIGHT_RATIO = 0.14;
+const TRAINING_MOVEMENT_ARROW_COLOR = UI.colors.accent;
+const TRAINING_MOVEMENT_ARROW_SHADOW_COLOR = UI.colors.panelDark;
+const TRAINING_MOVEMENT_AVOIDANCE_VISUAL_MARGIN_PIXELS = 10;
 const LINEOUT_PREPARATION_ANIMATION = {
   attackingMinimumPixels: 2,
   attackingMaximumPixels: 5,
@@ -353,14 +361,19 @@ export class LineoutScene extends Phaser.Scene {
   private hookerSprite?: RugbyPlayer;
   private hookerShadow?: PlayerGroundShadow;
   private hookerHeldBall?: Phaser.GameObjects.Container;
+  private hookerHeldBallRestY?: number;
+  private hookerIdleBreathingProfile?: IdleBreathingProfile;
+  private hookerIdleBreathingActive = false;
   private userSlotIndicators: Phaser.GameObjects.Rectangle[] = [];
   private v3Engine?: LineoutV3Engine;
   private v3BallSprite?: Phaser.GameObjects.Image;
   private v3BallShadow?: Phaser.GameObjects.Image;
   private v3ContactPlayerId: string | null = null;
+  private v3RetainedBallPose: Extract<PoseName, "hand" | "jumper"> | null = null;
   private v3ContestPlayerIds = new Set<string>();
   private v3BallAttemptPlayerIds = new Set<string>();
   private v3GroundRecoveryPlayerId: string | null = null;
+  private v3GroundRecoveryRunStarted = false;
   private v3ContestStartedAtMs: number | null = null;
   private v3ThrowGesture: ThrowGestureState | null = null;
   private v3ThrowPowerGauge?: ThrowPowerGauge;
@@ -475,7 +488,8 @@ export class LineoutScene extends Phaser.Scene {
     this.input.on("pointerup", this.completeV3ThrowGesture, this);
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
+    this.updateHookerIdleBreathing(time);
     this.updateV3Runtime(delta);
     this.updateV3DynamicCamera(delta);
     if (this.v3ThrowGesture) {
@@ -659,6 +673,8 @@ export class LineoutScene extends Phaser.Scene {
     const hookerDepth = this.getPlayerDepth(hookerFeetY);
     const hooker = isOpponentThrow ? match?.away.hooker ?? save.playerTeam.hooker : save.playerTeam.hooker;
     const hookerBodyShape = hooker.appearance.bodyShape;
+    this.hookerIdleBreathingProfile = createIdleBreathingProfile(hooker.id);
+    this.hookerIdleBreathingActive = true;
 
     this.hookerShadow = new PlayerGroundShadow(
       this,
@@ -702,6 +718,7 @@ export class LineoutScene extends Phaser.Scene {
       heldBallPosition.y,
       [heldBallShadow, heldBall]
     );
+    this.hookerHeldBallRestY = heldBallPosition.y;
 
     // PlayerToken place le numero par rapport a son conteneur, dont le sprite a les pieds 4 px plus bas.
     const hookerNumberY = hookerFeetY - 1 - Math.max(12, layout.playerHeight * 0.42);
@@ -1496,7 +1513,7 @@ export class LineoutScene extends Phaser.Scene {
     const phaseIndex = this.trainingEditorPhaseIndex;
     const phase = getV3CombinationPlan(this.selectedCombination).phases[phaseIndex];
     const movements = phase?.actions.filter((action) => action.type === "move") ?? [];
-    const graphics = this.add.graphics().setDepth(LINEOUT_ACTION_DEPTH - 100);
+    const graphics = this.add.graphics().setDepth(GROUND_SHADOW_DEPTH - 0.5);
     let upwardLaneIndex = 0;
     let downwardLaneIndex = 0;
     movements.forEach((movement) => {
@@ -1505,10 +1522,12 @@ export class LineoutScene extends Phaser.Scene {
         movement.playerPosition,
         phaseIndex - 1
       );
+      const anchorOffsetY = -layout.playerHeight
+        * TRAINING_MOVEMENT_ARROW_ANCHOR_HEIGHT_RATIO;
       const startY = this.v3YFromDepth(startDepth, layout)
-        + TRAINING_MOVEMENT_ARROW_FEET_OFFSET_Y;
+        + anchorOffsetY;
       const endY = this.v3YFromDepth(movement.destinationDepthMeters, layout)
-        + TRAINING_MOVEMENT_ARROW_FEET_OFFSET_Y;
+        + anchorOffsetY;
       if (Math.abs(endY - startY) < 4) return;
       const direction = Math.sign(endY - startY);
       const isUpwardMovement = direction < 0;
@@ -1518,23 +1537,64 @@ export class LineoutScene extends Phaser.Scene {
         TRAINING_MOVEMENT_ARROW_HORIZONTAL_OFFSET_PIXELS
         + laneIndex * TRAINING_MOVEMENT_ARROW_LANE_GAP_PIXELS
       );
-      const arrowBaseY = endY - direction * 14;
-      graphics.lineStyle(4, 0xef4444, 0.95);
-      graphics.beginPath();
-      graphics.moveTo(x, startY);
-      graphics.lineTo(x, arrowBaseY);
-      graphics.strokePath();
-      graphics.fillStyle(0xef4444, 0.98);
-      graphics.fillTriangle(
-        x,
-        endY,
-        x - 7,
-        arrowBaseY,
-        x + 7,
-        arrowBaseY
-      );
-      graphics.fillCircle(x, startY, 4);
+      const player = this.attackSlotPlayers[movement.playerPosition - 1];
+      const playerX = layout.attackX + (player ? getPlayerAlignmentOffsetX(player.id) : 0);
+      const startX = playerX + sideDirection * Math.min(8, layout.playerWidth * 0.15);
+      this.drawTrainingMovementArrow(graphics, startX, startY, x, endY, direction);
     });
+  }
+
+  private drawTrainingMovementArrow(
+    graphics: Phaser.GameObjects.Graphics,
+    startX: number,
+    startY: number,
+    laneX: number,
+    endY: number,
+    direction: number
+  ): void {
+    const bendY = startY + direction * 10;
+    const arrowBaseY = endY - direction * 11;
+    const shadowBaseY = endY - direction * 13;
+    const drawShaft = (
+      width: number,
+      color: number,
+      alpha: number,
+      destinationY: number
+    ): void => {
+      graphics.lineStyle(width, color, alpha);
+      graphics.beginPath();
+      graphics.moveTo(startX, startY);
+      graphics.lineTo(laneX, bendY);
+      graphics.lineTo(laneX, destinationY);
+      graphics.strokePath();
+    };
+
+    drawShaft(5, TRAINING_MOVEMENT_ARROW_SHADOW_COLOR, 0.48, shadowBaseY);
+    drawShaft(3, TRAINING_MOVEMENT_ARROW_COLOR, 0.98, arrowBaseY);
+
+    graphics.fillStyle(TRAINING_MOVEMENT_ARROW_SHADOW_COLOR, 0.55);
+    graphics.fillTriangle(
+      laneX,
+      endY,
+      laneX - 7,
+      shadowBaseY,
+      laneX + 7,
+      shadowBaseY
+    );
+    graphics.fillStyle(TRAINING_MOVEMENT_ARROW_COLOR, 0.98);
+    graphics.fillTriangle(
+      laneX,
+      endY,
+      laneX - 5,
+      arrowBaseY,
+      laneX + 5,
+      arrowBaseY
+    );
+
+    graphics.fillStyle(TRAINING_MOVEMENT_ARROW_SHADOW_COLOR, 0.55);
+    graphics.fillCircle(startX, startY, 4);
+    graphics.fillStyle(TRAINING_MOVEMENT_ARROW_COLOR, 0.98);
+    graphics.fillCircle(startX, startY, 2.5);
   }
 
   private getTrainingEditorPose(position: LineoutPosition): PoseName {
@@ -2609,20 +2669,12 @@ export class LineoutScene extends Phaser.Scene {
       : getLineoutV3PositionForDepth(requestedDepth);
     const layout = this.getLayout();
     const railX = SCREEN_WIDTH - 15;
-    const jumpHandsOffsetY = getBallAnimationTargetOffset(
-      "precise",
-      false,
-      layout.playerHeight,
-      0
-    ).y;
-    const positionHandsY = (position: LineoutPosition): number => (
-      this.positionY(position, layout)
-        + (position !== 1 && engine.canTargetAerialCatchAtPosition(position)
-          ? jumpHandsOffsetY
-          : getHandPoseBallOffset(layout.playerHeight).y)
+    const fixedTargetOffsetY = getHandPoseBallOffset(layout.playerHeight).y;
+    const positionTargetY = (position: LineoutPosition): number => (
+      this.positionY(position, layout) + fixedTargetOffsetY
     );
-    const firstPositionY = positionHandsY(1);
-    const seventhPositionY = positionHandsY(7);
+    const firstPositionY = positionTargetY(1);
+    const seventhPositionY = positionTargetY(7);
     const throwStartY = Math.max(firstPositionY + 22, this.getHookerBallStart("us", layout).y);
     const positionProgress = Phaser.Math.Clamp(
       (requestedDepth - LINEOUT_BALANCE.gameplayV3.depth.minimumMeters)
@@ -2635,15 +2687,15 @@ export class LineoutScene extends Phaser.Scene {
     const targetY = distancePixels < minimumDistance
       ? Phaser.Math.Linear(throwStartY, firstPositionY, distancePixels / minimumDistance)
       : Phaser.Math.Linear(
-        positionHandsY(lowerTargetPosition),
-        positionHandsY(upperTargetPosition),
+        positionTargetY(lowerTargetPosition),
+        positionTargetY(upperTargetPosition),
         positionProgress - Math.floor(positionProgress)
       );
     const activeColor = level === 0
       ? 0x94a3b8
       : validation.valid ? 0xfacc15 : 0xef4444;
     const activeTargetY = level > 0
-      ? positionHandsY(level as LineoutPosition)
+      ? positionTargetY(level as LineoutPosition)
       : null;
 
     gauge.graphics.clear();
@@ -2676,7 +2728,7 @@ export class LineoutScene extends Phaser.Scene {
     gauge.graphics.strokePath();
 
     for (let position = 1; position <= 7; position += 1) {
-      const markerY = positionHandsY(position as LineoutPosition);
+      const markerY = positionTargetY(position as LineoutPosition);
       const isActive = position === level;
       gauge.graphics.fillStyle(isActive ? activeColor : 0xcbd5e1, isActive ? 1 : 0.56);
       gauge.graphics.fillCircle(railX, markerY, isActive ? 4 : 2.5);
@@ -2725,7 +2777,12 @@ export class LineoutScene extends Phaser.Scene {
 
   private updateV3Runtime(delta: number): void {
     const engine = this.v3Engine;
-    if (!engine || this.v3ResolutionHandled) return;
+    if (!engine) return;
+    if (this.v3ResolutionHandled) {
+      engine.update(delta);
+      this.syncV3Objects();
+      return;
+    }
     const beforeUpdate = engine.getSnapshot();
     if (
       this.isDefensiveMatch()
@@ -2775,6 +2832,7 @@ export class LineoutScene extends Phaser.Scene {
         [...this.attackTokens, ...this.defenseTokens].forEach((token) => (
           token.setIdleBreathingActive(false)
         ));
+        this.setHookerIdleBreathingActive(false);
         this.animateV3PlayerPreparation();
         this.hookerSprite?.setPose("hooker_throw_back");
         this.hookerShadow?.setPose("hooker_throw_back");
@@ -2847,10 +2905,21 @@ export class LineoutScene extends Phaser.Scene {
     const snapshot = this.v3Engine?.getSnapshot();
     if (!snapshot) return;
     const layout = this.getLayout();
-    const lateralScale = ((layout.defenseX ?? 250) - layout.attackX) / 1.44;
+    const naturalLateralScale = ((layout.defenseX ?? 250) - layout.attackX) / 1.44;
+    const lateralScale = this.mode === "training"
+      ? Math.max(
+          naturalLateralScale,
+          (layout.playerWidth + TRAINING_MOVEMENT_AVOIDANCE_VISUAL_MARGIN_PIXELS)
+            / LINEOUT_BALANCE.gameplayV3.movement.avoidanceLateralMeters
+        )
+      : naturalLateralScale;
     snapshot.players.forEach((state) => {
       const token = this.findV3Token(state.player.id);
-      if (!token || this.dragState?.token === token) return;
+      if (
+        !token
+        || this.dragState?.token === token
+        || (this.v3GroundRecoveryRunStarted && state.player.id === this.v3GroundRecoveryPlayerId)
+      ) return;
       const displayedLateralMeters = this.getV3DisplayedLateralMeters(
         state.position.lateralMeters
       );
@@ -2933,7 +3002,23 @@ export class LineoutScene extends Phaser.Scene {
         state.position.lateralMeters,
         isMoving
       );
-      if (this.armedDefensiveBlocks.has(state.player.id)) {
+      if (state.player.id === this.v3ContactPlayerId && this.v3RetainedBallPose) {
+        const desiredPose: Extract<PoseName, "hand" | "jumper"> = (
+          this.v3RetainedBallPose === "jumper"
+          && state.jump
+          && !state.jump.feint
+          && state.position.heightMeters > 0
+        ) ? "jumper" : "hand";
+        if (desiredPose !== this.v3RetainedBallPose) {
+          this.v3RetainedBallPose = desiredPose;
+          token.setPose(desiredPose);
+          if (this.v3BallSprite) {
+            const placement = getCaughtBallPlacement(desiredPose, layout.playerHeight);
+            token.attachToBody(this.v3BallSprite, placement.x, placement.y);
+            this.v3BallSprite.setAngle(placement.angle);
+          }
+        }
+      } else if (this.armedDefensiveBlocks.has(state.player.id)) {
         token.setPose("hand");
       } else if (
         state.player.id !== this.v3ContactPlayerId
@@ -3145,6 +3230,7 @@ export class LineoutScene extends Phaser.Scene {
     if (!state || !ballState || !token || !ball) return 0;
 
     this.v3GroundRecoveryPlayerId = recoveryPlayerId;
+    this.v3GroundRecoveryRunStarted = false;
     this.v3BallAttemptPlayerIds.delete(recoveryPlayerId);
     token.setIdleBreathingActive(false);
     const startDepthMeters = state.position.depthMeters;
@@ -3161,55 +3247,80 @@ export class LineoutScene extends Phaser.Scene {
       distanceMeters / Math.max(0.01, speedMetersPerSecond) * 1_000,
     );
     const layout = this.getLayout();
-    const originalX = token.x;
-    const originalY = token.y;
-    const feetSide = Math.sign(originalX - ball.x)
+    const feetSide = Math.sign(token.x - ball.x)
       || (state.side === "throwingTeam" ? -1 : 1);
     const destinationX = ball.x
       + feetSide * LINEOUT_THROW_ANIMATION.v3GroundRecoveryFeetDistancePixels;
     const destinationY = this.v3YFromDepth(destinationDepthMeters, layout);
-    const movementProgress = { value: 0 };
+    const relatedJump = state.jump
+      ?? (state.engagedByPlayerId
+        ? snapshot.players.find((player) => player.player.id === state.engagedByPlayerId)?.jump
+        : undefined);
+    const landingDurationMs = relatedJump
+      ? Math.max(0, relatedJump.startedAtMs + relatedJump.durationMs - snapshot.elapsedMs)
+      : 0;
+    const startRun = (): void => {
+      this.v3GroundRecoveryRunStarted = true;
+      const originalX = token.x;
+      const originalY = token.y;
+      const movementProgress = { value: 0 };
+      this.tweens.add({
+        targets: movementProgress,
+        value: 1,
+        duration: runDurationMs,
+        ease: "Linear",
+        onUpdate: () => {
+          token.x = Phaser.Math.Linear(originalX, destinationX, movementProgress.value);
+          token.y = Phaser.Math.Linear(originalY, destinationY, movementProgress.value);
+          token.updateWalkingMovement(
+            Phaser.Math.Linear(startDepthMeters, destinationDepthMeters, movementProgress.value),
+            Phaser.Math.Linear(startLateralMeters, destinationLateralMeters, movementProgress.value),
+            true
+          );
+          this.syncPlayerTokenDepth(token);
+        },
+        onComplete: () => {
+          token.x = destinationX;
+          token.y = destinationY;
+          token.stopWalkingMovement().setPose("hand");
+          this.syncPlayerTokenDepth(token);
+          const placement = getCaughtBallPlacement("hand", layout.playerHeight);
+          this.tweens.add({
+            targets: ball,
+            x: token.x + placement.x,
+            y: token.y + placement.y,
+            angle: placement.angle,
+            duration: LINEOUT_THROW_ANIMATION.v3GroundRecoveryPickupDurationMs,
+            ease: "Sine.easeOut",
+            onStart: () => {
+              this.v3ContactPlayerId = recoveryPlayerId;
+              this.v3RetainedBallPose = "hand";
+              this.v3BallShadow?.setVisible(false);
+            },
+            onComplete: () => {
+              token.attachToBody(ball, placement.x, placement.y);
+              ball.setAngle(placement.angle);
+            }
+          });
+        }
+      });
+    };
 
-    this.tweens.add({
-      targets: movementProgress,
-      value: 1,
-      duration: runDurationMs,
-      ease: "Linear",
-      onUpdate: () => {
-        token.x = Phaser.Math.Linear(originalX, destinationX, movementProgress.value);
-        token.y = Phaser.Math.Linear(originalY, destinationY, movementProgress.value);
-        token.updateWalkingMovement(
-          Phaser.Math.Linear(startDepthMeters, destinationDepthMeters, movementProgress.value),
-          Phaser.Math.Linear(startLateralMeters, destinationLateralMeters, movementProgress.value),
-          true
-        );
+    const beginRunAfterLanding = (): void => {
+      if (landingDurationMs > 0) {
+        token.y = this.v3YFromDepth(startDepthMeters, layout);
+        token.setBodyAngle(0);
+        token.setShadowElevation(0);
+        token.resetPose();
         this.syncPlayerTokenDepth(token);
-      },
-      onComplete: () => {
-        token.x = destinationX;
-        token.y = destinationY;
-        token.stopWalkingMovement().setPose("hand");
-        this.syncPlayerTokenDepth(token);
-        const placement = getCaughtBallPlacement("hand", layout.playerHeight);
-        this.tweens.add({
-          targets: ball,
-          x: token.x + placement.x,
-          y: token.y + placement.y,
-          angle: placement.angle,
-          duration: LINEOUT_THROW_ANIMATION.v3GroundRecoveryPickupDurationMs,
-          ease: "Sine.easeOut",
-          onStart: () => this.v3BallShadow?.setVisible(false),
-          onComplete: () => {
-            token.attachToBody(ball, placement.x, placement.y);
-            ball.setAngle(placement.angle);
-            this.v3ContactPlayerId = recoveryPlayerId;
-          }
-        });
       }
-    });
+      startRun();
+    };
+    this.time.delayedCall(landingDurationMs, beginRunAfterLanding);
 
     return Math.round(
-      runDurationMs
+      landingDurationMs
+      + runDurationMs
       + LINEOUT_THROW_ANIMATION.v3GroundRecoveryPickupDurationMs
       + LINEOUT_THROW_ANIMATION.v3GroundRecoveryHoldDurationMs
     );
@@ -3229,11 +3340,12 @@ export class LineoutScene extends Phaser.Scene {
     ));
     if (!token || !state) return;
 
-    const pose: Extract<PoseName, "hand" | "jumper"> = state.jump && !state.jump.feint
+    const pose: Extract<PoseName, "hand" | "jumper"> = resolution.details.receptionPose === "jumper"
       ? "jumper"
       : "hand";
     const placement = getCaughtBallPlacement(pose, this.getLayout().playerHeight);
     this.v3ContactPlayerId = catcherId;
+    this.v3RetainedBallPose = pose;
     token.setPose(pose);
     token.attachToBody(this.v3BallSprite, placement.x, placement.y);
     this.v3BallSprite.setAngle(placement.angle);
@@ -5175,6 +5287,31 @@ export class LineoutScene extends Phaser.Scene {
     token.setShadowDepth(GROUND_SHADOW_DEPTH);
   }
 
+  private setHookerIdleBreathingActive(active: boolean): void {
+    this.hookerIdleBreathingActive = active;
+    if (active) return;
+    this.hookerSprite?.setVerticalCompressionPixels(0);
+    if (this.hookerHeldBall && this.hookerHeldBallRestY !== undefined) {
+      this.hookerHeldBall.y = this.hookerHeldBallRestY;
+    }
+  }
+
+  private updateHookerIdleBreathing(time: number): void {
+    if (
+      !this.hookerIdleBreathingActive
+      || !this.hookerIdleBreathingProfile
+      || !this.hookerSprite
+    ) return;
+    const compressionPixels = getIdleBreathingCompressionPixels(
+      time,
+      this.hookerIdleBreathingProfile
+    );
+    this.hookerSprite.setVerticalCompressionPixels(compressionPixels);
+    if (this.hookerHeldBall && this.hookerHeldBallRestY !== undefined) {
+      this.hookerHeldBall.y = this.hookerHeldBallRestY + compressionPixels;
+    }
+  }
+
   private getUserDefensiveSelectionMode(position: LineoutPosition) {
     const assignments: LineoutAssignments = {};
     this.attackSlotPlayers.forEach((player, index) => {
@@ -5214,14 +5351,19 @@ export class LineoutScene extends Phaser.Scene {
     this.hookerSprite = undefined;
     this.hookerShadow = undefined;
     this.hookerHeldBall = undefined;
+    this.hookerHeldBallRestY = undefined;
+    this.hookerIdleBreathingProfile = undefined;
+    this.hookerIdleBreathingActive = false;
     this.userSlotIndicators = [];
     this.v3Engine = undefined;
     this.v3BallSprite = undefined;
     this.v3BallShadow = undefined;
     this.v3ContactPlayerId = null;
+    this.v3RetainedBallPose = null;
     this.v3ContestPlayerIds.clear();
     this.v3BallAttemptPlayerIds.clear();
     this.v3GroundRecoveryPlayerId = null;
+    this.v3GroundRecoveryRunStarted = false;
     this.v3ContestStartedAtMs = null;
     this.v3ThrowGesture = null;
     this.destroyV3ThrowPowerGauge();

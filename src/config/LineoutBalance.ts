@@ -145,7 +145,7 @@ export const LINEOUT_BALANCE = {
       middleMetersPerSecond: 4.5,
       maximumMetersPerSecond: 8,
       avoidanceClearanceMeters: 0.62,
-      avoidanceLateralMeters: 0.72,
+      avoidanceLateralMeters: 0.9,
       minimumPlayerSeparationMeters: 0.58,
       arrivalToleranceMeters: 0.035
     },
@@ -486,7 +486,7 @@ export const LINEOUT_REFERENCE_RATES = {
   }
 } as const;
 
-// These values preserve the V1 behavior. They are not the final V2 balance specification.
+// Ces valeurs servent uniquement aux résolveurs historiques et ne définissent pas l'équilibrage V3.
 export const LEGACY_LINEOUT_BALANCE = {
   throwing: {
     distanceFactors: [1, 0.96, 0.9, 0.8, 0.67, 0.52, 0.35],

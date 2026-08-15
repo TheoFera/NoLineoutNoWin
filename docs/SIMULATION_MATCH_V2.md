@@ -1,5 +1,8 @@
 # Simulation accélérée du match V2 — Source de vérité
 
+> **Archive V2 :** le gameplay officiel est désormais la V3 décrite dans
+> `docs/GAMEPLAY_V3.md`. Consulter ce document uniquement comme historique.
+
 Version : 2026-07-15
 
 ## 1. Principes

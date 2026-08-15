@@ -1,5 +1,8 @@
 # Plan d’implémentation Gameplay V2
 
+> **Archive terminée et périmée :** ne pas reprendre ces lots. Le gameplay
+> officiel est la V3 décrite dans `docs/GAMEPLAY_V3.md`.
+
 Version : 2026-07-15
 
 ## Règle de travail

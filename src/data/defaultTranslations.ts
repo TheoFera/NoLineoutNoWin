@@ -675,6 +675,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "settings.resolutionHigh": { fr: "Haute (2×)", en: "High (2×)" },
   "settings.languageTitle": { fr: "Langue", en: "Language" },
   "settings.currentGameTitle": { fr: "Partie en cours", en: "Current game" },
+  "settings.versionLabel": { fr: "Version", en: "Version" },
   "settings.resetConfirmTitle": { fr: "Supprimer la partie ?", en: "Delete the save?" },
   "settings.resetConfirmBody": {
     fr: "Toute ta progression sera définitivement supprimée. Veux-tu continuer ?",

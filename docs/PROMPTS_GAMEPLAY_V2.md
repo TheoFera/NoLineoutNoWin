@@ -1,5 +1,8 @@
 # Prompts Codex — Gameplay V2
 
+> **Archive périmée :** ne plus utiliser ces prompts. Le gameplay officiel est
+> décrit dans `docs/GAMEPLAY_V3.md`.
+
 ## Prompt 1 — Préparation sans coder
 
 ```text

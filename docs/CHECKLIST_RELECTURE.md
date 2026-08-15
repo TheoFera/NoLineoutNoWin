@@ -19,17 +19,17 @@ Cette checklist est destinée à une validation volontaire avant une livraison o
 
 - [ ] Il y a 7 positions numérotées.
 - [ ] Aucun `targetZone` n'a été ajouté.
-- [ ] En attaque, on clique sur un joueur cible.
-- [ ] En défense, on clique sur le joueur qui saute.
+- [ ] En attaque, le geste vertical produit une profondeur de lancer cohérente.
+- [ ] Un geste trop court ou trop lent est refusé sans bloquer la touche.
+- [ ] En défense, les blocs peuvent être déplacés avant le lancer puis le saut est déclenché au bon moment.
 - [ ] Les lifteurs influencent le saut.
 
 ## Stats
 
-- [ ] Joueurs de champ : `jump`, `lift`, `hands` uniquement.
+- [ ] Joueurs de champ : `speed`, `strength`, `technique` uniquement.
 - [ ] Talonneur : `throwing` uniquement pour le lancer.
 - [ ] Pas de `reading`.
-- [ ] Pas de `timing`.
-- [ ] Pas de `strength`.
+- [ ] Le timing reste une interaction, jamais une statistique permanente.
 - [ ] Pas d'`endurance` comme stat permanente.
 
 ## Interface

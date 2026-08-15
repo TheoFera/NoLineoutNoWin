@@ -68,9 +68,9 @@ export type Combination = {
   slots: CombinationPlayerSlot[];
   plan?: CombinationPlan;
   targetOptions?: CombinationTargetOption[];
-  /** @deprecated Kept only until the V2 combination library replaces legacy saves. */
+  /** @deprecated Conservé uniquement pour la structure historique ; ignoré par le moteur V3. */
   risk: number;
-  /** @deprecated Kept only until the V2 combination library replaces legacy saves. */
+  /** @deprecated Conservé uniquement pour la structure historique ; ignoré par le moteur V3. */
   complexity: number;
 };
 

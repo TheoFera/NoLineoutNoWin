@@ -1,5 +1,9 @@
 # Messages affichés après une touche
 
+> **Archive partielle :** les passages consacrés au résolveur V2 sont périmés.
+> Les textes V3 actuels se trouvent dans `src/data/defaultTranslations.ts` sous
+> les clés `lineout.v3.*`.
+
 Ce document décrit l'affichage actuel. Il permet de savoir quel texte modifier et dans quelle circonstance il apparaît.
 
 ## Où modifier les textes

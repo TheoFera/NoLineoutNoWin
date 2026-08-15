@@ -1,5 +1,8 @@
 # Plan de développement avec Codex
 
+> **Archive périmée :** ce plan et les lots V2 ne doivent plus guider le
+> développement. Consulter `docs/GAMEPLAY_V3.md` et `docs/SOMMAIRE_CODEX.md`.
+
 Pour le nouveau gameplay de touche, suivre le plan détaillé dans
 `docs/PLAN_IMPLEMENTATION_GAMEPLAY_V2.md`. Les lots V2 prévalent sur les lots
 historiques ci-dessous lorsqu'ils concernent la même mécanique.

@@ -1,5 +1,9 @@
 # Génération des équipes et attribution des combinaisons V2
 
+> **Archive périmée :** le gameplay officiel est désormais la V3 décrite dans
+> `docs/GAMEPLAY_V3.md`. Les statistiques V2 de ce document ne doivent plus
+> guider une modification.
+
 Version : 2026-07-15
 
 ## 1. Principe général

@@ -34,7 +34,7 @@ Il existe exactement 7 positions dans l'alignement :
 1 - 2 - 3 - 4 - 5 - 6 - 7
 ```
 
-Le lanceur est le talonneur. Le joueur ne vise pas une zone abstraite. Il vise un joueur placé sur l'une de ces positions.
+Le lanceur est le talonneur. Ces positions sont les repères initiaux de l'alignement. Les plans V3 peuvent ensuite déplacer les joueurs sur une profondeur continue exprimée en mètres.
 
 Donc il ne faut pas utiliser :
 
@@ -42,12 +42,7 @@ Donc il ne faut pas utiliser :
 targetZone: "front" | "middle" | "back"
 ```
 
-Il faut utiliser :
-
-```ts
-targetPlayerId: string
-targetPosition: 1 | 2 | 3 | 4 | 5 | 6 | 7
-```
+Le geste de lancer vise une profondeur physique réelle. Les cibles utilisées par la bibliothèque ou l'IA restent liées à une position et à un joueur réels, jamais à une zone abstraite.
 
 ### 4.2 Stats
 
@@ -55,9 +50,9 @@ Les joueurs de champ ont uniquement :
 
 | Stat code | Nom français | Rôle |
 |---|---|---|
-| `jump` | Saut | capter ou contrer en l'air |
-| `lift` | Lift | aider un sauteur à monter |
-| `hands` | Main | recevoir, contrôler, transmettre |
+| `speed` | Vitesse | se déplacer et contribuer au contact |
+| `strength` | Force | lifter et maintenir le sauteur |
+| `technique` | Technique | sauter, capter et contrôler le ballon |
 
 Le talonneur est spécial :
 
@@ -65,7 +60,7 @@ Le talonneur est spécial :
 |---|---|---|
 | `throwing` | Lancer | qualité du lancer |
 
-Ne pas ajouter : endurance, lecture, force, timing, mental, morale, agilité, vitesse.
+Ne pas ajouter : endurance, lecture, mental, morale ou agilité. Le timing est une interaction du joueur, pas une statistique permanente.
 
 La lecture doit être faite par le joueur humain.
 
@@ -159,10 +154,11 @@ Une touche gagnée améliore la possession et l'occupation. Une touche perdue le
 En attaque :
 
 1. le joueur choisit une combinaison offensive ;
-2. il clique sur le joueur visé ;
-3. le talonneur lance ;
-4. le moteur résout la touche ;
-5. le résultat affiché reste simple.
+2. la combinaison exécute ses phases, déplacements, feintes et sauts ;
+3. le joueur effectue un geste vertical pour choisir la profondeur du lancer ;
+4. le talonneur lance selon sa statistique, sa fatigue et le geste ;
+5. le moteur V3 suit la trajectoire et résout les contacts ;
+6. le résultat affiché reste simple.
 
 Résultats visibles :
 
@@ -179,28 +175,27 @@ En défense :
 2. le jeu sélectionne automatiquement les joueurs selon l'ordre de priorité défensive ;
 3. le joueur peut les réorganiser ;
 4. le jeu mémorise cette organisation par nombre de joueurs ;
-5. le joueur clique au bon moment sur le joueur qui saute.
+5. le joueur peut déplacer un joueur ou un bloc avant le lancer ;
+6. au départ du ballon, les déplacements sont verrouillés ;
+7. le joueur déclenche au bon moment le saut du défenseur choisi.
 
 ## 12. Lifteurs
 
-Saut optimal :
+Saut offensif valide :
 
 ```text
 lifteur - sauteur - lifteur
 ```
 
-Petit saut possible :
+En défense, un saut avec le seul lifteur arrière est possible uniquement pour des joueurs dépassant les seuils V3 de Vitesse, Force et Technique.
 
-```text
-sauteur - lifteur
-```
-
-Pas de vrai saut efficace sans soutien.
+Un joueur sans structure de lift peut encore quitter le sol physiquement, mais il ne constitue pas un bloc aérien offensif valide.
 
 ## 13. Résolution interne
 
 Le moteur peut calculer :
 
+- geste trop court ou trop lent
 - lancer trop long
 - lancer trop court
 - lancer pas droit
@@ -227,9 +222,9 @@ La V1 doit contenir :
 - match avec timer rapide ;
 - écran de résultat simple ;
 - 4 à 6 touches en Régionale 3 ;
-- touches offensives par clic sur joueur ;
-- touches défensives avec priorité ;
-- stats Saut / Lift / Main ;
+- touches offensives par combinaison et geste vertical ;
+- touches défensives avec placement et timing du saut ;
+- stats Vitesse / Force / Technique ;
 - talonneur avec Lancer ;
 - progression simple ;
 - sauvegarde locale ;

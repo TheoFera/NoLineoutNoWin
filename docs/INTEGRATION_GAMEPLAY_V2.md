@@ -1,5 +1,8 @@
 # Intégration des documents Gameplay V2 dans le dépôt existant
 
+> **Archive périmée :** cette procédure d'intégration V2 est terminée et ne
+> doit plus être appliquée. Consulter `docs/GAMEPLAY_V3.md`.
+
 ## Fichiers existants à conserver
 
 Ne pas remplacer automatiquement :

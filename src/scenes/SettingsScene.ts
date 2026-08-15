@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { APP_VERSION } from "../config/AppVersion";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import {
@@ -67,6 +68,11 @@ export class SettingsScene extends Phaser.Scene {
     }, {
       variant: "primary"
     });
+
+    this.add.text(195, 632, `${t("settings.versionLabel")} ${APP_VERSION}`, {
+      font: UI.font.small,
+      color: UI.colors.muted
+    }).setOrigin(0.5);
 
     new MainMenuButton(this, 195, 724, 236, 54, t("button.back"), () => navigateTo(this, "MainMenuScene"), {
       variant: "secondary"

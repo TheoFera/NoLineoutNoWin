@@ -128,4 +128,5 @@ export type LineoutV3ContactResult = {
   offendingTeam?: LineoutResolutionTeam;
   playerId?: string;
   score?: number;
+  receptionPose?: "hand" | "jumper";
 };

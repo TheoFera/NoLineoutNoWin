@@ -33,6 +33,8 @@ type TimedContact = {
   player: LineoutV3PlayerState;
   reachScore: number;
   ballPosition: LineoutV3BallState["position"];
+  playerHandHeightMeters: number;
+  airborneJumper: boolean;
   movingAtContact: boolean;
 };
 
@@ -246,7 +248,12 @@ export class LineoutV3Engine {
   }
 
   update(deltaMs: number): LineoutV3Event[] {
-    if (deltaMs <= 0 || this.resolution) return [];
+    if (deltaMs <= 0) return [];
+    if (this.resolution) {
+      this.elapsedMs += deltaMs;
+      this.updateActiveJumps();
+      return [];
+    }
     const events: LineoutV3Event[] = [];
     let remainingMs = Math.min(deltaMs, 100);
     while (remainingMs > 0 && !this.resolution) {
@@ -436,6 +443,12 @@ export class LineoutV3Engine {
       if (player.movement && player.activity === "moving") {
         this.updateMovement(player, deltaMs);
       }
+      if (player.jump) this.updateJump(player);
+    });
+  }
+
+  private updateActiveJumps(): void {
+    this.playersById.forEach((player) => {
       if (player.jump) this.updateJump(player);
     });
   }
@@ -635,6 +648,12 @@ export class LineoutV3Engine {
         player,
         reachScore,
         ballPosition: { ...ball.position },
+        playerHandHeightMeters: player.handHeightMeters,
+        airborneJumper: Boolean(
+          player.jump
+          && !player.jump.feint
+          && player.position.heightMeters > 0
+        ),
         movingAtContact: player.activity === "moving" && player.movement !== undefined
       });
     });
@@ -671,6 +690,7 @@ export class LineoutV3Engine {
     clean: boolean
   ): LineoutV3ContactResult {
     const player = contact.player;
+    const receptionPose = this.getReceptionPose(contact);
     const knockOnRisk = clamp(
       calculateBaseKnockOnProbability(player.player.technique)
         + (contact.movingAtContact ? V3.resolution.movingKnockOnProbabilityBonus : 0),
@@ -683,7 +703,8 @@ export class LineoutV3Engine {
         outcome: "knockOn",
         offendingTeam: player.side,
         playerId: player.player.id,
-        score
+        score,
+        receptionPose
       };
     }
     return {
@@ -692,8 +713,19 @@ export class LineoutV3Engine {
         ? clean ? "cleanWin" : "scrappyWin"
         : clean ? "cleanSteal" : "deflectedTurnover",
       playerId: player.player.id,
-      score
+      score,
+      receptionPose
     };
+  }
+
+  private getReceptionPose(contact: TimedContact): "hand" | "jumper" {
+    const ballIsAboveLowCatchHeight = contact.ballPosition.heightMeters
+      > V3.reach.groundCatchMaximumHeightMeters;
+    const ballIsNearRaisedHands = contact.ballPosition.heightMeters
+      >= contact.playerHandHeightMeters - V3.reach.heightMeters / 2;
+    return contact.airborneJumper && ballIsAboveLowCatchHeight && ballIsNearRaisedHands
+      ? "jumper"
+      : "hand";
   }
 
   private completeWithContact(result: LineoutV3ContactResult): void {
@@ -711,6 +743,7 @@ export class LineoutV3Engine {
         gameplayVersion: 3,
         catcherId: result.playerId ?? "",
         contactScore: Math.round(result.score ?? 0),
+        receptionPose: result.receptionPose ?? "hand",
         requestedDepthMeters: this.ball?.trajectory.requestedDepthMeters ?? 0,
         actualDepthMeters: this.ball?.trajectory.actualDepthMeters ?? 0,
         trajectory: this.ball?.trajectory.classification ?? "precise"
@@ -722,7 +755,10 @@ export class LineoutV3Engine {
   private completeUncaughtBall(): LineoutV3Event[] {
     const trajectory = (this.ball as LineoutV3BallState).trajectory;
     const notStraight = trajectory.classification === "notStraight";
-    const nearest = this.nearestAvailablePlayer(trajectory.groundDepthMeters);
+    const nearest = this.nearestAvailablePlayer(
+      trajectory.groundDepthMeters,
+      trajectory.lateralEndMeters
+    );
     const beyondLineout = trajectory.groundDepthMeters > V3.depth.maximumMeters + 0.8;
     const ballTeam: LineoutResolutionTeam = notStraight
       ? "defendingTeam"
@@ -967,13 +1003,35 @@ export class LineoutV3Engine {
       .sort((left, right) => right.reachScore - left.reachScore)[0];
   }
 
-  private nearestAvailablePlayer(depthMeters: number): LineoutV3PlayerState | undefined {
-    return [...this.playersById.values()]
-      .filter((player) => player.activity !== "lifting")
-      .sort((left, right) => (
-        Math.abs(left.position.depthMeters - depthMeters)
-        - Math.abs(right.position.depthMeters - depthMeters)
-      ))[0];
+  private nearestAvailablePlayer(
+    depthMeters: number,
+    lateralMeters: number
+  ): LineoutV3PlayerState | undefined {
+    const players = [...this.playersById.values()];
+    const availableOnGround = players.filter((player) => !this.isInActiveAerialBlock(player));
+    const candidates = availableOnGround.length > 0 ? availableOnGround : players;
+    return candidates.sort((left, right) => (
+      this.distanceToGroundBall(left, depthMeters, lateralMeters)
+      - this.distanceToGroundBall(right, depthMeters, lateralMeters)
+    ))[0];
+  }
+
+  private isInActiveAerialBlock(player: LineoutV3PlayerState): boolean {
+    return player.jump !== undefined
+      || player.activity === "jumping"
+      || player.activity === "lifting"
+      || player.engagedByPlayerId !== undefined;
+  }
+
+  private distanceToGroundBall(
+    player: LineoutV3PlayerState,
+    depthMeters: number,
+    lateralMeters: number
+  ): number {
+    return Math.hypot(
+      player.position.depthMeters - depthMeters,
+      player.position.lateralMeters - lateralMeters
+    );
   }
 
   private isAvailableLifter(candidate: LineoutV3PlayerState, jumper: LineoutV3PlayerState): boolean {
@@ -1214,7 +1272,7 @@ export class LineoutV3Engine {
   ) {
     const movingTowardHooker = destinationDepthMeters < player.position.depthMeters;
     const movementDirection = Math.sign(destinationDepthMeters - player.position.depthMeters);
-    const blockingPlayer = [...this.playersById.values()]
+    const blockingPlayers = [...this.playersById.values()]
       .filter((candidate) => (
         candidate.player.id !== player.player.id
         && candidate.side === player.side
@@ -1239,21 +1297,24 @@ export class LineoutV3Engine {
       .sort((left, right) => (
         Math.abs(left.position.depthMeters - player.position.depthMeters)
         - Math.abs(right.position.depthMeters - player.position.depthMeters)
-      ))[0];
-    if (!blockingPlayer) {
+      ));
+    if (blockingPlayers.length === 0) {
       return [{ depthMeters: destinationDepthMeters, lateralMeters: player.standingLateralMeters }];
     }
+    const farthestBlockingPlayer = blockingPlayers[blockingPlayers.length - 1];
     const exteriorDirection = Math.sign(player.standingLateralMeters) || 1;
     const exteriorLateral = player.standingLateralMeters
       + exteriorDirection * V3.movement.avoidanceLateralMeters;
     return [
       {
-        depthMeters: blockingPlayer.position.depthMeters
-          + (movingTowardHooker ? 1 : -1) * V3.movement.avoidanceClearanceMeters,
+        // Le joueur s'écarte entièrement avant d'avancer pour ne pas couper
+        // visuellement à travers le premier joueur du bloc.
+        depthMeters: player.position.depthMeters,
         lateralMeters: exteriorLateral
       },
       {
-        depthMeters: blockingPlayer.position.depthMeters
+        // Il reste ensuite à l'extérieur jusqu'à avoir dépassé tout le bloc.
+        depthMeters: farthestBlockingPlayer.position.depthMeters
           + (movingTowardHooker ? -1 : 1) * V3.movement.avoidanceClearanceMeters,
         lateralMeters: exteriorLateral
       },
