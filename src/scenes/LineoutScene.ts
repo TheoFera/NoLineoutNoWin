@@ -3187,7 +3187,7 @@ export class LineoutScene extends Phaser.Scene {
           minute: this.currentMatchLineout?.minute ?? updated.minute,
           throwingSide: "opponent",
           displayedResult: result.displayedResult,
-          success: resolution.ballTeam === "throwingTeam",
+          success: resolution.ballTeam === "defendingTeam",
           combinationId: this.opponentCombination?.id,
           targetOptionId: this.opponentTargetOptionId ?? undefined,
           targetPosition: this.opponentTargetPosition ?? undefined,

@@ -144,10 +144,11 @@ export function getTargetOptionPlayerPosition(option: CombinationTargetOption): 
     : option.roles.jumperPosition) ?? option.targetPosition;
 }
 
-export function hasSupportedAerialTarget(combination: {
+export function isAerialOnlyCombination(combination: {
   targetOptions?: readonly CombinationTargetOption[];
 }): boolean {
-  return (combination.targetOptions ?? []).some((option) => (
+  const targetOptions = combination.targetOptions ?? [];
+  return targetOptions.length > 0 && targetOptions.every((option) => (
     option.type === "jumpBlock"
     && option.roles.frontLifterPosition !== undefined
     && option.roles.rearLifterPosition !== undefined
@@ -173,7 +174,7 @@ export function constrainAiAerialRepertoire(
   for (const id of repertoire.activeCombinationIds) {
     const combination = combinationsById.get(id);
     if (!combination) continue;
-    if (hasSupportedAerialTarget(combination)) {
+    if (isAerialOnlyCombination(combination)) {
       activeCombinationIds.push(id);
     } else if (nonAerialCount < maximumNonAerial) {
       activeCombinationIds.push(id);
@@ -189,7 +190,7 @@ export function constrainAiAerialRepertoire(
     if (activeCombinationIds.length >= activeLimit) break;
     if (activeCombinationIds.includes(id)) continue;
     const combination = combinationsById.get(id);
-    if (combination && hasSupportedAerialTarget(combination)) {
+    if (combination && isAerialOnlyCombination(combination)) {
       activeCombinationIds.push(id);
     }
   }

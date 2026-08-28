@@ -1,7 +1,13 @@
 import Phaser from "phaser";
 import type { Combination } from "../models/Combination";
 import { getDivision } from "../rules/DivisionRules";
-import { getActiveOffensiveCombinations, getCombinationDisplayName, normalizeOffensiveCombinations, renameCombination } from "../rules/CombinationRules";
+import {
+  getActiveOffensiveCombinations,
+  getAvailableOffensiveCombinations,
+  getCombinationDisplayName,
+  normalizeOffensiveCombinations,
+  renameCombination
+} from "../rules/CombinationRules";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
@@ -35,10 +41,14 @@ export class CombinationListScene extends Phaser.Scene {
   create(): void {
     const save = GameStore.getSave();
     const division = getDivision(save.currentDivisionId);
-    const combinations = getActiveOffensiveCombinations(
-      normalizeOffensiveCombinations(save.offensiveCombinations),
+    const allCombinations = normalizeOffensiveCombinations(save.offensiveCombinations);
+    const activeCombinations = getActiveOffensiveCombinations(
+      allCombinations,
       save.offensiveRepertoire
     );
+    const combinations = activeCombinations.length > 0
+      ? activeCombinations
+      : getAvailableOffensiveCombinations(allCombinations, division.offensiveCombinations);
     const fallbackCombinationId = combinations[0]?.id;
     this.selectedCombinationId ??= fallbackCombinationId;
 

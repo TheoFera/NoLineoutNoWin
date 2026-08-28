@@ -22,7 +22,7 @@ import {
 import { canBeLineoutJumper, canBeLineoutLifter } from "./LineoutPlayerRoles.ts";
 import {
   getTargetNaturalWeight,
-  hasSupportedAerialTarget
+  isAerialOnlyCombination
 } from "./CombinationRules.ts";
 
 const GENERATION = LINEOUT_BALANCE.generation;
@@ -308,7 +308,7 @@ function weightedSelectionWithoutReplacement(
 
   while (selected.length < count && remaining.length > 0) {
     const candidates = remaining.filter((value) => (
-      hasSupportedAerialTarget(value.combination)
+      isAerialOnlyCombination(value.combination)
       || nonAerialCount < maximumNonAerial
     ));
     if (candidates.length === 0) break;
@@ -332,7 +332,7 @@ function weightedSelectionWithoutReplacement(
     }
 
     const selectedValue = candidates[selectedIndex];
-    if (!hasSupportedAerialTarget(selectedValue.combination)) {
+    if (!isAerialOnlyCombination(selectedValue.combination)) {
       nonAerialCount += 1;
     }
     selected.push(selectedValue);
