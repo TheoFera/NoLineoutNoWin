@@ -682,6 +682,24 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
     en: "All your progress will be permanently deleted. Do you want to continue?"
   },
   "settings.resetDone": { fr: "Sauvegarde réinitialisée", en: "Save reset" },
+  "testMode.title": { fr: "Laboratoire de test", en: "Test lab" },
+  "testMode.subtitle": { fr: "Choisis la situation à essayer", en: "Choose a scenario to try" },
+  "testMode.teamLevelTitle": { fr: "Niveau de ton équipe", en: "Your team level" },
+  "testMode.teamLevelAdapted": { fr: "Niveau adapté", en: "Matched level" },
+  "testMode.teamLevelCurrent": { fr: "Équipe actuelle", en: "Current team" },
+  "testMode.divisionTitle": { fr: "Division simulée", en: "Simulated division" },
+  "testMode.explanation": {
+    fr: "Appuie sur une division pour commencer. Les changements restent temporaires et ta campagne est protégée.",
+    en: "Tap a division to begin. Changes stay temporary and your campaign remains protected."
+  },
+  "testMode.open": { fr: "Laboratoire de test", en: "Test lab" },
+  "testMode.exit": { fr: "Quitter le mode test", en: "Exit test mode" },
+  "testMode.banner": { fr: "MODE TEST · {division}", en: "TEST MODE · {division}" },
+  "testMode.unavailableTitle": { fr: "Campagne nécessaire", en: "Campaign required" },
+  "testMode.unavailableBody": {
+    fr: "Crée d’abord ton club et ton équipe avant d’utiliser le laboratoire.",
+    en: "Create your club and team before using the test lab."
+  },
   "lineout.v3.practiceCombination": { fr: "S’entraîner", en: "Practice" },
   "lineout.v3.defaultCombinationName": { fr: "Combi {number}", en: "Set {number}" },
   "lineout.v3.initialPlacement": { fr: "Placement initial", en: "Initial setup" },

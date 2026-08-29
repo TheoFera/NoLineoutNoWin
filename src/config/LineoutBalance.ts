@@ -472,9 +472,9 @@ export const LINEOUT_BALANCE = {
         simulationZoomDurationMs: 650,
         simulationZoom: 3,
         lineoutArrivalDurationMs: 650,
-        lineoutArrivalZoom: 1.45,
+        lineoutArrivalZoom: 0.82,
         lineoutExitDurationMs: 600,
-        lineoutExitZoom: 1.45,
+        lineoutExitZoom: 0.82,
         simulationReturnDurationMs: 600,
         simulationReturnZoom: 2
       }

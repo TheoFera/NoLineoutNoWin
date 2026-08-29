@@ -14,6 +14,7 @@ import { SettingsScene } from "./scenes/SettingsScene";
 import { ResultScene } from "./scenes/ResultScene";
 import { SeasonResultScene } from "./scenes/SeasonResultScene";
 import { PlayerProgressionScene } from "./scenes/PlayerProgressionScene";
+import { TestModeScene } from "./scenes/TestModeScene";
 import { GAME_HEIGHT, GAME_WIDTH } from "./config/DisplayConfig";
 import { getRenderScale } from "./systems/DisplaySettings";
 import { installHighDensityRendering } from "./systems/HighDensityRendering";
@@ -45,6 +46,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     CombinationPlanScene,
     DefensiveFormationScene,
     SettingsScene,
+    TestModeScene,
     ResultScene,
     PlayerProgressionScene,
     SeasonResultScene

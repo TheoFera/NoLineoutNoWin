@@ -14,6 +14,9 @@ import { Modal } from "../ui/Modal";
 import { UI } from "../ui/UITheme";
 
 export class SettingsScene extends Phaser.Scene {
+  private versionTapCount = 0;
+  private firstVersionTapAt = 0;
+
   constructor() {
     super("SettingsScene");
   }
@@ -63,16 +66,34 @@ export class SettingsScene extends Phaser.Scene {
 
     this.add.text(195, 466, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
 
-    new MainMenuButton(this, 195, 528, 300, 58, t("button.resetSave"), () => {
-      this.showResetConfirmation();
-    }, {
-      variant: "danger"
-    });
+    if (GameStore.isTestModeActive()) {
+      new MainMenuButton(this, 195, 520, 300, 48, t("testMode.open"), () => {
+        navigateTo(this, "TestModeScene");
+      }, {
+        variant: "secondary"
+      });
+
+      new MainMenuButton(this, 195, 580, 300, 48, t("testMode.exit"), () => {
+        GameStore.exitTestMode();
+        navigateTo(this, "MainMenuScene");
+      }, {
+        variant: "danger"
+      });
+    } else {
+      new MainMenuButton(this, 195, 528, 300, 58, t("button.resetSave"), () => {
+        this.showResetConfirmation();
+      }, {
+        variant: "danger"
+      });
+    }
 
     this.add.text(195, 632, `${t("settings.versionLabel")} ${APP_VERSION}`, {
       font: UI.font.small,
       color: UI.colors.muted
     }).setOrigin(0.5);
+    this.add.zone(195, 632, 260, 52)
+      .setInteractive()
+      .on("pointerup", () => this.handleVersionTap());
 
     new MainMenuButton(this, 195, 724, 236, 54, t("button.back"), () => navigateTo(this, "MainMenuScene"), {
       variant: "secondary"
@@ -95,6 +116,22 @@ export class SettingsScene extends Phaser.Scene {
 
     setRenderResolution(resolution);
     window.location.reload();
+  }
+
+  private handleVersionTap(): void {
+    const now = Date.now();
+    if (this.firstVersionTapAt === 0 || now - this.firstVersionTapAt > 4_000) {
+      this.firstVersionTapAt = now;
+      this.versionTapCount = 1;
+    } else {
+      this.versionTapCount += 1;
+    }
+
+    if (this.versionTapCount >= 7) {
+      this.versionTapCount = 0;
+      this.firstVersionTapAt = 0;
+      navigateTo(this, "TestModeScene");
+    }
   }
 
   private showResetConfirmation(): void {

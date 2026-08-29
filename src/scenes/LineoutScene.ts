@@ -513,26 +513,18 @@ export class LineoutScene extends Phaser.Scene {
     this.initializeV3Runtime();
     this.input.on("pointermove", this.trackV3ThrowGesture, this);
     this.input.on("pointerup", this.completeV3ThrowGesture, this);
-    if (this.enterFromMatchSimulation) this.startMatchLineoutEntryTransition(layout);
+    if (this.enterFromMatchSimulation) this.startMatchLineoutEntryTransition();
   }
 
-  private startMatchLineoutEntryTransition(layout: LineoutLayout): void {
+  private startMatchLineoutEntryTransition(): void {
     const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
     const camera = this.cameras.main;
-    const focus = this.getLineoutTransitionFocus(layout);
 
     this.enterFromMatchSimulation = false;
     this.input.enabled = false;
     camera
       .setZoom(this.sceneCameraBaseZoom * transition.lineoutArrivalZoom)
-      .centerOn(focus.x, focus.y);
-    camera.pan(
-      SCREEN_WIDTH / 2,
-      SCREEN_HEIGHT / 2,
-      transition.lineoutArrivalDurationMs,
-      "Sine.easeOut",
-      true
-    );
+      .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
     camera.zoomTo(
       this.sceneCameraBaseZoom,
       transition.lineoutArrivalDurationMs,
@@ -546,11 +538,6 @@ export class LineoutScene extends Phaser.Scene {
         .setAlpha(1);
       this.input.enabled = true;
     });
-  }
-
-  private getLineoutTransitionFocus(layout: LineoutLayout): { x: number; y: number } {
-    const throwingSide = this.isDefensiveMatch() ? "opponent" : "us";
-    return this.getHookerBallStart(throwingSide, layout);
   }
 
   update(time: number, delta: number): void {
@@ -577,7 +564,19 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderBackground(layout: LineoutLayout): void {
-    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, UI.colors.background);
+    const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
+    const minimumTransitionZoom = Math.min(
+      1,
+      transition.lineoutArrivalZoom,
+      transition.lineoutExitZoom
+    );
+    this.add.rectangle(
+      SCREEN_WIDTH / 2,
+      SCREEN_HEIGHT / 2,
+      SCREEN_WIDTH / minimumTransitionZoom + 4,
+      SCREEN_HEIGHT / minimumTransitionZoom + 4,
+      UI.colors.background
+    );
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
     const isHomeMatch = isCurrentMatchAtHome(save.championship);
@@ -5253,7 +5252,6 @@ export class LineoutScene extends Phaser.Scene {
     const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
     const duration = transition.lineoutExitDurationMs;
     const camera = this.cameras.main;
-    const focus = this.getLineoutTransitionFocus(this.getLayout());
     const match = GameStore.getMatch();
     const pitchPositionMeters = this.transitionPitchPositionMeters
       ?? this.currentMatchLineout?.ballPositionMeters
@@ -5262,7 +5260,6 @@ export class LineoutScene extends Phaser.Scene {
       ?? match?.ballLateralPosition;
 
     this.input.enabled = false;
-    camera.pan(focus.x, focus.y, duration, "Sine.easeInOut", true);
     camera.zoomTo(
       this.sceneCameraBaseZoom * transition.lineoutExitZoom,
       duration,

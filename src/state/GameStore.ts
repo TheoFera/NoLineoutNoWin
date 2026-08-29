@@ -1,7 +1,9 @@
 import type { DefenseMemory, SaveGame, SaveGameV1, SaveGameV2, SaveGameV3, SaveGameV4 } from "../models/SaveGame";
 import type { MatchStateData } from "../models/Match";
 import type { Team } from "../models/Team";
+import type { DivisionId } from "../models/Division";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
+import { DIVISIONS } from "../data/divisions";
 import type { Combination, OffensiveRepertoire } from "../models/Combination";
 import { normalizeOffensiveCombinations } from "../rules/CombinationRules";
 import { applyMatchToChampionship, createChampionshipState, normalizeChampionshipState } from "../rules/ChampionshipRules";
@@ -18,7 +20,7 @@ import { getDivision } from "../rules/DivisionRules";
 import { normalizeOffensiveRepertoire } from "../rules/LineoutRepertoire";
 import { replaceFailedActiveCombinations } from "../rules/LineoutRepertoire";
 import { getLanguage, t } from "../systems/I18n";
-import { clearSave, loadGame, saveGame } from "../systems/SaveSystem";
+import { clearSave, loadGame, saveGame, setSavePersistenceSuspended } from "../systems/SaveSystem";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
 import type { MatchCompletionSummary } from "../models/PlayerProgression";
@@ -35,6 +37,8 @@ import { createOpponentAiIdentity } from "../ai/LineoutAiIdentity";
 import { toCanonicalLineoutCombinationId } from "../data/LineoutCombinations.ts";
 import { DEFAULT_FFR_LEAGUE_ID } from "../data/frenchRugbyLeagues.ts";
 import type { FfrLeagueId } from "../models/ClubLocation.ts";
+import { generateTeamForDivision } from "../rules/TeamGeneration.ts";
+import { createSeededRandom } from "../utils/Random.ts";
 
 type StoredTeam = Parameters<typeof normalizeTeam>[0];
 type StoredSaveGame =
@@ -44,11 +48,23 @@ type StoredSaveGame =
   | (Omit<SaveGameV4, "playerTeam"> & { playerTeam: StoredTeam })
   | (Omit<SaveGame, "playerTeam"> & { playerTeam: StoredTeam });
 
+export type TestTeamLevel = "adapted" | "current";
+
+export type TestModeState = {
+  divisionId: DivisionId;
+  teamLevel: TestTeamLevel;
+};
+
 export class GameStore {
   private static save: SaveGame | null = null;
   private static match: MatchStateData | null = null;
+  private static testModeOriginalSave: SaveGame | null = null;
+  private static testModeState: TestModeState | null = null;
 
   static boot(): void {
+    setSavePersistenceSuspended(false);
+    this.testModeOriginalSave = null;
+    this.testModeState = null;
     const loaded = loadGame() as StoredSaveGame | null;
     if (!loaded) {
       this.save = null;
@@ -110,9 +126,80 @@ export class GameStore {
   }
 
   static resetSave(): void {
+    if (this.testModeOriginalSave) {
+      this.exitTestMode();
+    }
     this.save = null;
     this.match = null;
     clearSave();
+  }
+
+  static isTestModeActive(): boolean {
+    return this.testModeState !== null;
+  }
+
+  static getTestModeState(): Readonly<TestModeState> | null {
+    return this.testModeState;
+  }
+
+  static enterTestMode(divisionId: DivisionId, teamLevel: TestTeamLevel): boolean {
+    if (!this.save) {
+      return false;
+    }
+
+    const originalSave = this.testModeOriginalSave ?? cloneSave(this.save);
+    const playerTeam = teamLevel === "adapted"
+      ? createTestTeamForDivision(originalSave.playerTeam, divisionId)
+      : { ...cloneSave(originalSave).playerTeam, divisionId };
+    const division = getDivision(divisionId);
+    const repertoireLimits = LINEOUT_BALANCE.ai.repertoireByDivision[divisionId];
+    const offensiveCombinations = normalizeOffensiveCombinations(originalSave.offensiveCombinations);
+    const season = Math.max(1, DIVISIONS.findIndex((item) => item.id === divisionId) + 1);
+
+    setSavePersistenceSuspended(true);
+    this.testModeOriginalSave = originalSave;
+    this.testModeState = { divisionId, teamLevel };
+    this.match = null;
+    this.save = {
+      ...cloneSave(originalSave),
+      currentDivisionId: divisionId,
+      season,
+      playerTeam,
+      championship: createChampionshipState(
+        divisionId,
+        season,
+        playerTeam.name,
+        originalSave.clubLeagueId ?? DEFAULT_FFR_LEAGUE_ID
+      ),
+      offensiveCombinations,
+      offensiveRepertoire: normalizeOffensiveRepertoire(
+        offensiveCombinations.map((combination) => combination.id),
+        division.offensiveCombinations,
+        originalSave.offensiveRepertoire,
+        repertoireLimits.reserve
+      ),
+      defensivePriority: normalizeDefensivePriority(originalSave.defensivePriority, playerTeam),
+      defenseMemory: normalizeDefenseMemory(originalSave.defenseMemory, playerTeam),
+      opponentAiMemories: {},
+      playerLineoutVideoHistory: [],
+      opponentTeams: {},
+      playerProgressionUsage: {},
+      updatedAt: new Date().toISOString()
+    };
+    return true;
+  }
+
+  static exitTestMode(): boolean {
+    if (!this.testModeOriginalSave) {
+      return false;
+    }
+
+    this.save = this.testModeOriginalSave;
+    this.match = null;
+    this.testModeOriginalSave = null;
+    this.testModeState = null;
+    setSavePersistenceSuspended(false);
+    return true;
   }
 
   static setPlayerTeam(team: Team): void {
@@ -418,6 +505,53 @@ function withOpponentAppearanceVariation(team: Team): Team {
     fieldPlayers,
     lineoutPlayers: team.lineoutPlayers.map((player) => fieldPlayersById.get(player.id) ?? player)
   };
+}
+
+function createTestTeamForDivision(team: Team, divisionId: DivisionId): Team {
+  const divisionIndex = Math.max(0, DIVISIONS.findIndex((division) => division.id === divisionId));
+  const generated = generateTeamForDivision({
+    id: team.id,
+    name: team.name,
+    divisionId,
+    colors: team.colors,
+    prefix: "test_player_",
+    clubModifier: 0,
+    rng: createSeededRandom(9_100 + divisionIndex * 97)
+  }).team;
+  const currentPlayersByNumber = new Map(team.fieldPlayers.map((player) => [player.number, player]));
+  const fieldPlayers = generated.fieldPlayers.map((player) => {
+    const current = currentPlayersByNumber.get(player.number);
+    return current
+      ? {
+          ...player,
+          id: current.id,
+          nickname: current.nickname,
+          appearance: current.appearance
+        }
+      : player;
+  });
+  const playersByNumber = new Map(fieldPlayers.map((player) => [player.number, player]));
+  const lineoutPlayers = team.lineoutPlayers
+    .map((player) => playersByNumber.get(player.number))
+    .filter((player): player is NonNullable<typeof player> => Boolean(player));
+
+  return {
+    ...team,
+    divisionId,
+    hooker: {
+      ...generated.hooker,
+      id: team.hooker.id,
+      nickname: team.hooker.nickname,
+      appearance: team.hooker.appearance
+    },
+    fieldPlayers,
+    lineoutPlayers,
+    lineoutStyle: generated.lineoutStyle
+  };
+}
+
+function cloneSave(save: SaveGame): SaveGame {
+  return JSON.parse(JSON.stringify(save)) as SaveGame;
 }
 
 function createEmptyOffensiveRepertoire(): OffensiveRepertoire {

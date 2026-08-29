@@ -3,7 +3,7 @@ import type { DivisionId } from "../models/Division";
 import type { JerseyColors } from "../models/Team";
 
 export type SimulationCrowdReaction = "play" | "danger" | "celebrate" | "disappointed";
-type StadiumTier = "railing" | "stand" | "professional";
+export type SimulationStadiumTier = "regional" | "federal" | "national";
 type RailingMaterial = "wood" | "white";
 type PixelSpectator = { container: Phaser.GameObjects.Container; leftArm: Phaser.GameObjects.Rectangle; rightArm: Phaser.GameObjects.Rectangle; baseX: number; baseY: number; baseScale: number; ambientDelay: number };
 
@@ -11,6 +11,7 @@ const FAR_LEFT = 38;
 const FAR_RIGHT = 352;
 const RAIL_Y = 390;
 export const SIMULATION_RAILING_TOP_Y = RAIL_Y - 9;
+export const SIMULATION_RAILING_BOTTOM_Y = RAIL_Y;
 const DEPTH = { structure: 3, crowd: 4, railing: 5 } as const;
 const CLOTHES = [0x243746, 0x7f1d1d, 0x1d4ed8, 0x3f6212, 0x8a5a2b, 0xd6d3c9] as const;
 const SKINS = [0xf1c27d, 0xd6a06f, 0x9a623f, 0x6f432b] as const;
@@ -19,7 +20,7 @@ export class MatchSimulationCrowd {
   private readonly spectators: PixelSpectator[] = [];
 
   constructor(private readonly scene: Phaser.Scene, divisionId: DivisionId, colors: JerseyColors, seedKey: string) {
-    const tier = getStadiumTier(divisionId);
+    const tier = getSimulationStadiumTier(divisionId);
     const random = createSeededRandom(hashString(seedKey));
     const railingMaterial: RailingMaterial = hashString(`rambarde:${seedKey}`) % 2 === 0
       ? "wood"
@@ -47,14 +48,14 @@ export class MatchSimulationCrowd {
     });
   }
 
-  private renderStructure(tier: StadiumTier, colors: JerseyColors): void {
+  private renderStructure(tier: SimulationStadiumTier, colors: JerseyColors): void {
     const g = this.scene.add.graphics().setDepth(DEPTH.structure);
-    if (tier === "railing") {
+    if (tier === "regional") {
       return;
     }
-    const professional = tier === "professional";
-    const top = professional ? 294 : 330;
-    const rows = professional ? 5 : 3;
+    const national = tier === "national";
+    const top = national ? 294 : 330;
+    const rows = national ? 5 : 3;
     g.fillStyle(0x17242b, 0.96).fillPoints([new Phaser.Math.Vector2(56, top), new Phaser.Math.Vector2(334, top), new Phaser.Math.Vector2(FAR_RIGHT, RAIL_Y), new Phaser.Math.Vector2(FAR_LEFT, RAIL_Y)], true);
     for (let row = 0; row < rows; row += 1) {
       const ratio = row / Math.max(1, rows - 1);
@@ -63,16 +64,16 @@ export class MatchSimulationCrowd {
     g.lineStyle(4, colors.primary, 1).lineBetween(FAR_LEFT + 3, RAIL_Y - 7, FAR_RIGHT - 3, RAIL_Y - 7);
   }
 
-  private renderSpectators(tier: StadiumTier, random: () => number): void {
-    const rows = tier === "professional" ? 5 : tier === "stand" ? 3 : 1;
-    const topY = tier === "professional" ? 307 : tier === "stand" ? 345 : RAIL_Y;
-    const gap = tier === "professional" ? 14 : tier === "stand" ? 16 : 0;
+  private renderSpectators(tier: SimulationStadiumTier, random: () => number): void {
+    const rows = tier === "national" ? 5 : tier === "federal" ? 3 : 1;
+    const topY = tier === "national" ? 307 : tier === "federal" ? 345 : RAIL_Y;
+    const gap = tier === "national" ? 14 : tier === "federal" ? 16 : 0;
     for (let row = 0; row < rows; row += 1) {
       const ratio = rows === 1 ? 1 : row / (rows - 1);
       const right = Phaser.Math.Linear(332, FAR_RIGHT - 8, ratio);
       let x = Phaser.Math.Linear(58, FAR_LEFT + 8, ratio) + random() * 7;
       const y = topY + row * gap;
-      const scale = tier === "railing" ? 1 : 0.72 + row * 0.07;
+      const scale = tier === "regional" ? 1 : 0.72 + row * 0.07;
       while (x < right - 3) {
         const groupSize = 2 + Math.floor(random() * 4);
         for (let member = 0; member < groupSize && x < right - 3; member += 1) {
@@ -99,14 +100,14 @@ export class MatchSimulationCrowd {
     return { container, leftArm, rightArm, baseX, baseY: y, baseScale: scale, ambientDelay: random() * 900 };
   }
 
-  private renderRailing(tier: StadiumTier, material: RailingMaterial): void {
+  private renderRailing(tier: SimulationStadiumTier, material: RailingMaterial): void {
     const g = this.scene.add.graphics().setDepth(DEPTH.railing);
     const topY = SIMULATION_RAILING_TOP_Y;
     const bottomY = RAIL_Y;
     const mainColor = material === "wood" ? 0x9a6538 : 0xf3f0e7;
     const highlightColor = material === "wood" ? 0xc18a52 : 0xffffff;
     const shadowColor = material === "wood" ? 0x4a2e1a : 0x607a86;
-    const spacing = tier === "professional" ? 14 : 18;
+    const spacing = tier === "national" ? 14 : 18;
 
     g.lineStyle(2, shadowColor, 0.75).lineBetween(FAR_LEFT, topY + 1, FAR_RIGHT, topY + 1);
     g.lineStyle(2, mainColor, 1).lineBetween(FAR_LEFT, topY, FAR_RIGHT, topY);
@@ -132,10 +133,10 @@ export class MatchSimulationCrowd {
   }
 }
 
-function getStadiumTier(id: DivisionId): StadiumTier {
-  if (id === "top_14" || id === "pro_d2") return "professional";
-  if (["federale_2", "federale_1", "nationale_2", "nationale"].includes(id)) return "stand";
-  return "railing";
+export function getSimulationStadiumTier(id: DivisionId): SimulationStadiumTier {
+  if (["regionale_3", "regionale_2", "regionale_1"].includes(id)) return "regional";
+  if (["federale_3", "federale_2", "federale_1"].includes(id)) return "federal";
+  return "national";
 }
 function hashString(value: string): number { let hash = 2166136261; for (const c of value) { hash ^= c.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
 function createSeededRandom(seed: number): () => number { let state = seed || 1; return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 0xffffffff; }; }

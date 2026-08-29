@@ -43,8 +43,9 @@ import {
   type MatchPitchAppearance
 } from "../ui/MatchPitchBackdrop";
 import {
+  getSimulationStadiumTier,
   MatchSimulationCrowd,
-  SIMULATION_RAILING_TOP_Y,
+  SIMULATION_RAILING_BOTTOM_Y,
   type SimulationCrowdReaction
 } from "../ui/MatchSimulationStadium";
 
@@ -72,12 +73,43 @@ const SIMULATION_FIELD = {
 } as const;
 
 const SIMULATION_DEPTH = {
+  commentators: 3.5,
   pitch: 6,
   markings: 7,
   ball: 20,
   goalPosts: 30,
   halfTimePanel: 40,
   tryCelebration: 50
+} as const;
+
+const MATCH_COMMENTATORS = {
+  centerX: 195,
+  bottomY: SIMULATION_RAILING_BOTTOM_Y,
+  bubbleTailY: 321,
+  regional: {
+    textureKey: "match-commentators-regional",
+    texturePath: "assets/images/match-commentators-regional.png",
+    width: 195,
+    height: 109,
+    leftTailX: 145,
+    rightTailX: 263
+  },
+  federal: {
+    textureKey: "match-commentators-federal",
+    texturePath: "assets/images/match-commentators-federal.png",
+    width: 195,
+    height: 109,
+    leftTailX: 132,
+    rightTailX: 266
+  },
+  national: {
+    textureKey: "match-commentators-national",
+    texturePath: "assets/images/match-commentators.png",
+    width: 195,
+    height: 94,
+    leftTailX: 132,
+    rightTailX: 258
+  }
 } as const;
 
 export class MatchScene extends Phaser.Scene {
@@ -112,6 +144,15 @@ export class MatchScene extends Phaser.Scene {
     preloadMatchPitchBackdrop(this);
     if (!this.textures.exists("lineout-ball")) {
       this.load.image("lineout-ball", "assets/sprites/ball.png");
+    }
+    for (const appearance of [
+      MATCH_COMMENTATORS.regional,
+      MATCH_COMMENTATORS.federal,
+      MATCH_COMMENTATORS.national
+    ]) {
+      if (!this.textures.exists(appearance.textureKey)) {
+        this.load.image(appearance.textureKey, appearance.texturePath);
+      }
     }
   }
 
@@ -352,7 +393,7 @@ export class MatchScene extends Phaser.Scene {
     const initialActionKey = match.minute === 0
       ? "match.action.restart"
       : "match.action.handPlay";
-    this.renderMatchCommentators(t(initialActionKey));
+    this.renderMatchCommentators(t(initialActionKey), venueTeam.divisionId);
     const pendingTry = match.pendingTryCelebration;
     const displayedOwner = pendingTry?.scoringOwner ?? match.ballOwner;
     const ownerColors = this.getDisplayedTeamColors(match, displayedOwner);
@@ -474,17 +515,27 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
-  private renderMatchCommentators(initialMessage: string): void {
-    const commentatorY = SIMULATION_RAILING_TOP_Y + 11;
+  private renderMatchCommentators(
+    initialMessage: string,
+    divisionId: MatchStateData["home"]["divisionId"]
+  ): void {
+    const appearance = MATCH_COMMENTATORS[getSimulationStadiumTier(divisionId)];
+    this.add.image(
+      MATCH_COMMENTATORS.centerX,
+      MATCH_COMMENTATORS.bottomY,
+      appearance.textureKey
+    )
+      .setOrigin(0.5, 1)
+      .setDisplaySize(appearance.width, appearance.height)
+      .setDepth(SIMULATION_DEPTH.commentators);
+
     const leftText = this.renderCommentatorPlaceholder(
-      110,
-      commentatorY,
+      appearance.leftTailX,
       124,
       "left"
     );
     const rightText = this.renderCommentatorPlaceholder(
-      280,
-      commentatorY,
+      appearance.rightTailX,
       266,
       "right"
     );
@@ -496,8 +547,7 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private renderCommentatorPlaceholder(
-    characterX: number,
-    characterY: number,
+    tailTargetX: number,
     bubbleX: number,
     side: "left" | "right"
   ): Phaser.GameObjects.Text {
@@ -505,7 +555,6 @@ export class MatchScene extends Phaser.Scene {
     const bubbleWidth = 124;
     const bubbleHeight = 64;
     const bubbleLeft = bubbleX - bubbleWidth / 2;
-    const bubbleRight = bubbleX + bubbleWidth / 2;
     const bubbleBottom = bubbleY + bubbleHeight / 2;
     const bubble = this.add.graphics().setDepth(12);
     bubble.fillStyle(UI.colors.paper, 0.98);
@@ -513,26 +562,15 @@ export class MatchScene extends Phaser.Scene {
     bubble.fillRoundedRect(bubbleLeft, bubbleY - bubbleHeight / 2, bubbleWidth, bubbleHeight, 12);
     bubble.strokeRoundedRect(bubbleLeft, bubbleY - bubbleHeight / 2, bubbleWidth, bubbleHeight, 12);
     const tailBaseX = side === "left" ? bubbleX - 31 : bubbleX + 31;
-    bubble.fillStyle(UI.colors.outline, 1);
-    bubble.fillTriangle(
-      tailBaseX - 8,
-      bubbleBottom - 1,
-      tailBaseX + 8,
-      bubbleBottom - 1,
-      characterX,
-      321
-    );
+    const tailPoints = [
+      new Phaser.Math.Vector2(tailBaseX - 8, bubbleBottom - 2),
+      new Phaser.Math.Vector2(tailTargetX, MATCH_COMMENTATORS.bubbleTailY),
+      new Phaser.Math.Vector2(tailBaseX + 8, bubbleBottom - 2)
+    ];
     bubble.fillStyle(UI.colors.paper, 1);
-    bubble.fillTriangle(
-      tailBaseX - 5,
-      bubbleBottom - 3,
-      tailBaseX + 5,
-      bubbleBottom - 3,
-      characterX,
-      317
-    );
-
-    this.renderPixelCommentator(characterX, characterY, side);
+    bubble.fillPoints(tailPoints, true);
+    bubble.lineStyle(2, UI.colors.outline, 1);
+    bubble.strokePoints(tailPoints, false);
 
     return this.add.text(bubbleX, bubbleY, "", {
       font: "bold 11px Arial",
@@ -540,41 +578,6 @@ export class MatchScene extends Phaser.Scene {
       align: "center",
       wordWrap: { width: bubbleWidth - 14 }
     }).setOrigin(0.5).setResolution(2).setDepth(13);
-  }
-
-  private renderPixelCommentator(x: number, y: number, side: "left" | "right"): void {
-    const container = this.add.container(x, y).setDepth(3.5);
-    const skin = side === "left" ? 0xd6a06f : 0x8d5524;
-    const jacket = side === "left" ? 0x24465f : 0x6f2935;
-    const scarf = side === "left" ? 0x9f3b35 : 0xd8c49a;
-    const hairColor = side === "left" ? 0x3d2a1d : 0x1d1714;
-    const shoulders = this.add.ellipse(0, -20, 50, 18, jacket)
-      .setStrokeStyle(2, 0x17242b, 1);
-    const torso = this.add.rectangle(0, -16, 38, 8, jacket);
-    const collar = this.add.rectangle(0, -27, 15, 4, scarf)
-      .setStrokeStyle(1, 0x17242b, 0.8);
-    const jacketZip = this.add.rectangle(0, -17, 2, 10, 0x17242b, 0.7);
-    const shoulderHighlight = this.add.rectangle(0, -23, 30, 2, scarf, 0.45);
-    const neck = this.add.rectangle(0, -29, 11, 9, skin);
-    const hair = this.add.ellipse(0, -53, 36, 29, hairColor);
-    const head = this.add.ellipse(0, -45, 30, 36, skin)
-      .setStrokeStyle(2, 0x17242b, 1);
-    const leftEar = this.add.circle(-16, -45, 4, skin).setStrokeStyle(1, 0x17242b, 1);
-    const rightEar = this.add.circle(16, -45, 4, skin).setStrokeStyle(1, 0x17242b, 1);
-    const leftEye = this.add.rectangle(-6, -48, 4, 2, 0x17242b);
-    const rightEye = this.add.rectangle(6, -48, 4, 2, 0x17242b);
-    const nose = this.add.rectangle(0, -42, 2, 4, 0x6f432b, 0.65);
-    const mouth = this.add.rectangle(0, -35, 7, 2, 0x6b2525);
-    const headsetBand = this.add.graphics();
-    headsetBand.lineStyle(3, 0x17242b, 1);
-    headsetBand.beginPath();
-    headsetBand.arc(0, -49, 20, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340), false);
-    headsetBand.strokePath();
-    const leftCup = this.add.rectangle(-19, -45, 5, 13, 0x17242b);
-    const rightCup = this.add.rectangle(19, -45, 5, 13, 0x17242b);
-    const microphoneArm = this.add.rectangle(12, -37, 15, 2, 0x17242b).setRotation(0.12);
-    const microphone = this.add.circle(20, -35, 3, 0x17242b);
-    container.add([shoulders, torso, shoulderHighlight, jacketZip, neck, collar, hair, head, leftEar, rightEar, leftEye, rightEye, nose, mouth, headsetBand, leftCup, rightCup, microphoneArm, microphone]);
   }
 
   private startAcceleratedSimulation(match: MatchStateData): void {
