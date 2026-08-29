@@ -9,6 +9,7 @@ import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { renderMenuBackdrop, renderMenuPanel } from "../ui/MenuChrome";
 
 type DefensiveFormationSceneData = {
   size?: DefensiveLineoutSize;
@@ -34,7 +35,14 @@ export class DefensiveFormationScene extends Phaser.Scene {
       ?? createDefaultDefensiveLayout(save.playerTeam, this.size);
     const playersById = new Map(save.playerTeam.lineoutPlayers.map((player) => [player.id, player]));
 
-    this.add.rectangle(195, 422, 390, 844, 0x07111a);
+    renderMenuBackdrop(this, { showGuideLines: false });
+    renderMenuPanel(this, {
+      x: 195,
+      y: 438,
+      width: 354,
+      height: 552,
+      accentColor: UI.colors.info
+    });
     this.add.text(195, 52, t("lineout.v3.defensiveFormations"), {
       font: "bold 23px Arial",
       color: UI.colors.text
@@ -49,12 +57,12 @@ export class DefensiveFormationScene extends Phaser.Scene {
     DEFENSIVE_LINEOUT_SIZES.forEach((size, index) => {
       new UIButton(this, 45 + index * 60, 130, 52, 38, String(size), () => {
         this.scene.restart({ size } satisfies DefensiveFormationSceneData);
-      }, { variant: size === this.size ? "primary" : "secondary" });
+      }, { variant: size === this.size ? "selected" : "secondary" });
     });
 
     this.add.text(195, 172, t("lineout.v3.positions"), {
       font: "bold 13px Arial",
-      color: "#facc15"
+      color: UI.colors.textAccent
     }).setOrigin(0.5);
     layout.forEach((playerId, slotIndex) => {
       const player = playerId ? playersById.get(playerId) : undefined;
@@ -68,7 +76,7 @@ export class DefensiveFormationScene extends Phaser.Scene {
           selectedSlot: slotIndex
         } satisfies DefensiveFormationSceneData);
       }, {
-        variant: this.selectedSlot === slotIndex ? "primary" : "secondary",
+        variant: this.selectedSlot === slotIndex ? "selected" : "secondary",
         fontSize: 13
       });
     });
@@ -82,11 +90,16 @@ export class DefensiveFormationScene extends Phaser.Scene {
     save.playerTeam.lineoutPlayers.forEach((player, index) => {
       new UIButton(this, 39 + index * 52, 700, 46, 50, `${t("team.numberPrefix")}${player.number}`, () => {
         this.assignPlayer(layout, player.id);
-      }, { variant: layout.includes(player.id) ? "primary" : "secondary", fontSize: 11 });
+      }, { variant: layout.includes(player.id) ? "selected" : "secondary", fontSize: 11 });
     });
 
     new UIButton(this, 195, 792, 220, 42, t("button.back"), () => {
-      navigateTo(this, "CombinationListScene");
+      navigateTo(this, "LineoutScene", {
+        mode: "training",
+        trainingMode: "defense-edit",
+        defensiveSize: this.size,
+        combinationOverlayOpen: true
+      });
     }, { variant: "secondary" });
   }
 

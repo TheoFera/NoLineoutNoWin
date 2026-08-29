@@ -24,8 +24,10 @@ import {
 import { rebuildPlayableCombinationTargets } from "../rules/LineoutCombinationAssignment";
 import { createEmptyUsage } from "../rules/PlayerProgression";
 import type { MatchSimulationAction, MatchStateData } from "../models/Match";
-import { navigateTo } from "../systems/Navigation";
+import { navigateTo, pushNavigationState } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { getCameraRenderScale } from "../systems/HighDensityRendering";
+import { startSceneCrossfade } from "../systems/SceneCrossfade";
 import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
@@ -36,29 +38,42 @@ import { MatchStatsOverlay } from "../ui/MatchStatsOverlay";
 import {
   preloadMatchPitchBackdrop,
   getMatchPitchAppearance,
+  MATCH_PITCH_TEXTURE_KEY,
   renderMatchPitchBackdrop,
-  renderPitchSurface
+  type MatchPitchAppearance
 } from "../ui/MatchPitchBackdrop";
+import {
+  MatchSimulationCrowd,
+  SIMULATION_RAILING_TOP_Y,
+  type SimulationCrowdReaction
+} from "../ui/MatchSimulationStadium";
 
 type MatchLineoutEvent = MatchStateData["lineouts"][number];
-type BallOrientation = "vertical" | "trajectory" | "horizontal";
+type BallOrientation = "trajectory" | "horizontal";
+type MatchSceneData = {
+  entryTransition?: "from-lineout";
+  transitionPitchPositionMeters?: number;
+  transitionLateralPosition?: number;
+};
 
 const SIMULATION_FIELD = {
-  left: 46,
-  right: 344,
-  top: 296,
-  bottom: 724,
-  tryLineTop: 320,
-  tryLineBottom: 700,
+  nearLeft: 10,
+  nearRight: 380,
+  farLeft: 38,
+  farRight: 352,
+  top: 398,
+  bottom: 635,
   centerX: 195,
-  centerY: 510,
-  width: 298,
-  height: 428,
-  playingHeight: 380,
-  lateralRange: 139
+  centerY: 516.5,
+  width: 370,
+  height: 237,
+  lateralRange: 118.5,
+  inGoalRatio: 21 / 370
 } as const;
 
 const SIMULATION_DEPTH = {
+  pitch: 6,
+  markings: 7,
   ball: 20,
   goalPosts: 30,
   halfTimePanel: 40,
@@ -69,10 +84,28 @@ export class MatchScene extends Phaser.Scene {
   private scoreOverlay?: MatchScoreOverlay;
   private simulationBall?: Phaser.GameObjects.Image;
   private ballPositionText?: Phaser.GameObjects.Text;
-  private simulationActionText?: Phaser.GameObjects.Text;
+  private simulationCommentaryTexts?: [Phaser.GameObjects.Text, Phaser.GameObjects.Text];
+  private simulationCrowd?: MatchSimulationCrowd;
+  private crowdSupportingOwner: MatchStateData["ballOwner"] = "player";
+  private nextCommentatorIndex = 0;
+  private enterFromLineout = false;
+  private cameraBaseZoom = 1;
+  private transitionPitchPositionMeters?: number;
+  private transitionLateralPosition?: number;
 
   constructor() {
     super("MatchScene");
+  }
+
+  init(data?: MatchSceneData): void {
+    this.enterFromLineout = data?.entryTransition === "from-lineout";
+    this.transitionPitchPositionMeters = data?.transitionPitchPositionMeters;
+    this.transitionLateralPosition = data?.transitionLateralPosition;
+
+    // Phaser conserve les anciennes données de scène quand restart() ne reçoit
+    // aucun paramètre. Une transition déjà consommée ne doit donc jamais être
+    // rejouée au redémarrage suivant, sinon la caméra reste transparente.
+    this.sys.settings.data = {};
   }
 
   preload(): void {
@@ -83,6 +116,13 @@ export class MatchScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.cameraBaseZoom = getCameraRenderScale(this);
+    this.cameras.main
+      .resetFX()
+      .setZoom(this.cameraBaseZoom)
+      .centerOn(195, 422)
+      .setAlpha(this.enterFromLineout ? 0 : 1);
+    this.input.enabled = true;
     const save = GameStore.getSave();
     let match = GameStore.getMatch();
 
@@ -168,8 +208,12 @@ export class MatchScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     new UIButton(this, 195, 500, 280, 52, t("button.combinations"), () => {
-      navigateTo(this, "CombinationListScene");
-    });
+      navigateTo(this, "LineoutScene", {
+        mode: "training",
+        trainingMode: "edit",
+        combinationOverlayOpen: true
+      });
+    }, { variant: "primary" });
   }
 
   private render(match: MatchStateData): void {
@@ -190,19 +234,32 @@ export class MatchScene extends Phaser.Scene {
     if (match.pendingTryCelebration) {
       this.renderScoreboard(match);
       this.renderSimulationBoard(match);
-      this.startPendingTryCelebration(match);
+      if (this.enterFromLineout) {
+        this.startSimulationReturnTransition(
+          match,
+          () => this.startPendingTryCelebration(match)
+        );
+      } else {
+        this.startPendingTryCelebration(match);
+      }
       return;
     }
 
     if (!match.halfTimeCompleted && match.minute >= match.halfTimeMinute) {
       this.renderScoreboard(match);
       this.renderSimulationBoard(match);
-      this.startHalfTimePause(match);
+      if (this.enterFromLineout) {
+        this.startSimulationReturnTransition(match, () => this.startHalfTimePause(match));
+      } else {
+        this.startHalfTimePause(match);
+      }
       return;
     }
 
     if (!simulationPending && next) {
-      navigateTo(this, "LineoutScene", { mode: "match" });
+      this.renderScoreboard(match, next);
+      this.renderSimulationBoard(match);
+      this.startLineoutTransition(match, next);
       return;
     }
 
@@ -210,12 +267,17 @@ export class MatchScene extends Phaser.Scene {
 
     if (simulationPending) {
       this.renderSimulationBoard(match);
-      this.startAcceleratedSimulation(match);
+      if (this.enterFromLineout) {
+        this.startSimulationReturnTransition(match);
+      } else {
+        this.startAcceleratedSimulation(match);
+      }
       return;
     }
 
     if (!next) {
       this.renderFullTimePanel();
+      if (this.enterFromLineout) this.startSimpleReturnReveal();
       return;
     }
 
@@ -254,81 +316,265 @@ export class MatchScene extends Phaser.Scene {
     const field = SIMULATION_FIELD;
     const save = GameStore.getSave();
     const isHomeMatch = isCurrentMatchAtHome(save.championship);
+    const venueTeam = isHomeMatch ? match.home : match.away;
     const pitchAppearance = getMatchPitchAppearance(
-      isHomeMatch ? match.home.id : match.away.id,
+      venueTeam.id,
       match.id,
       isHomeMatch
     );
-    renderPitchSurface(this, field.centerX, field.centerY, field.width, field.height, pitchAppearance);
-    this.add.rectangle(field.centerX, field.centerY, field.width, field.height, 0x052e16, 0.18)
-      .setStrokeStyle(3, 0xf8fafc, 0.9);
+    this.crowdSupportingOwner = isHomeMatch ? "player" : "opponent";
+    this.simulationCrowd = new MatchSimulationCrowd(
+      this,
+      venueTeam.divisionId,
+      venueTeam.colors,
+      `${venueTeam.id}:${match.id}`
+    );
+    this.renderPerspectivePitch(pitchAppearance);
     this.renderInGoalAreas();
-    this.renderPixelGoalPosts();
+    this.renderPerspectiveGoalPosts(venueTeam.colors);
     this.renderLongitudinalPitchMarkings();
+    this.renderRugbyFlagPosts(venueTeam.colors);
     for (const meter of [22, 50, 78]) {
-      const y = this.getPitchY(meter);
-      this.add.rectangle(
-        field.centerX,
-        y,
-        field.width - 4,
+      this.renderTransversePitchLine(
+        meter,
         meter === 50 ? 3 : 2,
-        0xffffff,
         meter === 50 ? 0.8 : 0.45
       );
-      this.add.text(field.left + 18, y - 10, String(meter), {
+      const labelPosition = this.getPitchPoint(meter, -0.88);
+      this.add.text(labelPosition.x, labelPosition.y, String(meter), {
         font: "bold 10px Arial",
-        color: "#e2e8f0"
-      }).setOrigin(0.5);
+        color: UI.colors.muted
+      }).setOrigin(0.5).setDepth(SIMULATION_DEPTH.markings + 1);
     }
     for (const meter of [5, 40, 60, 95]) {
-      this.renderDashedTransverseLine(this.getPitchY(meter));
+      this.renderDashedTransverseLine(meter);
     }
-    this.add.text(195, 236, t("match.simulationInProgress"), {
-      font: "bold 22px Arial",
-      color: UI.colors.text
-    }).setOrigin(0.5);
-    this.add.rectangle(195, 266, 270, 26, 0x07111a, 0.9)
-      .setStrokeStyle(1, 0x64748b, 0.8);
     const initialActionKey = match.minute === 0
       ? "match.action.restart"
       : "match.action.handPlay";
-    this.simulationActionText = this.add.text(195, 266, t(initialActionKey), {
-      font: "bold 12px Arial",
-      color: "#fde68a"
-    }).setOrigin(0.5);
+    this.renderMatchCommentators(t(initialActionKey));
     const pendingTry = match.pendingTryCelebration;
     const displayedOwner = pendingTry?.scoringOwner ?? match.ballOwner;
     const ownerColors = this.getDisplayedTeamColors(match, displayedOwner);
     const isInitialKickoff = match.minute === 0;
-    const ballX = pendingTry
-      ? this.getPitchX(pendingTry.lateralPosition)
-      : isInitialKickoff
-      ? SIMULATION_FIELD.centerX
-      : this.getPitchX(match.ballLateralPosition);
     const displayedBallPosition = pendingTry
-      ? pendingTry.scoringOwner === "player" ? 100 : 0
+      ? pendingTry.scoringOwner === "player" ? LINEOUT_BALANCE.match.pitchLengthMeters : 0
       : isInitialKickoff
         ? LINEOUT_BALANCE.match.restartPositionMeters
         : match.ballPositionMeters;
-    const ballY = this.getPitchY(displayedBallPosition);
+    const displayedLateralPosition = pendingTry
+      ? pendingTry.lateralPosition
+      : isInitialKickoff
+        ? 0
+        : match.ballLateralPosition;
+    const ballX = this.getPitchX(displayedBallPosition, displayedLateralPosition);
+    const ballY = pendingTry
+      ? this.getPitchY(pendingTry.lateralPosition)
+      : isInitialKickoff
+        ? SIMULATION_FIELD.centerY
+        : this.getPitchY(match.ballLateralPosition);
     this.simulationBall = this.add.image(ballX, ballY, "lineout-ball")
       .setDisplaySize(16, 23)
+      .setRotation(Math.PI / 2)
       .setDepth(SIMULATION_DEPTH.ball);
     if (isInitialKickoff && !pendingTry) {
       this.setSimulationBallLooseStyle();
     } else {
       this.simulationBall.setTint(ownerColors.primary);
     }
-    this.ballPositionText = this.add.text(195, 754, t("match.ballPosition")
-      .replace(
-        "{meters}",
-        String(Math.round(
-          displayedBallPosition
-        ))
-      ), {
-      font: UI.font.body,
+    this.ballPositionText = this.add.text(
+      195,
+      field.bottom + 34,
+      this.getBallPositionLabel(displayedBallPosition),
+      {
+        font: UI.font.body,
+        color: UI.colors.text
+      }
+    ).setOrigin(0.5);
+    this.add.text(195, field.bottom + 64, t("match.simulationInProgress"), {
+      font: "bold 20px Arial",
       color: UI.colors.text
     }).setOrigin(0.5);
+  }
+
+  private startLineoutTransition(match: MatchStateData, lineout: MatchLineoutEvent): void {
+    const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
+    const duration = transition.simulationZoomDurationMs;
+    const camera = this.cameras.main;
+    const focusX = this.simulationBall?.x
+      ?? this.getPitchX(match.ballPositionMeters, match.ballLateralPosition);
+    const focusY = this.simulationBall?.y ?? this.getPitchY(match.ballLateralPosition);
+
+    this.input.enabled = false;
+    camera.pan(focusX, focusY, duration, "Sine.easeInOut", true);
+    camera.zoomTo(
+      this.cameraBaseZoom * transition.simulationZoom,
+      duration,
+      "Cubic.easeInOut",
+      true
+    );
+    const transitionData = {
+      mode: "match",
+      entryTransition: "from-match-simulation",
+      transitionPitchPositionMeters: lineout.ballPositionMeters ?? match.ballPositionMeters,
+      transitionLateralPosition: match.ballLateralPosition ?? 0
+    };
+    const started = startSceneCrossfade(
+      this,
+      "LineoutScene",
+      transitionData,
+      duration
+    );
+    if (started) {
+      pushNavigationState("LineoutScene", transitionData);
+    } else {
+      navigateTo(this, "LineoutScene", { mode: "match" });
+    }
+  }
+
+  private startSimulationReturnTransition(
+    match: MatchStateData,
+    onComplete: () => void = () => this.startAcceleratedSimulation(match)
+  ): void {
+    const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
+    const duration = transition.simulationReturnDurationMs;
+    const camera = this.cameras.main;
+    const transitionLateralPosition = this.transitionLateralPosition ?? match.ballLateralPosition;
+    const focusX = this.getPitchX(
+      this.transitionPitchPositionMeters ?? match.ballPositionMeters,
+      transitionLateralPosition
+    );
+    const focusY = this.getPitchY(
+      transitionLateralPosition
+    );
+
+    this.enterFromLineout = false;
+    this.transitionPitchPositionMeters = undefined;
+    this.transitionLateralPosition = undefined;
+    this.input.enabled = false;
+    camera
+      .setZoom(this.cameraBaseZoom * transition.simulationReturnZoom)
+      .centerOn(focusX, focusY);
+    camera.pan(195, 422, duration, "Sine.easeOut", true);
+    camera.zoomTo(this.cameraBaseZoom, duration, "Cubic.easeOut", true);
+    this.time.delayedCall(duration, () => {
+      if (!this.sys.isActive()) return;
+      camera.setZoom(this.cameraBaseZoom).centerOn(195, 422).setAlpha(1);
+      this.input.enabled = true;
+      onComplete();
+    });
+  }
+
+  private startSimpleReturnReveal(): void {
+    this.enterFromLineout = false;
+    this.input.enabled = false;
+    this.events.once(Phaser.Scenes.Events.TRANSITION_COMPLETE, () => {
+      this.cameras.main.setAlpha(1);
+      this.input.enabled = true;
+    });
+  }
+
+  private renderMatchCommentators(initialMessage: string): void {
+    const commentatorY = SIMULATION_RAILING_TOP_Y + 11;
+    const leftText = this.renderCommentatorPlaceholder(
+      110,
+      commentatorY,
+      124,
+      "left"
+    );
+    const rightText = this.renderCommentatorPlaceholder(
+      280,
+      commentatorY,
+      266,
+      "right"
+    );
+
+    leftText.setText(initialMessage);
+    rightText.setText("");
+    this.simulationCommentaryTexts = [leftText, rightText];
+    this.nextCommentatorIndex = 0;
+  }
+
+  private renderCommentatorPlaceholder(
+    characterX: number,
+    characterY: number,
+    bubbleX: number,
+    side: "left" | "right"
+  ): Phaser.GameObjects.Text {
+    const bubbleY = 257;
+    const bubbleWidth = 124;
+    const bubbleHeight = 64;
+    const bubbleLeft = bubbleX - bubbleWidth / 2;
+    const bubbleRight = bubbleX + bubbleWidth / 2;
+    const bubbleBottom = bubbleY + bubbleHeight / 2;
+    const bubble = this.add.graphics().setDepth(12);
+    bubble.fillStyle(UI.colors.paper, 0.98);
+    bubble.lineStyle(2, UI.colors.outline, 1);
+    bubble.fillRoundedRect(bubbleLeft, bubbleY - bubbleHeight / 2, bubbleWidth, bubbleHeight, 12);
+    bubble.strokeRoundedRect(bubbleLeft, bubbleY - bubbleHeight / 2, bubbleWidth, bubbleHeight, 12);
+    const tailBaseX = side === "left" ? bubbleX - 31 : bubbleX + 31;
+    bubble.fillStyle(UI.colors.outline, 1);
+    bubble.fillTriangle(
+      tailBaseX - 8,
+      bubbleBottom - 1,
+      tailBaseX + 8,
+      bubbleBottom - 1,
+      characterX,
+      321
+    );
+    bubble.fillStyle(UI.colors.paper, 1);
+    bubble.fillTriangle(
+      tailBaseX - 5,
+      bubbleBottom - 3,
+      tailBaseX + 5,
+      bubbleBottom - 3,
+      characterX,
+      317
+    );
+
+    this.renderPixelCommentator(characterX, characterY, side);
+
+    return this.add.text(bubbleX, bubbleY, "", {
+      font: "bold 11px Arial",
+      color: UI.colors.textOnAccent,
+      align: "center",
+      wordWrap: { width: bubbleWidth - 14 }
+    }).setOrigin(0.5).setResolution(2).setDepth(13);
+  }
+
+  private renderPixelCommentator(x: number, y: number, side: "left" | "right"): void {
+    const container = this.add.container(x, y).setDepth(3.5);
+    const skin = side === "left" ? 0xd6a06f : 0x8d5524;
+    const jacket = side === "left" ? 0x24465f : 0x6f2935;
+    const scarf = side === "left" ? 0x9f3b35 : 0xd8c49a;
+    const hairColor = side === "left" ? 0x3d2a1d : 0x1d1714;
+    const shoulders = this.add.ellipse(0, -20, 50, 18, jacket)
+      .setStrokeStyle(2, 0x17242b, 1);
+    const torso = this.add.rectangle(0, -16, 38, 8, jacket);
+    const collar = this.add.rectangle(0, -27, 15, 4, scarf)
+      .setStrokeStyle(1, 0x17242b, 0.8);
+    const jacketZip = this.add.rectangle(0, -17, 2, 10, 0x17242b, 0.7);
+    const shoulderHighlight = this.add.rectangle(0, -23, 30, 2, scarf, 0.45);
+    const neck = this.add.rectangle(0, -29, 11, 9, skin);
+    const hair = this.add.ellipse(0, -53, 36, 29, hairColor);
+    const head = this.add.ellipse(0, -45, 30, 36, skin)
+      .setStrokeStyle(2, 0x17242b, 1);
+    const leftEar = this.add.circle(-16, -45, 4, skin).setStrokeStyle(1, 0x17242b, 1);
+    const rightEar = this.add.circle(16, -45, 4, skin).setStrokeStyle(1, 0x17242b, 1);
+    const leftEye = this.add.rectangle(-6, -48, 4, 2, 0x17242b);
+    const rightEye = this.add.rectangle(6, -48, 4, 2, 0x17242b);
+    const nose = this.add.rectangle(0, -42, 2, 4, 0x6f432b, 0.65);
+    const mouth = this.add.rectangle(0, -35, 7, 2, 0x6b2525);
+    const headsetBand = this.add.graphics();
+    headsetBand.lineStyle(3, 0x17242b, 1);
+    headsetBand.beginPath();
+    headsetBand.arc(0, -49, 20, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340), false);
+    headsetBand.strokePath();
+    const leftCup = this.add.rectangle(-19, -45, 5, 13, 0x17242b);
+    const rightCup = this.add.rectangle(19, -45, 5, 13, 0x17242b);
+    const microphoneArm = this.add.rectangle(12, -37, 15, 2, 0x17242b).setRotation(0.12);
+    const microphone = this.add.circle(20, -35, 3, 0x17242b);
+    container.add([shoulders, torso, shoulderHighlight, jacketZip, neck, collar, hair, head, leftEar, rightEar, leftEye, rightEye, nose, mouth, headsetBand, leftCup, rightCup, microphoneArm, microphone]);
   }
 
   private startAcceleratedSimulation(match: MatchStateData): void {
@@ -359,12 +605,11 @@ export class MatchScene extends Phaser.Scene {
       onUpdate: (tween) => {
         this.scoreOverlay?.setMinute(formatMatchMinute(tween.getValue() ?? match.minute));
         if (this.simulationBall) {
-          const meters = (
-            (SIMULATION_FIELD.tryLineBottom - this.simulationBall.y)
-            / SIMULATION_FIELD.playingHeight
-          ) * 100;
-          this.ballPositionText?.setText(t("match.ballPosition")
-            .replace("{meters}", String(Math.round(Phaser.Math.Clamp(meters, 0, 100)))));
+          const meters = this.getPitchPositionMeters(
+            this.simulationBall.x,
+            this.simulationBall.y
+          );
+          this.ballPositionText?.setText(this.getBallPositionLabel(meters));
         }
       },
       onComplete: () => {
@@ -379,15 +624,27 @@ export class MatchScene extends Phaser.Scene {
     this.updateSimulationActionText("match.action.halfTime");
     this.scoreOverlay?.setMinute(t("match.halfTimeShort"));
 
-    const panel = this.add.rectangle(195, 510, 238, 82, 0x07111a, 0.96)
-      .setStrokeStyle(3, 0xfde047, 0.95)
+    const panel = this.add.rectangle(
+      SIMULATION_FIELD.centerX,
+      SIMULATION_FIELD.centerY,
+      238,
+      82,
+      UI.colors.panelDark,
+      0.96
+    )
+      .setStrokeStyle(3, UI.colors.accent, 0.95)
       .setDepth(SIMULATION_DEPTH.halfTimePanel);
-    const label = this.add.text(195, 510, t("match.halfTime"), {
-      font: "bold 28px Arial",
-      color: "#fde047",
-      stroke: "#020617",
-      strokeThickness: 3
-    }).setOrigin(0.5).setDepth(SIMULATION_DEPTH.halfTimePanel);
+    const label = this.add.text(
+      SIMULATION_FIELD.centerX,
+      SIMULATION_FIELD.centerY,
+      t("match.halfTime"),
+      {
+        font: "bold 28px Arial",
+        color: UI.colors.textAccent,
+        stroke: UI.colors.textStroke,
+        strokeThickness: 3
+      }
+    ).setOrigin(0.5).setDepth(SIMULATION_DEPTH.halfTimePanel);
 
     this.time.delayedCall(visualConfig.halfTimePauseDurationMs, () => {
       panel.setVisible(false);
@@ -397,13 +654,13 @@ export class MatchScene extends Phaser.Scene {
       this.scoreOverlay?.setMinute(formatMatchMinute(restartedMatch.minute));
       this.updateSimulationActionText("match.action.secondHalfKickoff");
       this.simulationBall?.setPosition(
-        SIMULATION_FIELD.centerX,
-        this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+        this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
+        SIMULATION_FIELD.centerY
       );
       this.setSimulationBallLooseStyle();
       this.animateBallFlight(
-        this.getPitchX(restartedMatch.ballLateralPosition),
-        this.getPitchY(restartedMatch.ballPositionMeters),
+        this.getPitchX(restartedMatch.ballPositionMeters, restartedMatch.ballLateralPosition),
+        this.getPitchY(restartedMatch.ballLateralPosition),
         visualConfig.restartArcHeightPixels,
         visualConfig.halfTimeKickoffDurationMs,
         restartedMatch,
@@ -436,14 +693,14 @@ export class MatchScene extends Phaser.Scene {
       const concedingOwner = pendingTry.scoringOwner === "player" ? "opponent" : "player";
       GameStore.setMatch(nextMatch);
       this.simulationBall?.setPosition(
-        SIMULATION_FIELD.centerX,
-        this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+        this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
+        SIMULATION_FIELD.centerY
       );
       this.setSimulationBallTeamStyle(nextMatch, concedingOwner);
       this.updateSimulationActionText("match.action.restart");
       this.animateBallFlight(
-        this.getPitchX(nextMatch.ballLateralPosition),
-        this.getPitchY(nextMatch.ballPositionMeters),
+        this.getPitchX(nextMatch.ballPositionMeters, nextMatch.ballLateralPosition),
+        this.getPitchY(nextMatch.ballLateralPosition),
         visualConfig.restartArcHeightPixels,
         visualConfig.halfTimeKickoffDurationMs,
         nextMatch,
@@ -454,62 +711,255 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
-  private renderPixelGoalPosts(): void {
+  private renderPerspectivePitch(appearance: MatchPitchAppearance): void {
+    const farLeft = this.getOuterPitchPoint(0, -1);
+    const farRight = this.getOuterPitchPoint(1, -1);
+    const nearRight = this.getOuterPitchPoint(1, 1);
+    const nearLeft = this.getOuterPitchPoint(0, 1);
+    const pitchColor = multiplyColors(UI.colors.pitch, appearance.tint);
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.pitch + 0.1);
+
+    if (this.textures.exists(MATCH_PITCH_TEXTURE_KEY)) {
+      const maskGraphics = this.make.graphics({ x: 0, y: 0 });
+      maskGraphics.fillStyle(0xffffff, 1)
+        .fillPoints([farLeft, farRight, nearRight, nearLeft], true);
+      this.add.image(SIMULATION_FIELD.centerX, SIMULATION_FIELD.centerY, MATCH_PITCH_TEXTURE_KEY)
+        .setDisplaySize(SIMULATION_FIELD.width, SIMULATION_FIELD.height)
+        .setTint(appearance.tint)
+        .setDepth(SIMULATION_DEPTH.pitch)
+        .setMask(maskGraphics.createGeometryMask());
+      graphics.fillStyle(UI.colors.pitch, 0.16)
+        .fillPoints([farLeft, farRight, nearRight, nearLeft], true);
+    } else {
+      graphics.fillStyle(pitchColor, 1)
+        .fillPoints([farLeft, farRight, nearRight, nearLeft], true);
+    }
+    for (let stripe = 0; stripe < 10; stripe += 1) {
+      if (stripe % 2 !== 0) continue;
+      const startRatio = stripe / 10;
+      const endRatio = (stripe + 1) / 10;
+      graphics.fillStyle(0xffffff, 0.035);
+      graphics.fillPoints([
+        this.getOuterPitchPoint(startRatio, -1),
+        this.getOuterPitchPoint(endRatio, -1),
+        this.getOuterPitchPoint(endRatio, 1),
+        this.getOuterPitchPoint(startRatio, 1)
+      ], true);
+    }
+    if (appearance.terrainOverlayAlpha > 0) {
+      graphics.fillStyle(appearance.terrainOverlayColor, appearance.terrainOverlayAlpha);
+      graphics.fillPoints([farLeft, farRight, nearRight, nearLeft], true);
+    }
+
+    this.renderPerspectiveTerrainDetails(graphics, appearance);
+    graphics.lineStyle(3, UI.colors.line, 0.9);
+    graphics.strokePoints([farLeft, farRight, nearRight, nearLeft], true);
+  }
+
+  private renderPerspectiveTerrainDetails(
+    graphics: Phaser.GameObjects.Graphics,
+    appearance: MatchPitchAppearance
+  ): void {
+    if (appearance.decoration === "clean") return;
+    const random = createVisualRandom(appearance.terrainSeed);
+    const colorByDecoration = {
+      mud: 0x4b3525,
+      worn: 0x8c7744,
+      lush: 0x72b957,
+      dry: 0xc7b36a
+    } as const;
+    const color = colorByDecoration[appearance.decoration];
+    const count = appearance.decoration === "worn" ? 44 : 30;
+    graphics.fillStyle(color, appearance.decoration === "lush" ? 0.18 : 0.28);
+    for (let index = 0; index < count; index += 1) {
+      const position = this.getOuterPitchPoint(0.04 + random() * 0.92, -0.9 + random() * 1.8);
+      const size = random() < 0.8 ? 2 : 3;
+      graphics.fillRect(Math.round(position.x), Math.round(position.y), size, size);
+    }
+  }
+
+  private renderTransversePitchLine(
+    positionMeters: number,
+    width: number,
+    alpha: number
+  ): void {
+    const far = this.getPitchPoint(positionMeters, -1);
+    const near = this.getPitchPoint(positionMeters, 1);
+    this.add.graphics()
+      .setDepth(SIMULATION_DEPTH.markings)
+      .lineStyle(width, UI.colors.line, alpha)
+      .lineBetween(far.x, far.y, near.x, near.y);
+  }
+
+  private renderRugbyFlagPosts(colors: MatchStateData["home"]["colors"]): void {
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.markings + 2);
+    const bases: Phaser.Math.Vector2[] = [];
+    for (const lateralPosition of [-1, 1]) {
+      bases.push(
+        this.getOuterPitchPoint(0, lateralPosition),
+        this.getPitchPoint(0, lateralPosition),
+        this.getPitchPoint(22, lateralPosition),
+        this.getPitchPoint(50, lateralPosition),
+        this.getPitchPoint(78, lateralPosition),
+        this.getPitchPoint(100, lateralPosition),
+        this.getOuterPitchPoint(1, lateralPosition)
+      );
+    }
+
+    bases.forEach((base, index) => {
+      const farSide = base.y < SIMULATION_FIELD.centerY;
+      const outsideY = base.y + (farSide ? -3 : 3);
+      const poleHeight = farSide ? 8 : 10;
+      const poleWidth = farSide ? 1 : 2;
+      const flagWidth = farSide ? 4 : 5;
+      const flagDirection = base.x < SIMULATION_FIELD.centerX ? 1 : -1;
+      graphics.lineStyle(poleWidth + 1, UI.colors.scrim, 0.55);
+      graphics.lineBetween(base.x + 1, outsideY + 1, base.x + 1, outsideY - poleHeight + 1);
+      graphics.lineStyle(poleWidth, UI.colors.line, 1);
+      graphics.lineBetween(base.x, outsideY, base.x, outsideY - poleHeight);
+      graphics.fillStyle(index % 2 === 0 ? colors.primary : colors.secondary, 1);
+      graphics.fillTriangle(
+        base.x,
+        outsideY - poleHeight,
+        base.x + flagDirection * flagWidth,
+        outsideY - poleHeight + 2,
+        base.x,
+        outsideY - poleHeight + 4
+      );
+    });
+  }
+
+  private renderPerspectiveGoalPosts(colors: MatchStateData["home"]["colors"]): void {
     const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.goalPosts);
-    const drawUpwardPosts = (goalLineY: number): void => {
-      const uprightHeight = 34;
-      const uprightTop = goalLineY - uprightHeight;
-      const crossbarY = goalLineY - 14;
+    const drawPosts = (positionMeters: 0 | 100): void => {
+      const nearBase = this.getPitchPoint(positionMeters, 0.16);
+      const farBase = this.getPitchPoint(positionMeters, -0.16);
+      const goalDirection = positionMeters === 0 ? -1 : 1;
+      const postSplay = 18;
+      const nearTop = {
+        x: nearBase.x + goalDirection * postSplay,
+        y: nearBase.y - 66
+      };
+      const farTop = {
+        x: farBase.x - goalDirection * postSplay,
+        y: farBase.y - 54
+      };
+      const pointOnPost = (
+        base: Phaser.Math.Vector2,
+        top: { x: number; y: number },
+        height: number
+      ): { x: number; y: number } => ({
+        x: Phaser.Math.Linear(base.x, top.x, height / (base.y - top.y)),
+        y: base.y - height
+      });
+      const nearCrossbar = pointOnPost(nearBase, nearTop, 23);
+      const farCrossbar = pointOnPost(farBase, farTop, 18);
 
-      graphics.fillStyle(0x020617, 0.65);
-      graphics.fillRect(SIMULATION_FIELD.centerX - 20, uprightTop + 2, 6, uprightHeight);
-      graphics.fillRect(SIMULATION_FIELD.centerX + 16, uprightTop + 2, 6, uprightHeight);
-      graphics.fillRect(SIMULATION_FIELD.centerX - 20, crossbarY + 2, 42, 6);
+      graphics.lineStyle(6, UI.colors.outlineStrong, 1);
+      graphics.lineBetween(nearBase.x, nearBase.y, nearTop.x, nearTop.y);
+      graphics.lineBetween(farBase.x, farBase.y, farTop.x, farTop.y);
+      graphics.lineStyle(8, UI.colors.outlineStrong, 1);
+      graphics.lineBetween(
+        nearCrossbar.x,
+        nearCrossbar.y,
+        farCrossbar.x,
+        farCrossbar.y
+      );
 
-      graphics.fillStyle(0xf8fafc, 1);
-      graphics.fillRect(SIMULATION_FIELD.centerX - 22, uprightTop, 6, uprightHeight);
-      graphics.fillRect(SIMULATION_FIELD.centerX + 14, uprightTop, 6, uprightHeight);
-      graphics.fillRect(SIMULATION_FIELD.centerX - 22, crossbarY, 42, 6);
+      graphics.lineStyle(3, UI.colors.line, 1);
+      graphics.lineBetween(nearBase.x, nearBase.y, nearTop.x, nearTop.y);
+      graphics.lineBetween(farBase.x, farBase.y, farTop.x, farTop.y);
+      graphics.lineStyle(4, UI.colors.line, 1);
+      graphics.lineBetween(
+        nearCrossbar.x,
+        nearCrossbar.y,
+        farCrossbar.x,
+        farCrossbar.y
+      );
 
-      graphics.fillStyle(0xcbd5e1, 1);
-      graphics.fillRect(SIMULATION_FIELD.centerX - 20, uprightTop + 2, 2, uprightHeight - 4);
-      graphics.fillRect(SIMULATION_FIELD.centerX + 16, uprightTop + 2, 2, uprightHeight - 4);
+      // Une seule source lumineuse : toutes les ombres suivent la même diagonale.
+      graphics.lineStyle(5, UI.colors.scrim, 0.26);
+      graphics.lineBetween(
+        nearBase.x,
+        nearBase.y + 3,
+        nearBase.x + 24,
+        nearBase.y + 9
+      );
+      graphics.lineBetween(
+        farBase.x,
+        farBase.y + 3,
+        farBase.x + 19,
+        farBase.y + 8
+      );
+      const drawProtection = (base: Phaser.Math.Vector2, width: number, height: number): void => {
+        const topWidth = Math.max(4, width - 2);
+        const points = [
+          new Phaser.Math.Vector2(base.x - topWidth / 2, base.y - height),
+          new Phaser.Math.Vector2(base.x + topWidth / 2, base.y - height),
+          new Phaser.Math.Vector2(base.x + width / 2, base.y),
+          new Phaser.Math.Vector2(base.x - width / 2, base.y)
+        ];
+        graphics.fillStyle(colors.primary, 1);
+        graphics.fillPoints(points, true);
+        graphics.lineStyle(2, UI.colors.scrim, 0.8);
+        graphics.strokePoints(points, true);
+        graphics.fillStyle(colors.secondary, 0.65);
+        graphics.fillRect(base.x - 1, base.y - height + 3, 2, Math.max(3, height - 6));
+        graphics.fillStyle(UI.colors.scrim, 0.35);
+        graphics.fillRect(base.x - width / 2 + 1, base.y - 3, width - 2, 2);
+      };
+      drawProtection(farBase, 7, 11);
+      drawProtection(nearBase, 9, 14);
+      graphics.lineStyle(3, UI.colors.line, 1);
+      graphics.lineBetween(farBase.x, farBase.y - 11, farTop.x, farTop.y);
+      graphics.lineBetween(nearBase.x, nearBase.y - 14, nearTop.x, nearTop.y);
     };
 
-    drawUpwardPosts(SIMULATION_FIELD.tryLineTop);
-    drawUpwardPosts(SIMULATION_FIELD.tryLineBottom);
+    drawPosts(0);
+    drawPosts(100);
   }
 
   private renderInGoalAreas(): void {
-    const field = SIMULATION_FIELD;
-    const inGoalHeight = field.tryLineTop - field.top;
-    for (const centerY of [
-      field.top + inGoalHeight / 2,
-      field.bottom - inGoalHeight / 2
-    ]) {
-      this.add.rectangle(field.centerX, centerY, field.width - 4, inGoalHeight, 0x166534, 0.38);
-    }
-    for (const tryLineY of [field.tryLineTop, field.tryLineBottom]) {
-      this.add.rectangle(field.centerX, tryLineY, field.width - 4, 4, 0xffffff, 0.92);
-    }
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.markings);
+    const farLeftOuter = this.getOuterPitchPoint(0, -1);
+    const nearLeftOuter = this.getOuterPitchPoint(0, 1);
+    const farRightOuter = this.getOuterPitchPoint(1, -1);
+    const nearRightOuter = this.getOuterPitchPoint(1, 1);
+    const farLeftTry = this.getPitchPoint(0, -1);
+    const nearLeftTry = this.getPitchPoint(0, 1);
+    const farRightTry = this.getPitchPoint(100, -1);
+    const nearRightTry = this.getPitchPoint(100, 1);
+
+    graphics.fillStyle(0x0f5f34, 0.14);
+    graphics.fillPoints([farLeftOuter, farLeftTry, nearLeftTry, nearLeftOuter], true);
+    graphics.fillPoints([farRightTry, farRightOuter, nearRightOuter, nearRightTry], true);
+    graphics.lineStyle(4, UI.colors.line, 0.92);
+    graphics.lineBetween(farLeftTry.x, farLeftTry.y, nearLeftTry.x, nearLeftTry.y);
+    graphics.lineBetween(farRightTry.x, farRightTry.y, nearRightTry.x, nearRightTry.y);
   }
 
   private renderLongitudinalPitchMarkings(): void {
-    const field = SIMULATION_FIELD;
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.markings);
     for (const distanceFromTouch of [5, 15]) {
-      const offsetX = field.width / 2 - (distanceFromTouch / 70) * field.width;
       for (const direction of [-1, 1]) {
-        const x = field.centerX + direction * offsetX;
-        for (let y = field.tryLineTop + 5; y < field.tryLineBottom; y += 12) {
-          this.add.rectangle(x, y, 2, 6, 0xffffff, distanceFromTouch === 15 ? 0.4 : 0.28);
+        const lateralPosition = direction * (1 - (distanceFromTouch / 70) * 2);
+        graphics.lineStyle(2, UI.colors.line, distanceFromTouch === 15 ? 0.4 : 0.28);
+        for (let meter = 1; meter < 100; meter += 4) {
+          const start = this.getPitchPoint(meter, lateralPosition);
+          const end = this.getPitchPoint(Math.min(100, meter + 2), lateralPosition);
+          graphics.lineBetween(start.x, start.y, end.x, end.y);
         }
       }
     }
   }
 
-  private renderDashedTransverseLine(y: number): void {
-    for (let x = SIMULATION_FIELD.left + 7; x < SIMULATION_FIELD.right - 4; x += 14) {
-      this.add.rectangle(x, y, 8, 2, 0xffffff, 0.34);
+  private renderDashedTransverseLine(positionMeters: number): void {
+    const graphics = this.add.graphics().setDepth(SIMULATION_DEPTH.markings);
+    graphics.lineStyle(2, UI.colors.line, 0.34);
+    for (let lateral = -0.96; lateral < 0.96; lateral += 0.12) {
+      const start = this.getPitchPoint(positionMeters, lateral);
+      const end = this.getPitchPoint(positionMeters, Math.min(1, lateral + 0.065));
+      graphics.lineBetween(start.x, start.y, end.x, end.y);
     }
   }
 
@@ -555,8 +1005,8 @@ export class MatchScene extends Phaser.Scene {
     if (hasInitialKickoff) {
       this.updateSimulationActionText("match.action.restart");
       this.animateBallFlight(
-        this.getPitchX(initial.ballLateralPosition),
-        this.getPitchY(initial.ballPositionMeters),
+        this.getPitchX(initial.ballPositionMeters, initial.ballLateralPosition),
+        this.getPitchY(initial.ballLateralPosition),
         LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
         distributableDuration * kickoffWeight / totalWeight,
         initial,
@@ -579,13 +1029,16 @@ export class MatchScene extends Phaser.Scene {
   ): void {
     const ball = this.simulationBall;
     if (!ball) return;
-    const targetY = this.getPitchY(action.state.ballPositionMeters);
     const direction = actionIndex % 2 === 0 ? -1 : 1;
-    const openPlayTargetX = this.getPitchX(action.state.ballLateralPosition);
+    const openPlayTargetY = this.getPitchY(action.state.ballLateralPosition);
     const lineoutDirection = Math.sign(action.state.ballLateralPosition ?? 0) || direction;
-    const targetX = action.kind === "lineout"
-      ? SIMULATION_FIELD.centerX + lineoutDirection * (SIMULATION_FIELD.width / 2 - 6)
-      : openPlayTargetX;
+    const targetLateralPosition = action.kind === "lineout"
+      ? lineoutDirection * 0.96
+      : action.state.ballLateralPosition;
+    const targetX = this.getPitchX(action.state.ballPositionMeters, targetLateralPosition);
+    const targetY = action.kind === "lineout"
+      ? SIMULATION_FIELD.centerY + lineoutDirection * (SIMULATION_FIELD.height / 2 - 6)
+      : openPlayTargetY;
     const arcHeight = action.kind === "clearanceKick"
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
       : action.kind === "lineout"
@@ -623,7 +1076,7 @@ export class MatchScene extends Phaser.Scene {
       },
       action.kind === "clearanceKick" || action.kind === "lineout"
         ? "trajectory"
-        : "vertical"
+        : "horizontal"
     );
   }
 
@@ -651,7 +1104,7 @@ export class MatchScene extends Phaser.Scene {
     const ball = this.simulationBall;
     if (!ball) return;
     const visualConfig = LINEOUT_BALANCE.match.visualSimulation;
-    const lateralDistancePixels = Math.abs(targetX - ball.x);
+    const lateralDistancePixels = Math.abs(targetY - ball.y);
     const minimumLateralDistance = visualConfig.passLateralStepMinimum
       * SIMULATION_FIELD.lateralRange;
     const maximumLateralDistance = visualConfig.passLateralStepMaximum
@@ -675,11 +1128,11 @@ export class MatchScene extends Phaser.Scene {
       );
     const backwardDistancePixels = lateralDistancePixels
       * Math.tan(Phaser.Math.DegToRad(depthAngleDegrees));
-    const ownerDirection = previous.ballOwner === "player" ? 1 : -1;
-    const passTargetY = Phaser.Math.Clamp(
-      ball.y + ownerDirection * backwardDistancePixels,
-      SIMULATION_FIELD.top,
-      SIMULATION_FIELD.bottom
+    const backwardDirection = previous.ballOwner === "player" ? -1 : 1;
+    const passTargetX = Phaser.Math.Clamp(
+      ball.x + backwardDirection * backwardDistancePixels,
+      SIMULATION_FIELD.nearLeft,
+      SIMULATION_FIELD.nearRight
     );
     const passDurationRatio = Phaser.Math.FloatBetween(
       visualConfig.passDurationRatioMinimum,
@@ -689,8 +1142,8 @@ export class MatchScene extends Phaser.Scene {
     const carryDuration = actionDuration - passDuration;
 
     this.animateBallFlight(
-      targetX,
-      passTargetY,
+      passTargetX,
+      targetY,
       0,
       passDuration,
       arrivalState,
@@ -711,7 +1164,8 @@ export class MatchScene extends Phaser.Scene {
     onComplete: () => void
   ): void {
     const scoringOwner = frame.ourScore > previous.ourScore ? "player" : "opponent";
-    const scoringLineY = scoringOwner === "player" ? this.getPitchY(100) : this.getPitchY(0);
+    const scoringPositionMeters = scoringOwner === "player" ? 100 : 0;
+    const scoringLineX = this.getPitchX(scoringPositionMeters, previous.ballLateralPosition);
     const scoreDelta = scoringOwner === "player"
       ? frame.ourScore - previous.ourScore
       : frame.opponentScore - previous.opponentScore;
@@ -719,6 +1173,11 @@ export class MatchScene extends Phaser.Scene {
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
       : 8;
     const isTry = scoreDelta !== LINEOUT_BALANCE.match.points.penalty;
+    if (!isTry) {
+      this.reactCrowd(
+        scoringOwner === this.crowdSupportingOwner ? "celebrate" : "disappointed"
+      );
+    }
     const scoringDuration = duration * (isTry ? 0.2 : 0.3);
     const celebrationDuration = isTry
       ? Math.min(
@@ -729,8 +1188,8 @@ export class MatchScene extends Phaser.Scene {
     const restartDuration = Math.max(1, duration - scoringDuration - celebrationDuration);
 
     this.animateBallFlight(
-      this.getPitchX(previous.ballLateralPosition),
-      scoringLineY,
+      scoringLineX,
+      this.getPitchY(previous.ballLateralPosition),
       scoringArc,
       scoringDuration,
       previous,
@@ -742,14 +1201,14 @@ export class MatchScene extends Phaser.Scene {
         const concedingOwner = scoringOwner === "player" ? "opponent" : "player";
         this.time.delayedCall(celebrationDuration, () => {
           this.simulationBall?.setPosition(
-            SIMULATION_FIELD.centerX,
-            this.getPitchY(LINEOUT_BALANCE.match.restartPositionMeters)
+            this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
+            SIMULATION_FIELD.centerY
           );
           this.setSimulationBallTeamStyle(frame, concedingOwner);
           this.updateSimulationActionText("match.action.restart");
           this.animateBallFlight(
-            this.getPitchX(frame.ballLateralPosition),
-            this.getPitchY(frame.ballPositionMeters),
+            this.getPitchX(frame.ballPositionMeters, frame.ballLateralPosition),
+            this.getPitchY(frame.ballLateralPosition),
             LINEOUT_BALANCE.match.visualSimulation.restartArcHeightPixels,
             restartDuration,
             frame,
@@ -759,7 +1218,7 @@ export class MatchScene extends Phaser.Scene {
           );
         });
       },
-      scoreDelta === LINEOUT_BALANCE.match.points.penalty ? "trajectory" : "vertical"
+      scoreDelta === LINEOUT_BALANCE.match.points.penalty ? "trajectory" : "horizontal"
     );
   }
 
@@ -768,6 +1227,9 @@ export class MatchScene extends Phaser.Scene {
     scoringOwner: MatchStateData["ballOwner"],
     duration: number
   ): void {
+    this.reactCrowd(
+      scoringOwner === this.crowdSupportingOwner ? "celebrate" : "disappointed"
+    );
     const colors = this.getDisplayedTeamColors(match, scoringOwner);
     const flash = this.add.rectangle(
       SIMULATION_FIELD.centerX,
@@ -777,17 +1239,17 @@ export class MatchScene extends Phaser.Scene {
       colors.primary,
       0.22
     ).setDepth(SIMULATION_DEPTH.tryCelebration).setAlpha(0);
-    const panel = this.add.container(195, 500)
+    const panel = this.add.container(SIMULATION_FIELD.centerX, SIMULATION_FIELD.centerY)
       .setDepth(SIMULATION_DEPTH.tryCelebration + 1)
       .setAlpha(0)
       .setScale(0.72);
-    const shadow = this.add.rectangle(0, 6, 230, 82, 0x020617, 0.72);
+    const shadow = this.add.rectangle(0, 6, 230, 82, UI.colors.scrim, 0.72);
     const background = this.add.rectangle(0, 0, 230, 82, colors.primary, 0.96)
       .setStrokeStyle(4, colors.secondary, 1);
     const title = this.add.text(0, 0, t("match.tryCelebration.title"), {
       font: "bold 36px Arial",
-      color: "#ffffff",
-      stroke: "#020617",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 4
     }).setOrigin(0.5);
     panel.add([shadow, background, title]);
@@ -797,7 +1259,7 @@ export class MatchScene extends Phaser.Scene {
       const distance = index % 2 === 0 ? 150 : 120;
       const piece = this.add.rectangle(
         SIMULATION_FIELD.centerX,
-        500,
+        SIMULATION_FIELD.centerY,
         index % 3 === 0 ? 8 : 5,
         12,
         index % 2 === 0 ? colors.primary : colors.secondary,
@@ -806,7 +1268,7 @@ export class MatchScene extends Phaser.Scene {
       this.tweens.add({
         targets: piece,
         x: SIMULATION_FIELD.centerX + Math.cos(angle) * distance,
-        y: 500 + Math.sin(angle) * distance,
+        y: SIMULATION_FIELD.centerY + Math.sin(angle) * distance,
         angle: index % 2 === 0 ? 180 : -180,
         alpha: 0,
         duration: Math.max(1, duration),
@@ -833,7 +1295,7 @@ export class MatchScene extends Phaser.Scene {
           this.tweens.add({
             targets: panel,
             alpha: 0,
-            y: 480,
+            y: SIMULATION_FIELD.centerY - 20,
             duration: Math.max(1, duration * 0.25),
             ease: "Cubic.easeIn",
             onComplete: () => panel.destroy()
@@ -867,7 +1329,7 @@ export class MatchScene extends Phaser.Scene {
     arrivalState: MatchStateData,
     ballIsLoose: boolean,
     onComplete: () => void,
-    orientation: BallOrientation = "vertical"
+    orientation: BallOrientation = "horizontal"
   ): void {
     const ball = this.simulationBall;
     if (!ball) return;
@@ -875,9 +1337,7 @@ export class MatchScene extends Phaser.Scene {
     const startY = ball.y;
     const rotation = orientation === "trajectory"
       ? Phaser.Math.Angle.Between(startX, startY, targetX, targetY) - Math.PI / 2
-      : orientation === "horizontal"
-        ? Math.PI / 2
-        : 0;
+      : Math.PI / 2;
     ball.setRotation(rotation);
     if (ballIsLoose) this.setSimulationBallLooseStyle();
 
@@ -901,10 +1361,19 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private updateSimulationActionFor(action: MatchSimulationAction): void {
+    const crowdReaction: SimulationCrowdReaction = action.kind === "breakthrough"
+      || action.kind === "clearanceKick"
+      || action.kind === "lineout"
+      || action.kind === "turnover"
+      ? "danger"
+      : "play";
+    this.reactCrowd(crowdReaction);
     if (action.kind === "turnover") return;
     if (action.kind === "breakthrough") {
-      this.simulationActionText?.setText(t("match.action.breakthrough")
-        .replace("{meters}", String(Math.round(action.distanceMeters))));
+      this.updateSimulationCommentary(
+        t("match.action.breakthrough")
+          .replace("{meters}", String(Math.round(action.distanceMeters)))
+      );
       return;
     }
     const keyByAction = {
@@ -918,7 +1387,18 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private updateSimulationActionText(key: string): void {
-    this.simulationActionText?.setText(t(key));
+    this.updateSimulationCommentary(t(key));
+  }
+
+  private updateSimulationCommentary(message: string): void {
+    const commentatorTexts = this.simulationCommentaryTexts;
+    if (!commentatorTexts) return;
+    commentatorTexts[this.nextCommentatorIndex].setText(message);
+    this.nextCommentatorIndex = this.nextCommentatorIndex === 0 ? 1 : 0;
+  }
+
+  private reactCrowd(reaction: SimulationCrowdReaction): void {
+    this.simulationCrowd?.react(reaction);
   }
 
   private getScoreActionKey(previous: MatchStateData, next: MatchStateData): string {
@@ -957,15 +1437,70 @@ export class MatchScene extends Phaser.Scene {
     this.simulationBall?.clearTint();
   }
 
-  private getPitchX(lateralPosition = 0): number {
-    return SIMULATION_FIELD.centerX
+  private getPitchX(positionMeters: number, lateralPosition = 0): number {
+    const position = Phaser.Math.Clamp(positionMeters, 0, LINEOUT_BALANCE.match.pitchLengthMeters);
+    const { left, right } = this.getFieldEdges(lateralPosition);
+    const fieldWidth = right - left;
+    const tryLineLeft = left + fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    const tryLineRight = right - fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    return Phaser.Math.Linear(
+      tryLineLeft,
+      tryLineRight,
+      position / LINEOUT_BALANCE.match.pitchLengthMeters
+    );
+  }
+
+  private getPitchY(lateralPosition = 0): number {
+    return SIMULATION_FIELD.centerY
       + Phaser.Math.Clamp(lateralPosition, -1, 1) * SIMULATION_FIELD.lateralRange;
   }
 
-  private getPitchY(positionMeters: number): number {
-    const position = Phaser.Math.Clamp(positionMeters, 0, LINEOUT_BALANCE.match.pitchLengthMeters);
-    return SIMULATION_FIELD.tryLineBottom
-      - SIMULATION_FIELD.playingHeight * (position / LINEOUT_BALANCE.match.pitchLengthMeters);
+  private getPitchPoint(positionMeters: number, lateralPosition = 0): Phaser.Math.Vector2 {
+    return new Phaser.Math.Vector2(
+      this.getPitchX(positionMeters, lateralPosition),
+      this.getPitchY(lateralPosition)
+    );
+  }
+
+  private getOuterPitchPoint(lengthRatio: number, lateralPosition: number): Phaser.Math.Vector2 {
+    const { left, right } = this.getFieldEdges(lateralPosition);
+    return new Phaser.Math.Vector2(
+      Phaser.Math.Linear(left, right, Phaser.Math.Clamp(lengthRatio, 0, 1)),
+      this.getPitchY(lateralPosition)
+    );
+  }
+
+  private getFieldEdges(lateralPosition: number): { left: number; right: number } {
+    const depthRatio = (Phaser.Math.Clamp(lateralPosition, -1, 1) + 1) / 2;
+    return {
+      left: Phaser.Math.Linear(SIMULATION_FIELD.farLeft, SIMULATION_FIELD.nearLeft, depthRatio),
+      right: Phaser.Math.Linear(SIMULATION_FIELD.farRight, SIMULATION_FIELD.nearRight, depthRatio)
+    };
+  }
+
+  private getPitchPositionMeters(x: number, y: number): number {
+    const lateralPosition = Phaser.Math.Clamp(
+      (y - SIMULATION_FIELD.centerY) / SIMULATION_FIELD.lateralRange,
+      -1,
+      1
+    );
+    const { left, right } = this.getFieldEdges(lateralPosition);
+    const fieldWidth = right - left;
+    const tryLineLeft = left + fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    const tryLineRight = right - fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    return Phaser.Math.Clamp(
+      ((x - tryLineLeft) / Math.max(1, tryLineRight - tryLineLeft))
+        * LINEOUT_BALANCE.match.pitchLengthMeters,
+      0,
+      LINEOUT_BALANCE.match.pitchLengthMeters
+    );
+  }
+
+  private getBallPositionLabel(positionMeters: number): string {
+    const pitchLength = LINEOUT_BALANCE.match.pitchLengthMeters;
+    const remainingMeters = pitchLength - Phaser.Math.Clamp(positionMeters, 0, pitchLength);
+    return t("match.ballPosition")
+      .replace("{meters}", String(Math.round(remainingMeters)));
   }
 
   private renderFullTimePanel(): void {
@@ -978,7 +1513,26 @@ export class MatchScene extends Phaser.Scene {
       color: UI.colors.muted
     }).setOrigin(0.5);
 
-    new UIButton(this, 195, 492, 280, 52, t("match.viewResult"), () => navigateTo(this, "ResultScene"));
+    new UIButton(this, 195, 492, 280, 52, t("match.viewResult"), () => navigateTo(this, "ResultScene"), {
+      variant: "primary"
+    });
   }
 
+}
+
+function multiplyColors(baseColor: number, tintColor: number): number {
+  const red = Math.round(((baseColor >> 16) & 0xff) * ((tintColor >> 16) & 0xff) / 0xff);
+  const green = Math.round(((baseColor >> 8) & 0xff) * ((tintColor >> 8) & 0xff) / 0xff);
+  const blue = Math.round((baseColor & 0xff) * (tintColor & 0xff) / 0xff);
+  return (red << 16) | (green << 8) | blue;
+}
+
+function createVisualRandom(seed: number): () => number {
+  let state = seed || 1;
+  return (): number => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0xffffffff;
+  };
 }

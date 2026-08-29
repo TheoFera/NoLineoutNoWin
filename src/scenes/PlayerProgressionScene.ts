@@ -18,7 +18,7 @@ import { renderResultOverlayPanel } from "../ui/ResultOverlayPanel";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import { getPlayerSkinTint } from "../ui/PlayerSkinTone";
 import { UIButton } from "../ui/UIButton";
-import { UI } from "../ui/UITheme";
+import { toCssColor, UI } from "../ui/UITheme";
 
 type PlayerProgressionSceneData = {
   progressions?: PlayerProgressionSummary[];
@@ -37,7 +37,7 @@ const PANEL_WIDTH = 354;
 const PANEL_HEIGHT = 620;
 const LIST_TOP = 166;
 const LIST_HEIGHT = 536;
-const PROGRESSION_COLOR = 0x4ade80;
+const PROGRESSION_COLOR = UI.colors.success;
 
 export class PlayerProgressionScene extends Phaser.Scene {
   private progressions: PlayerProgressionSummary[] = [];
@@ -74,7 +74,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
       font: "bold 25px Arial",
       color: UI.colors.text,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 6,
       wordWrap: { width: 360, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
@@ -98,7 +98,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
     );
     panel.fillStyle(PROGRESSION_COLOR, 0.95);
     panel.fillRoundedRect(PANEL_LEFT + 14, PANEL_TOP + 6, PANEL_WIDTH - 28, 4, 2);
-    panel.fillStyle(0x94a3b8, 0.2);
+    panel.fillStyle(UI.colors.divider, 0.25);
     panel.fillRect(SCREEN_CENTER_X, PANEL_TOP + 20, 1, 38);
     panel.fillRect(PANEL_LEFT + 16, LIST_TOP - 7, PANEL_WIDTH - 32, 1);
 
@@ -129,8 +129,8 @@ export class PlayerProgressionScene extends Phaser.Scene {
   private renderSummaryValue(x: number, value: number | string, label: string): void {
     this.add.text(x, 128, String(value), {
       font: "bold 21px Arial",
-      color: "#bbf7d0",
-      stroke: "#020617",
+      color: UI.colors.textSuccess,
+      stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5).setResolution(2);
     this.add.text(x, 150, label.toUpperCase(), {
@@ -154,9 +154,9 @@ export class PlayerProgressionScene extends Phaser.Scene {
     const rowCenterY = top + rowContentHeight / 2;
     const graphics = this.add.graphics();
 
-    graphics.fillStyle(index % 2 === 0 ? 0x071326 : 0x0b1b2a, 0.92);
+    graphics.fillStyle(index % 2 === 0 ? UI.colors.panelDark : UI.colors.panelAlternate, 0.92);
     graphics.fillRoundedRect(rowLeft, top, rowWidth, rowContentHeight, 10);
-    graphics.lineStyle(1, 0x40604b, 0.56);
+    graphics.lineStyle(1, UI.colors.outline, 0.7);
     graphics.strokeRoundedRect(rowLeft, top, rowWidth, rowContentHeight, 10);
 
     this.renderPlayerVisual(player, 52, top + rowContentHeight - 5, rowContentHeight);
@@ -192,7 +192,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
     const colors = GameStore.getSave().playerTeam.colors;
     const visualHeight = Phaser.Math.Clamp(rowHeight - 9, 46, 70);
 
-    this.add.ellipse(x, feetY + 1, 42, 8, 0x020617, 0.5);
+    this.add.ellipse(x, feetY + 1, 42, 8, UI.colors.scrim, 0.5);
     new RugbyPlayer(
       this,
       x,
@@ -220,14 +220,14 @@ export class PlayerProgressionScene extends Phaser.Scene {
     height: number
   ): void {
     const graphics = this.add.graphics();
-    graphics.fillStyle(change ? 0x123c28 : 0x111f2d, 0.96);
+    graphics.fillStyle(change ? UI.colors.successSurface : UI.colors.panelRaised, 0.96);
     graphics.fillRoundedRect(left, top, width, height, 8);
-    graphics.lineStyle(1, change ? PROGRESSION_COLOR : 0x64748b, change ? 0.9 : 0.46);
+    graphics.lineStyle(1, change ? PROGRESSION_COLOR : UI.colors.outline, change ? 0.9 : 0.6);
     graphics.strokeRoundedRect(left, top, width, height, 8);
 
     this.add.text(left + width / 2, top + 12, t(this.getStatLabelKey(stat.name)).toUpperCase(), {
       font: "bold 8px Arial",
-      color: change ? "#bbf7d0" : UI.colors.muted
+      color: change ? UI.colors.textSuccess : UI.colors.muted
     }).setOrigin(0.5).setResolution(2);
 
     if (!change) {
@@ -250,12 +250,12 @@ export class PlayerProgressionScene extends Phaser.Scene {
     }).setOrigin(0.5).setResolution(2);
     this.add.text(left + width / 2 + 18, valueY, String(change.currentValue), {
       font: "bold 14px Arial",
-      color: "#bbf7d0"
+      color: UI.colors.textSuccess
     }).setOrigin(0.5).setResolution(2);
     this.add.text(left + width - 3, top + 3, `+${gain}`, {
       font: "bold 8px Arial",
-      color: "#052e16",
-      backgroundColor: "#4ade80",
+      color: UI.colors.textOnAccent,
+      backgroundColor: toCssColor(UI.colors.success),
       padding: { left: 3, right: 3, top: 1, bottom: 1 }
     }).setOrigin(1, 0).setResolution(2);
   }
@@ -286,7 +286,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
       }
 
       navigateTo(this, "LineoutScene", { mode: "training" });
-    });
+    }, { variant: "primary" });
   }
 
   private getDisplayedStats(player: Player): DisplayedStat[] {

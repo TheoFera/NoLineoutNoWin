@@ -10,13 +10,15 @@ import {
   normalizeOffensiveCombinations,
   replaceCombinationPlan
 } from "../rules/CombinationRules";
-import { getV3CombinationPlan } from "../rules/LineoutV3Combination";
+import { getV3CombinationPlan, LINEOUT_V3_MAX_PHASES } from "../rules/LineoutV3Combination";
 import { getLineoutV3DepthForPosition, getLineoutV3PositionForDepth } from "../rules/LineoutV3Geometry";
 import { GameStore } from "../state/GameStore";
 import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { CombinationSequenceBar } from "../ui/CombinationSequenceBar";
+import { renderMenuBackdrop } from "../ui/MenuChrome";
 
 type EditorMode = "select" | "move" | "lifters";
 
@@ -54,14 +56,18 @@ export class CombinationPlanScene extends Phaser.Scene {
     );
     this.combination = combinations.find((item) => item.id === this.combinationId) ?? combinations[0];
     if (!this.combination) {
-      navigateTo(this, "CombinationListScene");
+      navigateTo(this, "LineoutScene", {
+        mode: "training",
+        trainingMode: "edit",
+        combinationOverlayOpen: true
+      });
       return;
     }
     const plan = getV3CombinationPlan(this.combination);
     this.phaseIndex = Phaser.Math.Clamp(this.phaseIndex, 0, plan.phases.length - 1);
 
-    this.add.rectangle(195, 422, 390, 844, 0x07111a);
-    this.add.rectangle(195, 60, 354, 82, 0x10271b, 0.98).setStrokeStyle(2, UI.colors.accent);
+    renderMenuBackdrop(this, { showGuideLines: false });
+    this.add.rectangle(195, 60, 354, 82, UI.colors.panelDark, 0.98).setStrokeStyle(2, UI.colors.outline);
     const activeIndex = activeCombinations.findIndex((item) => item.id === this.combination.id);
     this.add.text(195, 42, getCombinationDisplayName(
       this.combination,
@@ -83,51 +89,53 @@ export class CombinationPlanScene extends Phaser.Scene {
     this.renderPlayerButtons();
     this.renderActionControls();
 
-    new UIButton(this, 103, 794, 164, 42, t("lineout.v3.editPlacement"), () => {
+    new UIButton(this, 195, 794, 220, 42, t("button.back"), () => {
       navigateTo(this, "LineoutScene", {
         mode: "training",
         trainingMode: "edit",
-        combinationId: this.combination.id
+        combinationId: this.combination.id,
+        combinationOverlayOpen: true
       });
     }, { variant: "secondary" });
-    new UIButton(this, 287, 794, 164, 42, t("lineout.v3.practiceCombination"), () => {
-      navigateTo(this, "LineoutScene", {
-        mode: "training",
-        trainingMode: "practice",
-        combinationId: this.combination.id
-      });
-    });
   }
 
   private renderPhaseControls(phaseCount: number): void {
-    new UIButton(this, 46, 122, 46, 38, "‹", () => this.restart({
-      phaseIndex: Math.max(0, this.phaseIndex - 1)
-    }), { variant: "secondary", fontSize: 24 });
-    this.add.text(195, 122, t("lineout.v3.phase")
-      .replace("{current}", String(this.phaseIndex + 1))
-      .replace("{total}", String(phaseCount)), {
-      font: "bold 16px Arial",
-      color: UI.colors.text
-    }).setOrigin(0.5);
-    new UIButton(this, 344, 122, 46, 38, "›", () => this.restart({
-      phaseIndex: Math.min(phaseCount - 1, this.phaseIndex + 1)
-    }), { variant: "secondary", fontSize: 24 });
-    new UIButton(this, 92, 166, 132, 34, t("lineout.v3.addPhase"), () => this.addPhase());
-    new UIButton(this, 242, 166, 132, 34, t("lineout.v3.deletePhase"), () => this.deletePhase(), {
-      variant: "secondary"
+    new CombinationSequenceBar(this, 195, 152, {
+      phaseCount,
+      maximumPhaseCount: LINEOUT_V3_MAX_PHASES,
+      selectedPhaseIndex: this.phaseIndex,
+      labels: {
+        placement: t("lineout.v3.initialPlacementShort"),
+        phase: t("lineout.v3.phaseNumber"),
+        removePhase: t("lineout.v3.deletePhaseNumber"),
+        train: t("lineout.v3.practiceCombination")
+      },
+      onSelectPlacement: () => navigateTo(this, "LineoutScene", {
+        mode: "training",
+        trainingMode: "edit",
+        combinationId: this.combination.id
+      }),
+      onSelectPhase: (phaseIndex) => this.restart({ phaseIndex }),
+      onAddPhase: () => this.addPhase(),
+      onRemovePhase: () => this.deletePhase(),
+      onTrain: () => navigateTo(this, "LineoutScene", {
+        mode: "training",
+        trainingMode: "practice",
+        combinationId: this.combination.id
+      })
     });
   }
 
   private renderActions(actions: CombinationPhaseAction[]): void {
-    this.add.rectangle(195, 300, 350, 218, 0x0f1c29, 0.96).setStrokeStyle(1, 0x64748b);
-    this.add.text(34, 206, t("lineout.v3.phaseActions"), {
+    this.add.rectangle(195, 335, 350, 188, UI.colors.panelRaised, 0.96).setStrokeStyle(1, UI.colors.outline);
+    this.add.text(34, 252, t("lineout.v3.phaseActions"), {
       font: "bold 14px Arial",
-      color: "#facc15"
+      color: UI.colors.textAccent
     });
     const body = actions.length === 0
       ? t("lineout.v3.noAction")
       : actions.map((action) => this.describeAction(action)).join("\n");
-    this.add.text(34, 238, body, {
+    this.add.text(34, 278, body, {
       font: "14px Arial",
       color: UI.colors.text,
       lineSpacing: 9,
@@ -136,7 +144,7 @@ export class CombinationPlanScene extends Phaser.Scene {
   }
 
   private renderPlayerButtons(): void {
-    this.add.text(195, 430, t("lineout.v3.choosePlayer"), {
+    this.add.text(195, 450, t("lineout.v3.choosePlayer"), {
       font: "bold 13px Arial",
       color: UI.colors.muted
     }).setOrigin(0.5);
@@ -148,9 +156,9 @@ export class CombinationPlanScene extends Phaser.Scene {
       const label = player
         ? `${position}\n${t("team.numberPrefix")}${player.number}`
         : `${position}\n—`;
-      new UIButton(this, 39 + (position - 1) * 52, 474, 46, 54, label, () => {
+      new UIButton(this, 39 + (position - 1) * 52, 490, 46, 54, label, () => {
         this.handlePlayerChoice(lineoutPosition);
-      }, { variant: selected ? "primary" : "secondary", fontSize: 11 });
+      }, { variant: selected ? "selected" : "secondary", fontSize: 11 });
     }
   }
 
@@ -158,14 +166,14 @@ export class CombinationPlanScene extends Phaser.Scene {
     const disabledHint = this.selectedPosition === null
       ? t("lineout.v3.selectPlayerHint")
       : t("lineout.v3.selectedPlayer").replace("{position}", String(this.selectedPosition));
-    this.add.text(195, 522, disabledHint, {
+    this.add.text(195, 538, disabledHint, {
       font: "12px Arial",
       color: UI.colors.muted
     }).setOrigin(0.5);
-    new UIButton(this, 52, 566, 84, 38, t("lineout.v3.actionMove"), () => this.chooseMove());
-    new UIButton(this, 147, 566, 84, 38, t("lineout.v3.actionFeint"), () => this.setSimpleAction("feint"));
-    new UIButton(this, 242, 566, 84, 38, t("lineout.v3.actionJump"), () => this.chooseJump());
-    new UIButton(this, 337, 566, 84, 38, t("lineout.v3.actionClear"), () => this.clearSelectedAction(), {
+    new UIButton(this, 52, 582, 84, 38, t("lineout.v3.actionMove"), () => this.chooseMove());
+    new UIButton(this, 147, 582, 84, 38, t("lineout.v3.actionFeint"), () => this.setSimpleAction("feint"));
+    new UIButton(this, 242, 582, 84, 38, t("lineout.v3.actionJump"), () => this.chooseJump());
+    new UIButton(this, 337, 582, 84, 38, t("lineout.v3.actionClear"), () => this.clearSelectedAction(), {
       variant: "secondary"
     });
 
@@ -174,12 +182,12 @@ export class CombinationPlanScene extends Phaser.Scene {
   }
 
   private renderDestinations(): void {
-    this.add.text(195, 616, t("lineout.v3.chooseDestination"), {
+    this.add.text(195, 632, t("lineout.v3.chooseDestination"), {
       font: "bold 13px Arial",
-      color: "#facc15"
+      color: UI.colors.textAccent
     }).setOrigin(0.5);
     for (let position = 1; position <= 7; position += 1) {
-      new UIButton(this, 39 + (position - 1) * 52, 660, 44, 40, String(position), () => {
+      new UIButton(this, 39 + (position - 1) * 52, 676, 44, 40, String(position), () => {
         this.setMoveDestination(position as LineoutPosition);
       }, { variant: "secondary" });
     }
@@ -190,13 +198,15 @@ export class CombinationPlanScene extends Phaser.Scene {
       action.type === "jump" && action.playerPosition === this.selectedPosition
     ));
     const lifters = jump?.type === "jump" ? jump.lifterPositions.join(", ") || "—" : "—";
-    this.add.text(195, 626, `${t("lineout.v3.chooseLifters")}\n${t("lineout.v3.currentLifters")} ${lifters}`, {
+    this.add.text(195, 642, `${t("lineout.v3.chooseLifters")}\n${t("lineout.v3.currentLifters")} ${lifters}`, {
       font: "bold 13px Arial",
-      color: "#facc15",
+      color: UI.colors.textAccent,
       align: "center",
       lineSpacing: 7
     }).setOrigin(0.5);
-    new UIButton(this, 195, 700, 180, 40, t("button.confirm"), () => this.restart({ editorMode: "select" }));
+    new UIButton(this, 195, 716, 180, 40, t("button.confirm"), () => this.restart({ editorMode: "select" }), {
+      variant: "primary"
+    });
   }
 
   private handlePlayerChoice(position: LineoutPosition): void {
@@ -270,6 +280,7 @@ export class CombinationPlanScene extends Phaser.Scene {
 
   private addPhase(): void {
     const plan = getV3CombinationPlan(this.combination);
+    if (plan.phases.length >= LINEOUT_V3_MAX_PHASES) return;
     plan.phases.splice(this.phaseIndex + 1, 0, {
       id: `phase-${Date.now()}`,
       actions: []

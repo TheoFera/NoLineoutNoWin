@@ -1,9 +1,10 @@
 import Phaser from "phaser";
+import { UI } from "./UITheme";
 import { getRugbyPlayerEqualHeightScale, getRugbyPlayerTextureKey } from "./RugbyPlayerAssets";
 import type { BodyShapeName, PoseName } from "./RugbyPlayerTypes";
 
 export const PLAYER_GROUND_SHADOW_STYLE = {
-  color: 0x020617,
+  color: UI.colors.scrim,
   projectionRatio: 0.85,
   angleDegrees: -40,
   contactOffsetX: 1,

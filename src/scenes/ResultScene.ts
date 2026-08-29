@@ -41,7 +41,7 @@ export class ResultScene extends Phaser.Scene {
       this.add.text(SCREEN_CENTER_X, 44, t("result.title").toUpperCase(), {
         font: UI.font.title,
         color: UI.colors.text,
-        stroke: "#020617",
+        stroke: UI.colors.textStroke,
         strokeThickness: 4
       }).setOrigin(0.5);
       this.add.text(SCREEN_CENTER_X, 220, t("result.noMatch"), {
@@ -50,7 +50,7 @@ export class ResultScene extends Phaser.Scene {
       }).setOrigin(0.5);
       new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("result.backTraining"), () => {
         navigateTo(this, "LineoutScene", { mode: "training" });
-      });
+      }, { variant: "primary" });
       return;
     }
 
@@ -108,7 +108,7 @@ export class ResultScene extends Phaser.Scene {
     this.add.text(SCREEN_CENTER_X, 492, t("result.combinationsTitle").toUpperCase(), {
       font: UI.font.subtitle,
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5);
 
@@ -132,7 +132,7 @@ export class ResultScene extends Phaser.Scene {
           const y = 550 + index * 46;
           const rate = stat.played > 0 ? Math.round((stat.won / stat.played) * 100) : 0;
           if (index > 0) {
-            this.add.rectangle(SCREEN_CENTER_X, y - 23, 326, 1, 0xf8fafc, 0.16);
+            this.add.rectangle(SCREEN_CENTER_X, y - 23, 326, 1, UI.colors.divider, 0.22);
           }
           const combinationName = currentCombinationNames.get(stat.combinationId)
             ?? stat.combinationName;
@@ -150,7 +150,7 @@ export class ResultScene extends Phaser.Scene {
           }).setOrigin(0, 0.5);
           this.add.text(356, y, `${rate}%`, {
             font: "bold 19px Arial",
-            color: "#fde68a"
+            color: UI.colors.textAccent
           }).setOrigin(1, 0.5).setResolution(2);
         });
     }
@@ -161,7 +161,7 @@ export class ResultScene extends Phaser.Scene {
         progressions: completion?.playerProgressions ?? [],
         seasonSummary: completion?.seasonSummary ?? null
       });
-    });
+    }, { variant: "primary" });
   }
 
   private getMatchOutcome(ourScore: number, opponentScore: number): MatchOutcome {
@@ -174,7 +174,7 @@ export class ResultScene extends Phaser.Scene {
     this.add.text(SCREEN_CENTER_X, 39, t("result.title").toUpperCase(), {
       font: "bold 30px Arial",
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 6
     }).setOrigin(0.5).setResolution(2);
     this.add.rectangle(SCREEN_CENTER_X, 61, 116, 4, UI.colors.accent, 0.95);
@@ -204,14 +204,14 @@ export class ResultScene extends Phaser.Scene {
     graphics.fillRoundedRect(left + 10, top + 8, width / 2 - 20, 4, 2);
     graphics.fillStyle(awayColors.primary, 1);
     graphics.fillRoundedRect(SCREEN_CENTER_X + 10, top + 8, width / 2 - 20, 4, 2);
-    graphics.fillStyle(0xf8fafc, 0.2);
+    graphics.fillStyle(UI.colors.divider, 0.25);
     graphics.fillRect(SCREEN_CENTER_X - 1, top + 20, 2, height - 40);
 
     this.add.text(104, 118, homeName.toUpperCase(), {
       font: `bold ${this.getTeamNameFontSize(homeName)}px Arial`,
       color: UI.colors.text,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3,
       wordWrap: { width: 142, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
@@ -219,20 +219,20 @@ export class ResultScene extends Phaser.Scene {
       font: `bold ${this.getTeamNameFontSize(awayName)}px Arial`,
       color: UI.colors.text,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3,
       wordWrap: { width: 142, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
     this.add.text(112, 161, String(homeScore), {
       font: "bold 46px Arial",
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 5
     }).setOrigin(0.5).setResolution(2);
     this.add.text(278, 161, String(awayScore), {
       font: "bold 46px Arial",
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 5
     }).setOrigin(0.5).setResolution(2);
 
@@ -241,10 +241,10 @@ export class ResultScene extends Phaser.Scene {
     this.add.text(outcomeX, 207, t(`result.${outcome}`).toUpperCase(), {
       font: "bold 13px Arial",
       color: outcomeColor,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5).setResolution(2);
-    graphics.fillStyle(outcome === "defeat" ? 0xf87171 : UI.colors.accent, 0.95);
+    graphics.fillStyle(outcome === "defeat" ? UI.colors.danger : UI.colors.accent, 0.95);
     graphics.fillRoundedRect(outcomeX - 43, 218, 86, 3, 2);
   }
 
@@ -269,20 +269,20 @@ export class ResultScene extends Phaser.Scene {
     graphics.fillRoundedRect(28, top + 6, 70, 3, 2);
     graphics.fillStyle(awayColors.secondary, 0.95);
     graphics.fillRoundedRect(292, top + 6, 70, 3, 2);
-    graphics.fillStyle(0x94a3b8, 0.22);
+    graphics.fillStyle(UI.colors.divider, 0.25);
     graphics.fillRect(112, top + 12, 1, 40);
     graphics.fillRect(277, top + 12, 1, 40);
 
     this.add.text(64, y + 1, `${roundedValue}%`, {
       font: "bold 27px Arial",
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 4
     }).setOrigin(0.5).setResolution(2);
     this.add.text(326, y + 1, `${awayValue}%`, {
       font: "bold 27px Arial",
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 4
     }).setOrigin(0.5).setResolution(2);
     this.add.text(SCREEN_CENTER_X, y - 9, label.toUpperCase(), {
@@ -293,7 +293,7 @@ export class ResultScene extends Phaser.Scene {
     const barX = 137;
     const barY = y + 13;
     const barWidth = 116;
-    graphics.fillStyle(0x1e293b, 1);
+    graphics.fillStyle(UI.colors.panelAlternate, 1);
     graphics.fillRoundedRect(barX, barY, barWidth, 7, 3);
     if (clampedValue > 0) {
       graphics.fillStyle(homeColors.primary, 1);
@@ -333,11 +333,11 @@ export class ResultScene extends Phaser.Scene {
         x: 314,
         value: `${defenseWon}/${defensePlayed}`,
         label: t("result.defensiveLineouts"),
-        color: 0xf87171
+        color: UI.colors.danger
       }
     ];
 
-    graphics.fillStyle(0x94a3b8, 0.2);
+    graphics.fillStyle(UI.colors.divider, 0.25);
     graphics.fillRect(135, top + 14, 1, 48);
     graphics.fillRect(254, top + 14, 1, 48);
     columns.forEach((column) => {
@@ -346,7 +346,7 @@ export class ResultScene extends Phaser.Scene {
       this.add.text(column.x, top + 28, String(column.value), {
         font: "bold 25px Arial",
         color: UI.colors.text,
-        stroke: "#020617",
+        stroke: UI.colors.textStroke,
         strokeThickness: 3
       }).setOrigin(0.5).setResolution(2);
       this.add.text(column.x, top + 55, column.label.toUpperCase(), {
@@ -365,8 +365,8 @@ export class ResultScene extends Phaser.Scene {
   }
 
   private getOutcomeColor(outcome: MatchOutcome): string {
-    if (outcome === "victory") return "#fde047";
-    if (outcome === "defeat") return "#f87171";
+    if (outcome === "victory") return UI.colors.textAccent;
+    if (outcome === "defeat") return UI.colors.textDanger;
     return UI.colors.text;
   }
 }

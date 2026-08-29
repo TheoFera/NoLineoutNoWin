@@ -3,15 +3,18 @@ import { GAME_HEIGHT, GAME_WIDTH } from "../config/DisplayConfig";
 import { t } from "../systems/I18n";
 import { UI_DEPTH } from "./UIDepth";
 import { UIButton } from "./UIButton";
+import type { ButtonVariant } from "./ButtonStyle";
 import { UI } from "./UITheme";
 
 export type ModalSecondaryAction = {
   label: string;
   onSelect: () => void;
+  variant?: ButtonVariant;
 };
 
 export type ModalOptions = {
   primaryLabel?: string;
+  primaryVariant?: ButtonVariant;
   secondaryAction?: ModalSecondaryAction;
   tone?: "default" | "success" | "danger";
 };
@@ -19,18 +22,18 @@ export type ModalOptions = {
 const MODAL_TONES = {
   default: {
     background: UI.colors.panelDark,
-    border: UI.colors.accent,
+    border: UI.colors.outline,
     title: UI.colors.text
   },
   success: {
-    background: 0x0b2e1d,
-    border: 0x4ade80,
-    title: "#86efac"
+    background: UI.colors.panelDark,
+    border: UI.colors.success,
+    title: UI.colors.textSuccess
   },
   danger: {
-    background: 0x32131a,
-    border: 0xf87171,
-    title: "#fca5a5"
+    background: UI.colors.panelDark,
+    border: UI.colors.danger,
+    title: UI.colors.textDanger
   }
 } as const;
 
@@ -49,7 +52,7 @@ export class Modal extends Phaser.GameObjects.Container {
       0,
       GAME_WIDTH,
       GAME_HEIGHT,
-      0x000000,
+      UI.colors.scrim,
       0.68
     ).setInteractive();
     const titleText = scene.add.text(0, 0, title, {
@@ -88,13 +91,15 @@ export class Modal extends Phaser.GameObjects.Container {
       this.destroy();
       onClose();
     }, {
-      variant: "secondary"
+      variant: options.primaryVariant ?? "primary"
     });
     const children: Phaser.GameObjects.GameObject[] = [backdrop, bg, titleText, bodyText, close];
     if (options.secondaryAction) {
       const secondary = new UIButton(scene, -76, closeY, 128, buttonHeight, options.secondaryAction.label, () => {
         this.destroy();
         options.secondaryAction?.onSelect();
+      }, {
+        variant: options.secondaryAction.variant ?? "secondary"
       });
       children.push(secondary);
     }

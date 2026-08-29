@@ -35,14 +35,14 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
     super(scene, 0, 0);
 
     const layout = this.getLayout(combinations.length);
-    const backdrop = scene.add.rectangle(195, 422, 390, 844, 0x020617, 0.34)
+    const backdrop = scene.add.rectangle(195, 422, 390, 844, UI.colors.scrim, 0.38)
       .setInteractive();
     const panel = scene.add.graphics();
-    panel.fillStyle(0x07111a, 0.84);
-    panel.lineStyle(2, 0x64748b, 0.88);
+    panel.fillStyle(UI.colors.panelDark, 0.9);
+    panel.lineStyle(2, UI.colors.outline, 0.96);
     panel.fillRoundedRect(24, PANEL_TOP, 342, layout.panelHeight, 22);
     panel.strokeRoundedRect(24, PANEL_TOP, 342, layout.panelHeight, 22);
-    panel.fillStyle(0xffffff, 0.06);
+    panel.fillStyle(UI.colors.line, 0.06);
     panel.fillRoundedRect(42, PANEL_TOP + 14, 306, 3, 2);
 
     const title = scene.add.text(195, PANEL_TOP + 38, options.title, {
@@ -100,11 +100,11 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
     const width = 306;
     const top = y - height / 2;
     const graphics = scene.add.graphics();
-    graphics.fillStyle(0x0f1c29, 0.96);
-    graphics.lineStyle(2, UI.colors.accent, 0.9);
+    graphics.fillStyle(UI.colors.panelRaised, 0.96);
+    graphics.lineStyle(2, UI.colors.outline, 0.96);
     graphics.fillRoundedRect(left, top, width, height, 14);
     graphics.strokeRoundedRect(left, top, width, height, 14);
-    graphics.fillStyle(0xffffff, 0.05);
+    graphics.fillStyle(UI.colors.line, 0.05);
     graphics.fillRoundedRect(left + 12, top + 10, 130, height - 20, 9);
 
     const hitArea = scene.add.zone(195, y, width, height)
@@ -122,7 +122,7 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
     }).setOrigin(0, 0.5).setResolution(2);
     const arrow = scene.add.text(left + width - 18, y, "›", {
       font: "bold 25px Arial",
-      color: "#fde68a"
+      color: UI.colors.textAccent
     }).setOrigin(0.5).setResolution(2);
 
     this.add([graphics, hitArea, name, players, arrow]);
@@ -148,7 +148,7 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
       centerY,
       3,
       previewBottom - previewTop,
-      0xf8fafc,
+      UI.colors.line,
       0.82
     ));
 
@@ -160,9 +160,9 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
         y,
         22,
         9,
-        slot.playerId ? UI.colors.accent : 0x10271b,
+        slot.playerId ? UI.colors.accent : UI.colors.panelDark,
         slot.playerId ? 0.95 : 0.72
-      ).setStrokeStyle(1, slot.playerId ? 0x4a2b00 : 0x64748b, 0.9));
+      ).setStrokeStyle(1, slot.playerId ? UI.colors.accentStrong : UI.colors.outline, 0.9));
     });
 
     this.add(objects);

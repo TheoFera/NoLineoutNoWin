@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { JerseyColors } from "../models/Team";
 import { MATCH_SCORE_OVERLAY_LAYOUT } from "./MatchScoreOverlayLayout";
+import { UI } from "./UITheme";
 
 export const MATCH_STATS_OVERLAY_LAYOUT = {
   x: MATCH_SCORE_OVERLAY_LAYOUT.x,
@@ -29,7 +30,7 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
 
     const graphics = scene.add.graphics();
     this.drawCard(graphics, 0, 130, data.homeColors.secondary);
-    this.drawCard(graphics, 136, 92, 0x84cc16);
+    this.drawCard(graphics, 136, 92, UI.colors.outlineStrong);
     this.drawCard(graphics, 234, 120, data.awayColors.secondary);
 
     const possessionLabel = this.createLabel(scene, 65, data.possessionLabel);
@@ -48,7 +49,7 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
     const barX = 12;
     const barY = 52;
     const barWidth = 106;
-    graphics.fillStyle(0x1e293b, 0.95);
+    graphics.fillStyle(UI.colors.panelAlternate, 0.95);
     graphics.fillRoundedRect(barX, barY, barWidth, 5, 2);
     graphics.fillStyle(data.homeColors.primary, 1);
     graphics.fillRoundedRect(barX, barY, barWidth * data.possession / 100, 5, 2);
@@ -62,11 +63,11 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
     );
 
     const occupationLabel = this.createLabel(scene, 182, data.occupationLabel);
-    const occupationValue = this.createLargeValue(scene, 182, `${Math.round(data.occupation)}%`, "#a3e635");
+    const occupationValue = this.createLargeValue(scene, 182, `${Math.round(data.occupation)}%`, UI.colors.text);
     const zoneLabel = this.createLabel(scene, 294, data.zoneLabel);
     const zoneValue = scene.add.text(294, 42, data.zoneValue, {
       font: `bold ${data.zoneValue.length > 14 ? 10 : 12}px Arial`,
-      color: "#f8fafc",
+      color: UI.colors.text,
       align: "center",
       wordWrap: { width: 102 }
     }).setOrigin(0.5).setResolution(2);
@@ -91,8 +92,8 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
     width: number,
     accentColor: number
   ): void {
-    graphics.fillStyle(0x07111a, 0.94);
-    graphics.lineStyle(1, 0x64748b, 0.82);
+    graphics.fillStyle(UI.colors.panelDark, 0.94);
+    graphics.lineStyle(1, UI.colors.outline, 0.9);
     graphics.fillRoundedRect(x, 0, width, MATCH_STATS_OVERLAY_LAYOUT.height, 12);
     graphics.strokeRoundedRect(x, 0, width, MATCH_STATS_OVERLAY_LAYOUT.height, 12);
     graphics.fillStyle(accentColor, 0.95);
@@ -102,7 +103,7 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
   private createLabel(scene: Phaser.Scene, x: number, label: string): Phaser.GameObjects.Text {
     return scene.add.text(x, 17, label.toUpperCase(), {
       font: "bold 10px Arial",
-      color: "#cbd5e1"
+      color: UI.colors.muted
     }).setOrigin(0.5).setResolution(2);
   }
 
@@ -127,7 +128,7 @@ export class MatchStatsOverlay extends Phaser.GameObjects.Container {
     return scene.add.text(x, 42, value, {
       font: "bold 22px Arial",
       color,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0.5).setResolution(2);
   }

@@ -8,7 +8,6 @@ import { MatchScene } from "./scenes/MatchScene";
 import { LineoutScene } from "./scenes/LineoutScene";
 import { TeamScene } from "./scenes/TeamScene";
 import { ChampionshipScene } from "./scenes/ChampionshipScene";
-import { CombinationListScene } from "./scenes/CombinationListScene";
 import { CombinationPlanScene } from "./scenes/CombinationPlanScene";
 import { DefensiveFormationScene } from "./scenes/DefensiveFormationScene";
 import { SettingsScene } from "./scenes/SettingsScene";
@@ -43,7 +42,6 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     LineoutScene,
     TeamScene,
     ChampionshipScene,
-    CombinationListScene,
     CombinationPlanScene,
     DefensiveFormationScene,
     SettingsScene,

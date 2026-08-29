@@ -36,10 +36,16 @@ export function replaceNavigationState(sceneKey: string, data?: Record<string, u
   window.history.replaceState({ sceneKey, data } satisfies NavigationState, "");
 }
 
-export function navigateTo(scene: Phaser.Scene, sceneKey: string, data?: Record<string, unknown>): void {
-  if (canUseHistory()) {
-    window.history.pushState({ sceneKey, data } satisfies NavigationState, "");
+export function pushNavigationState(sceneKey: string, data?: Record<string, unknown>): void {
+  if (!canUseHistory()) {
+    return;
   }
+
+  window.history.pushState({ sceneKey, data } satisfies NavigationState, "");
+}
+
+export function navigateTo(scene: Phaser.Scene, sceneKey: string, data?: Record<string, unknown>): void {
+  pushNavigationState(sceneKey, data);
 
   scene.scene.start(sceneKey, data);
 }

@@ -36,13 +36,13 @@ export class SettingsScene extends Phaser.Scene {
     new MainMenuButton(this, 112, 220, 150, 52, t("settings.resolutionStandard"), () => {
       this.selectResolution("standard", currentResolution);
     }, {
-      variant: currentResolution === "standard" ? "primary" : "secondary"
+      variant: currentResolution === "standard" ? "selected" : "secondary"
     });
 
     new MainMenuButton(this, 278, 220, 150, 52, t("settings.resolutionHigh"), () => {
       this.selectResolution("high", currentResolution);
     }, {
-      variant: currentResolution === "high" ? "primary" : "secondary"
+      variant: currentResolution === "high" ? "selected" : "secondary"
     });
 
     this.add.text(195, 312, t("settings.languageTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
@@ -51,14 +51,14 @@ export class SettingsScene extends Phaser.Scene {
       setLanguage("fr");
       this.scene.restart();
     }, {
-      variant: currentLanguage === "fr" ? "primary" : "secondary"
+      variant: currentLanguage === "fr" ? "selected" : "secondary"
     });
 
     new MainMenuButton(this, 278, 374, 150, 52, t("options.language.en"), () => {
       setLanguage("en");
       this.scene.restart();
     }, {
-      variant: currentLanguage === "en" ? "primary" : "secondary"
+      variant: currentLanguage === "en" ? "selected" : "secondary"
     });
 
     this.add.text(195, 466, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
@@ -66,7 +66,7 @@ export class SettingsScene extends Phaser.Scene {
     new MainMenuButton(this, 195, 528, 300, 58, t("button.resetSave"), () => {
       this.showResetConfirmation();
     }, {
-      variant: "primary"
+      variant: "danger"
     });
 
     this.add.text(195, 632, `${t("settings.versionLabel")} ${APP_VERSION}`, {
@@ -85,6 +85,7 @@ export class SettingsScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
+    this.add.rectangle(195, 422, 390, 844, UI.colors.scrim, 0.28);
   }
 
   private selectResolution(resolution: RenderResolution, currentResolution: RenderResolution): void {
@@ -104,8 +105,10 @@ export class SettingsScene extends Phaser.Scene {
       () => undefined,
       {
         primaryLabel: t("button.cancel"),
+        primaryVariant: "secondary",
         secondaryAction: {
           label: t("button.delete"),
+          variant: "danger",
           onSelect: () => {
             GameStore.resetSave();
             navigateTo(this, "MainMenuScene");

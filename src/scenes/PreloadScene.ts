@@ -42,13 +42,13 @@ export class PreloadScene extends Phaser.Scene {
     const innerHeight = LOADING_BAR_HEIGHT - LOADING_BAR_PADDING * 2;
 
     graphics.clear();
-    graphics.fillStyle(0x071326, 0.94);
-    graphics.lineStyle(3, 0xf3c54d, 1);
+    graphics.fillStyle(UI.colors.panelDark, 0.94);
+    graphics.lineStyle(2, UI.colors.outline, 1);
     graphics.fillRoundedRect(LOADING_BAR_X, LOADING_BAR_Y, LOADING_BAR_WIDTH, LOADING_BAR_HEIGHT, 14);
     graphics.strokeRoundedRect(LOADING_BAR_X, LOADING_BAR_Y, LOADING_BAR_WIDTH, LOADING_BAR_HEIGHT, 14);
 
     if (progress > 0) {
-      graphics.fillStyle(0xd79c17, 1);
+      graphics.fillStyle(UI.colors.accent, 1);
       graphics.fillRoundedRect(
         LOADING_BAR_X + LOADING_BAR_PADDING,
         LOADING_BAR_Y + LOADING_BAR_PADDING,

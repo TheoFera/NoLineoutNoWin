@@ -11,6 +11,7 @@ import { renderMenuHeader } from "../ui/MenuChrome";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UI } from "../ui/UITheme";
+import { applyDomControlStyle } from "../ui/DomControlStyle";
 
 export class ClubCreationScene extends Phaser.Scene {
   private nameInput: HTMLInputElement | null = null;
@@ -100,7 +101,7 @@ export class ClubCreationScene extends Phaser.Scene {
 
     this.errorText = this.add.text(195, 724, "", {
       font: UI.font.body,
-      color: "#fecaca",
+      color: UI.colors.textDanger,
       align: "center",
       wordWrap: { width: 320 }
     }).setOrigin(0.5);
@@ -129,15 +130,7 @@ export class ClubCreationScene extends Phaser.Scene {
     input.autocapitalize = "words";
     input.spellcheck = false;
     input.setAttribute("aria-label", t("club.nameLabel"));
-    input.style.position = "fixed";
-    input.style.zIndex = "20";
-    input.style.border = "2px solid #facc15";
-    input.style.borderRadius = "14px";
-    input.style.padding = "0 14px";
-    input.style.background = "#f8fafc";
-    input.style.color = "#10271b";
-    input.style.boxSizing = "border-box";
-    input.style.outline = "none";
+    applyDomControlStyle(input);
 
     input.addEventListener("input", () => {
       this.errorText.setText("");
@@ -159,7 +152,7 @@ export class ClubCreationScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.36);
+    this.add.rectangle(195, 422, 390, 844, UI.colors.scrim, 0.3);
   }
 
   private createLeagueInput(): void {
@@ -179,15 +172,7 @@ export class ClubCreationScene extends Phaser.Scene {
     });
     select.value = this.selectedLeagueId ?? "";
     select.setAttribute("aria-label", t("club.locationQuestion"));
-    select.style.position = "fixed";
-    select.style.zIndex = "20";
-    select.style.border = "2px solid #facc15";
-    select.style.borderRadius = "14px";
-    select.style.padding = "0 12px";
-    select.style.background = "#f8fafc";
-    select.style.color = "#10271b";
-    select.style.boxSizing = "border-box";
-    select.style.outline = "none";
+    applyDomControlStyle(select, { compact: true });
     select.addEventListener("change", () => {
       this.selectedLeagueId = isFfrLeagueId(select.value) ? select.value : null;
       this.errorText?.setText("");
@@ -220,14 +205,7 @@ export class ClubCreationScene extends Phaser.Scene {
     input.type = "color";
     input.value = this.toColorHex(initialColor);
     input.setAttribute("aria-label", ariaLabel);
-    input.style.position = "fixed";
-    input.style.zIndex = "20";
-    input.style.padding = "0";
-    input.style.border = "2px solid #facc15";
-    input.style.borderRadius = "14px";
-    input.style.background = "rgba(248, 250, 252, 0.92)";
-    input.style.boxSizing = "border-box";
-    input.style.cursor = "pointer";
+    applyDomControlStyle(input, { colorPicker: true });
 
     input.addEventListener("input", () => {
       this.errorText.setText("");
@@ -366,6 +344,6 @@ export class ClubCreationScene extends Phaser.Scene {
     const blue = backgroundColor & 0xff;
     const luminance = (red * 0.299) + (green * 0.587) + (blue * 0.114);
 
-    return luminance > 160 ? "#10271b" : UI.colors.text;
+    return luminance > 160 ? UI.colors.textOnAccent : UI.colors.text;
   }
 }

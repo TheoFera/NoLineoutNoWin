@@ -53,7 +53,9 @@ export class TeamScene extends Phaser.Scene {
 
     if (this.isFieldPlayer(inspectedPlayer)) {
       const assignLabel = `${t("team.assignToPosition")} ${this.selectedLineoutPosition}`;
-      new UIButton(this, 309, 720, 122, 40, assignLabel, () => this.assignInspectedPlayer());
+      new UIButton(this, 309, 720, 122, 40, assignLabel, () => this.assignInspectedPlayer(), {
+        variant: "primary"
+      });
       const statusKey = isSelectedForLineout(this.team, inspectedPlayer.id) ? "team.status.lineout" : "team.status.reserve";
       this.add.text(309, 756, t(statusKey), { font: UI.font.small, color: UI.colors.muted, align: "center", wordWrap: { width: 120 } }).setOrigin(0.5);
     } else {
@@ -72,7 +74,8 @@ export class TeamScene extends Phaser.Scene {
 
   private renderHookerPanel(): void {
     const selected = this.inspectedPlayerId === "hooker";
-    const panel = this.add.rectangle(195, 114, 338, 52, selected ? 0x173b27 : 0x0d1b14, 0.96).setStrokeStyle(2, selected ? UI.colors.accent : 0x40604b);
+    const panel = this.add.rectangle(195, 114, 338, 52, selected ? UI.colors.panelRaised : UI.colors.panelDark, 0.96)
+      .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline);
     panel.setInteractive();
     panel.on("pointerup", () => {
       this.inspectedPlayerId = "hooker";
@@ -100,7 +103,8 @@ export class TeamScene extends Phaser.Scene {
     slotLayout.forEach(({ position, x, y }) => {
       const player = this.team.lineoutPlayers[position - 1];
       const selected = this.selectedLineoutPosition === position;
-      const slot = this.add.rectangle(x, y, 74, 36, selected ? 0x173b27 : 0x0d1b14, 1).setStrokeStyle(2, selected ? UI.colors.accent : 0x40604b);
+      const slot = this.add.rectangle(x, y, 74, 36, selected ? UI.colors.panelRaised : UI.colors.panelDark, 1)
+        .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline);
       slot.setInteractive();
       slot.on("pointerup", () => {
         this.selectedLineoutPosition = position;
@@ -117,7 +121,8 @@ export class TeamScene extends Phaser.Scene {
       const y = 348 + index * 32;
       const selectedForLineout = isSelectedForLineout(this.team, player.id);
       const inspected = this.inspectedPlayerId === player.id;
-      const row = this.add.rectangle(195, y, 338, 28, inspected ? 0x173b27 : 0x0d1b14, 0.96).setStrokeStyle(1, selectedForLineout ? UI.colors.accent : 0x40604b);
+      const row = this.add.rectangle(195, y, 338, 28, inspected ? UI.colors.panelRaised : UI.colors.panelDark, 0.96)
+        .setStrokeStyle(1, selectedForLineout ? UI.colors.accent : UI.colors.outline);
       row.setInteractive();
       row.on("pointerup", () => {
         this.inspectedPlayerId = player.id;
@@ -132,7 +137,7 @@ export class TeamScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
       this.add.text(324, y, t(selectedForLineout ? "team.status.lineoutShort" : "team.status.reserveShort"), {
         font: "bold 10px Arial",
-        color: selectedForLineout ? "#fde68a" : UI.colors.muted
+        color: selectedForLineout ? UI.colors.textAccent : UI.colors.muted
       }).setOrigin(1, 0.5);
     });
   }

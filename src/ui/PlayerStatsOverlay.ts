@@ -4,6 +4,7 @@ import {
   MATCH_SCORE_OVERLAY_LAYOUT,
   PLAYER_STATS_OVERLAY_DEPTH
 } from "./MatchScoreOverlayLayout";
+import { UI } from "./UITheme";
 
 export type PlayerStatsOverlayData = {
   name: string;
@@ -17,8 +18,8 @@ const STATS_LEFT = 146;
 const STATS_RIGHT = MATCH_SCORE_OVERLAY_LAYOUT.width - 14;
 const STAT_GAP = 7;
 const HIGH_STAT_THRESHOLD = 60;
-const HIGH_STAT_COLOR = "#fbbf24";
-const DEFAULT_STAT_COLOR = "#f8fafc";
+const HIGH_STAT_COLOR = UI.colors.textAccent;
+const DEFAULT_STAT_COLOR = UI.colors.text;
 
 export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
   private readonly shadow: Phaser.GameObjects.Graphics;
@@ -36,23 +37,23 @@ export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
     this.panels = scene.add.graphics();
     this.nameText = scene.add.text(14, 27, "", {
       font: "bold 14px Arial",
-      color: "#f8fafc",
-      stroke: "#020617",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0, 0.5).setResolution(2);
     this.roleText = scene.add.text(14, 58, "", {
       font: "bold 10px Arial",
-      color: "#fde68a",
+      color: UI.colors.textAccent,
       wordWrap: { width: IDENTITY_WIDTH - 28 }
     }).setOrigin(0, 0.5).setResolution(2);
     this.statLabels = Array.from({ length: 3 }, () => scene.add.text(0, 27, "", {
       font: "bold 11px Arial",
-      color: "#f1f5f9"
+      color: UI.colors.text
     }).setOrigin(0.5).setResolution(2));
     this.statValues = Array.from({ length: 3 }, () => scene.add.text(0, 57, "", {
       font: "bold 25px Arial",
-      color: "#f8fafc",
-      stroke: "#020617",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0.5).setResolution(2));
 
@@ -99,12 +100,12 @@ export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
   private drawPanels(colors: JerseyColors, statCount: number): void {
     const layout = MATCH_SCORE_OVERLAY_LAYOUT;
     this.shadow.clear();
-    this.shadow.fillStyle(0x000000, 0.5);
+    this.shadow.fillStyle(UI.colors.scrim, 0.5);
     this.shadow.fillRoundedRect(0, 5, layout.width, layout.height, 18);
 
     this.panels.clear();
-    this.panels.fillStyle(0x07111a, 0.96);
-    this.panels.lineStyle(2, 0x64748b, 0.9);
+    this.panels.fillStyle(UI.colors.panelDark, 0.96);
+    this.panels.lineStyle(2, UI.colors.outline, 0.9);
     this.panels.fillRoundedRect(0, 0, layout.width, layout.height, 18);
     this.panels.strokeRoundedRect(0, 0, layout.width, layout.height, 18);
 
@@ -117,7 +118,7 @@ export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
     const cardWidth = (availableWidth - STAT_GAP * (statCount - 1)) / statCount;
     for (let index = 0; index < statCount; index += 1) {
       const cardX = STATS_LEFT + index * (cardWidth + STAT_GAP);
-      this.panels.fillStyle(0x0f1c29, 0.92);
+      this.panels.fillStyle(UI.colors.panelRaised, 0.92);
       this.panels.lineStyle(1, colors.secondary, 0.62);
       this.panels.fillRoundedRect(cardX, 10, cardWidth, 64, 12);
       this.panels.strokeRoundedRect(cardX, 10, cardWidth, 64, 12);

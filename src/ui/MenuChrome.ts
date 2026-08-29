@@ -22,9 +22,9 @@ type MenuHeaderOptions = {
 
 type MenuPanelOptions = {
   accentColor?: number;
+  fillAlpha?: number;
   fillColor?: number;
   height: number;
-  showAccent?: boolean;
   width: number;
   x: number;
   y: number;
@@ -44,15 +44,15 @@ export function renderMenuBackdrop(scene: Phaser.Scene, options: MenuBackdropOpt
     SCREEN_CENTER_Y,
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
-    0x020617,
+    UI.colors.scrim,
     options.overlayAlpha ?? (variant === "hero" ? 0.42 : 0.28)
   );
 
   if (showGuideLines) {
-    scene.add.rectangle(SCREEN_CENTER_X, 146, 312, 3, 0xf8fafc, 0.18);
-    scene.add.rectangle(SCREEN_CENTER_X, 698, 312, 3, 0xf8fafc, 0.16);
-    scene.add.rectangle(60, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
-    scene.add.rectangle(330, SCREEN_CENTER_Y, 2, 610, 0xf8fafc, 0.08);
+    scene.add.rectangle(SCREEN_CENTER_X, 146, 312, 3, UI.colors.divider, 0.25);
+    scene.add.rectangle(SCREEN_CENTER_X, 698, 312, 3, UI.colors.divider, 0.22);
+    scene.add.rectangle(60, SCREEN_CENTER_Y, 2, 610, UI.colors.divider, 0.12);
+    scene.add.rectangle(330, SCREEN_CENTER_Y, 2, 610, UI.colors.divider, 0.12);
   }
 
   return usedHeroBackground;
@@ -79,25 +79,25 @@ export function renderMenuHeader(scene: Phaser.Scene, title: string, options: Me
 
 export function renderMenuPanel(scene: Phaser.Scene, options: MenuPanelOptions): Phaser.GameObjects.Graphics {
   return createRoundedPanel(scene, options.x, options.y, options.width, options.height, {
-    accentColor: options.accentColor ?? 0x2f73d1,
-    fillColor: options.fillColor ?? 0x071326,
-    showAccent: options.showAccent ?? true
+    accentColor: options.accentColor ?? UI.colors.accent,
+    fillAlpha: options.fillAlpha ?? 0.92,
+    fillColor: options.fillColor ?? UI.colors.panelDark
   });
 }
 
 function renderFieldBackdrop(scene: Phaser.Scene, showGuideLines: boolean): void {
-  scene.add.rectangle(SCREEN_CENTER_X, SCREEN_CENTER_Y, SCREEN_WIDTH, SCREEN_HEIGHT, 0x08142c);
+  scene.add.rectangle(SCREEN_CENTER_X, SCREEN_CENTER_Y, SCREEN_WIDTH, SCREEN_HEIGHT, UI.colors.background);
 
   for (let index = 0; index < 10; index += 1) {
     const y = 84 + index * 76;
-    const color = index % 2 === 0 ? 0x0d2348 : 0x12305f;
+    const color = index % 2 === 0 ? UI.colors.panelAlternate : UI.colors.panel;
     scene.add.rectangle(SCREEN_CENTER_X, y, SCREEN_WIDTH, 78, color, 1);
   }
 
   if (showGuideLines) {
-    scene.add.rectangle(SCREEN_CENTER_X, 214, 314, 3, 0xf8fafc, 0.18);
-    scene.add.rectangle(SCREEN_CENTER_X, 422, 314, 3, 0xf8fafc, 0.15);
-    scene.add.rectangle(SCREEN_CENTER_X, 630, 314, 3, 0xf8fafc, 0.18);
+    scene.add.rectangle(SCREEN_CENTER_X, 214, 314, 3, UI.colors.divider, 0.25);
+    scene.add.rectangle(SCREEN_CENTER_X, 422, 314, 3, UI.colors.divider, 0.2);
+    scene.add.rectangle(SCREEN_CENTER_X, 630, 314, 3, UI.colors.divider, 0.25);
   }
 }
 
@@ -107,23 +107,19 @@ function createRoundedPanel(
   y: number,
   width: number,
   height: number,
-  colors: { accentColor: number; fillColor: number; showAccent: boolean; }
+  colors: { accentColor: number; fillAlpha: number; fillColor: number; }
 ): Phaser.GameObjects.Graphics {
   const graphics = scene.add.graphics();
   const left = x - width / 2;
   const top = y - height / 2;
-  const radius = 18;
+  const radius = UI.radius;
 
-  graphics.fillStyle(0x000000, 0.22);
+  graphics.fillStyle(UI.colors.scrim, 0.22);
   graphics.fillRoundedRect(left + 4, top + 8, width, height, radius);
-  graphics.fillStyle(colors.fillColor, 0.92);
+  graphics.fillStyle(colors.fillColor, colors.fillAlpha);
   graphics.lineStyle(2, colors.accentColor, 0.95);
   graphics.fillRoundedRect(left, top, width, height, radius);
   graphics.strokeRoundedRect(left, top, width, height, radius);
-  if (colors.showAccent) {
-    graphics.fillStyle(colors.accentColor, 0.9);
-    graphics.fillRoundedRect(left + 14, top + 12, width - 28, 8, 6);
-  }
 
   return graphics;
 }

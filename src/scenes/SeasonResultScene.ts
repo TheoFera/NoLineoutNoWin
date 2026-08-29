@@ -74,7 +74,7 @@ export class SeasonResultScene extends Phaser.Scene {
       font: "bold 26px Arial",
       color: UI.colors.text,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 6,
       wordWrap: { width: 360, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
@@ -83,18 +83,18 @@ export class SeasonResultScene extends Phaser.Scene {
 
   private renderSeasonOutcome(resultText: string, previousDivisionLabel: string, promoted: boolean): void {
     const top = 72;
-    const accentColor = promoted ? 0x4ade80 : 0x60a5fa;
+    const accentColor = promoted ? UI.colors.success : UI.colors.info;
     const panel = renderResultOverlayPanel(this, PANEL_LEFT, top, PANEL_WIDTH, 104);
 
-    panel.fillStyle(promoted ? 0x123c28 : 0x172c4d, 0.42);
+    panel.fillStyle(promoted ? UI.colors.successSurface : UI.colors.infoSurface, 0.48);
     panel.fillRoundedRect(PANEL_LEFT + 2, top + 2, PANEL_WIDTH - 4, 100, 14);
     panel.fillStyle(accentColor, 0.98);
     panel.fillRoundedRect(PANEL_LEFT + 14, top + 8, PANEL_WIDTH - 28, 4, 2);
     this.add.text(SCREEN_CENTER_X, 108, resultText.toUpperCase(), {
       font: "bold 21px Arial",
-      color: promoted ? "#bbf7d0" : "#bfdbfe",
+      color: promoted ? UI.colors.textSuccess : UI.colors.textInfo,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 4,
       wordWrap: { width: 320, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
@@ -110,7 +110,7 @@ export class SeasonResultScene extends Phaser.Scene {
     this.add.text(SCREEN_CENTER_X, 202, t("seasonResult.summaryTitle").toUpperCase(), {
       font: UI.font.subtitle,
       color: UI.colors.text,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5).setResolution(2);
 
@@ -127,17 +127,17 @@ export class SeasonResultScene extends Phaser.Scene {
         x: 195,
         value: String(record.leaguePoints),
         label: t("seasonResult.points"),
-        color: 0x60a5fa
+        color: UI.colors.info
       },
       {
         x: 314,
         value: `${record.wins}-${record.draws}-${record.losses}`,
         label: t("seasonResult.record"),
-        color: 0x4ade80
+        color: UI.colors.success
       }
     ];
 
-    panel.fillStyle(0x94a3b8, 0.2);
+    panel.fillStyle(UI.colors.divider, 0.25);
     panel.fillRect(135, top + 14, 1, 65);
     panel.fillRect(254, top + 14, 1, 65);
     columns.forEach((column) => {
@@ -146,7 +146,7 @@ export class SeasonResultScene extends Phaser.Scene {
       this.add.text(column.x, top + 34, column.value, {
         font: "bold 24px Arial",
         color: UI.colors.text,
-        stroke: "#020617",
+        stroke: UI.colors.textStroke,
         strokeThickness: 3
       }).setOrigin(0.5).setResolution(2);
       this.add.text(column.x, top + 63, column.label.toUpperCase(), {
@@ -172,7 +172,7 @@ export class SeasonResultScene extends Phaser.Scene {
       font: "bold 16px Arial",
       color: UI.colors.text,
       align: "center",
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 3,
       wordWrap: { width: 350, useAdvancedWrap: true }
     }).setOrigin(0.5).setResolution(2);
@@ -207,7 +207,7 @@ export class SeasonResultScene extends Phaser.Scene {
       }).setOrigin(0.5).setResolution(2);
       this.add.text(322, top + 38, change.nextValue, {
         font: "bold 16px Arial",
-        color: "#fde68a"
+        color: UI.colors.textAccent
       }).setOrigin(0.5).setResolution(2);
     });
   }
@@ -238,6 +238,6 @@ export class SeasonResultScene extends Phaser.Scene {
   private renderContinueButton(): void {
     new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("seasonResult.continue"), () => {
       navigateTo(this, "LineoutScene", { mode: "training" });
-    });
+    }, { variant: "primary" });
   }
 }

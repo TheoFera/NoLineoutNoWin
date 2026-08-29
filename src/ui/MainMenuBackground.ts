@@ -1,10 +1,10 @@
 import Phaser from "phaser";
+import { UI } from "./UITheme";
 
 const BACKGROUND_WIDTH = 390;
 const BACKGROUND_HEIGHT = 844;
 const BACKGROUND_CENTER_X = 195;
 const BACKGROUND_CENTER_Y = 422;
-const FALLBACK_COLOR = 0x08142c;
 
 export function renderMainMenuBackground(scene: Phaser.Scene): boolean {
   if (scene.textures.exists("main-menu-background")) {
@@ -15,6 +15,6 @@ export function renderMainMenuBackground(scene: Phaser.Scene): boolean {
     return true;
   }
 
-  scene.add.rectangle(BACKGROUND_CENTER_X, BACKGROUND_CENTER_Y, BACKGROUND_WIDTH, BACKGROUND_HEIGHT, FALLBACK_COLOR);
+  scene.add.rectangle(BACKGROUND_CENTER_X, BACKGROUND_CENTER_Y, BACKGROUND_WIDTH, BACKGROUND_HEIGHT, UI.colors.background);
   return false;
 }

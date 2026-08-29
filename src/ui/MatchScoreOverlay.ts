@@ -5,6 +5,7 @@ import {
   MATCH_SCORE_OVERLAY_LAYOUT
 } from "./MatchScoreOverlayLayout";
 import { fitTextToWidth } from "./TextFit";
+import { UI } from "./UITheme";
 
 export type MatchScoreOverlayData = {
   homeName: string;
@@ -26,7 +27,7 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     super(scene, layout.x, layout.y);
 
     const relief = scene.add.graphics();
-    relief.fillStyle(0x111827, 0.6);
+    relief.fillStyle(UI.colors.scrim, 0.48);
     relief.fillRoundedRect(
       0,
       layout.teamPanelY + 6,
@@ -56,8 +57,8 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
       layout.width - layout.teamPanelWidth,
       data.awayColors
     );
-    panels.fillStyle(0x07111a, 0.96);
-    panels.lineStyle(2, 0x64748b, 0.88);
+    panels.fillStyle(UI.colors.panelDark, 0.96);
+    panels.lineStyle(2, UI.colors.outline, 0.96);
     panels.fillRoundedRect(
       layout.centerPanelX,
       0,
@@ -83,20 +84,20 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     );
     this.homeScoreText = scene.add.text(72, 57, String(data.homeScore), {
       font: "bold 32px Arial",
-      color: "#f8fafc",
-      stroke: "#020617",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0.5);
     this.awayScoreText = scene.add.text(layout.width - 72, 57, String(data.awayScore), {
       font: "bold 32px Arial",
-      color: "#f8fafc",
-      stroke: "#020617",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0.5);
     this.minuteText = scene.add.text(layout.width / 2, 42, data.minuteLabel, {
       font: "bold 28px Arial",
-      color: "#fde047",
-      stroke: "#020617",
+      color: UI.colors.textAccent,
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(0.5);
 
@@ -156,9 +157,9 @@ export class MatchScoreOverlay extends Phaser.GameObjects.Container {
     const normalizedName = name.toUpperCase();
     const textObject = scene.add.text(x, y, normalizedName, {
       font: "bold 12px Arial",
-      color: "#f8fafc",
+      color: UI.colors.text,
       align,
-      stroke: "#020617",
+      stroke: UI.colors.textStroke,
       strokeThickness: 2
     }).setOrigin(align === "left" ? 0 : 1, 0.5);
     return fitTextToWidth(

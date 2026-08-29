@@ -20,6 +20,7 @@ import { RugbyPlayer } from "../ui/RugbyPlayer";
 import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { applyDomControlStyle } from "../ui/DomControlStyle";
 
 const SCREEN_WIDTH = 390;
 const SCREEN_HEIGHT = 844;
@@ -104,8 +105,7 @@ export class TeamCreationScene extends Phaser.Scene {
       y: 495,
       width: 320,
       height: 470,
-      accentColor: UI.colors.accent,
-      showAccent: false
+      accentColor: UI.colors.accent
     });
     this.add.text(195, 280, t("teamCreation.chooseBodyShape"), {
       font: UI.font.subtitle,
@@ -138,7 +138,7 @@ export class TeamCreationScene extends Phaser.Scene {
 
     this.errorText = this.add.text(195, 754, "", {
       font: UI.font.small,
-      color: "#fecaca",
+      color: UI.colors.textDanger,
       align: "center",
       wordWrap: { width: 330 }
     }).setOrigin(0.5);
@@ -146,7 +146,9 @@ export class TeamCreationScene extends Phaser.Scene {
     new UIButton(this, 94, 800, 138, 48, t("button.back"), () => this.goBack(), {
       variant: "secondary"
     });
-    new UIButton(this, 271, 800, 190, 48, t("teamCreation.create"), () => this.createTeam());
+    new UIButton(this, 271, 800, 190, 48, t("teamCreation.create"), () => this.createTeam(), {
+      variant: "primary"
+    });
 
     this.events.once("shutdown", () => this.destroyNicknameInput());
     this.events.once("destroy", () => this.destroyNicknameInput());
@@ -161,7 +163,7 @@ export class TeamCreationScene extends Phaser.Scene {
     const background = this.add.image(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, "create-club-background");
     const source = background.texture.getSourceImage() as { width: number; height: number };
     background.setScale(Math.max(SCREEN_WIDTH / source.width, SCREEN_HEIGHT / source.height));
-    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, 0x020617, 0.36);
+    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, UI.colors.scrim, 0.3);
   }
 
   private renderNumberSelectors(): void {
@@ -193,15 +195,7 @@ export class TeamCreationScene extends Phaser.Scene {
       "aria-label",
       t("teamCreation.nicknameForPlayer").replace("{number}", String(this.selectedPlayer.number))
     );
-    input.style.position = "fixed";
-    input.style.zIndex = "20";
-    input.style.border = "2px solid #facc15";
-    input.style.borderRadius = "14px";
-    input.style.padding = "0 14px";
-    input.style.background = "#f8fafc";
-    input.style.color = "#10271b";
-    input.style.boxSizing = "border-box";
-    input.style.outline = "none";
+    applyDomControlStyle(input);
     input.addEventListener("input", () => {
       this.selectedPlayer.nickname = input.value;
       this.errorText?.setText("");
@@ -362,7 +356,7 @@ export class TeamCreationScene extends Phaser.Scene {
       background
         .setFillStyle(selected ? UI.colors.accent : UI.colors.panel, selected ? 1 : 0.96)
         .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line);
-      label.setColor(selected ? "#1f2937" : UI.colors.text);
+      label.setColor(selected ? UI.colors.textOnAccent : UI.colors.text);
     });
 
     const bodyShapeIndex = AVAILABLE_PLAYER_BODY_SHAPES.indexOf(
@@ -402,7 +396,7 @@ export class TeamCreationScene extends Phaser.Scene {
         .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.line)
         .setAlpha(available ? 1 : 0.35);
       label
-        .setColor(selected ? "#1f2937" : UI.colors.text)
+        .setColor(selected ? UI.colors.textOnAccent : UI.colors.text)
         .setAlpha(available ? 1 : 0.35);
       if (available) {
         background.setInteractive({ useHandCursor: true });

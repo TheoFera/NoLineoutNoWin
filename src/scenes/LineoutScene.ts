@@ -20,11 +20,13 @@ import {
   constrainAiAerialRepertoire,
   findCombinationTargetOption,
   getActiveOffensiveCombinations,
+  getAvailableOffensiveCombinations,
   getCombinationDisplayName,
   getPlayersAssignedToCombination,
   getUnassignedCombinationPlayers,
   isCombinationValidForMatch,
   normalizeOffensiveCombinations,
+  renameCombination,
   replaceCombinationLayout,
   replaceCombinationPlan
 } from "../rules/CombinationRules";
@@ -55,7 +57,7 @@ import { buildLineoutResultPresentation, type LineoutResultDetail } from "../rul
 import { applyLineoutResolutionToMatch } from "../rules/MatchSimulator";
 import { addUsage } from "../rules/PlayerProgression";
 import type { Combination, CombinationPhaseAction, LineoutPosition } from "../models/Combination";
-import { DEFENSIVE_LINEOUT_SIZES, type DefensiveLineoutSize } from "../models/SaveGame";
+import type { DefensiveLineoutSize } from "../models/SaveGame";
 import type { LineoutAssignments, LineoutResult } from "../models/Lineout";
 import type { LineoutV3Event, LineoutV3ThrowGesture } from "../models/LineoutV3";
 import type { MatchLineoutEvent, MatchPlayerUsage, MatchStateData } from "../models/Match";
@@ -97,9 +99,10 @@ import {
 } from "../ui/PlayerGroundShadow";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import type { Kit, PoseName } from "../ui/RugbyPlayerTypes";
-import { BUTTON_STYLES } from "../ui/ButtonStyle";
-import { renderMenuPanel } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
+import { CombinationSequenceBar } from "../ui/CombinationSequenceBar";
+import { CombinationListOverlay } from "../ui/CombinationListOverlay";
+import { UI_DEPTH } from "../ui/UIDepth";
 import { UI } from "../ui/UITheme";
 import { Modal } from "../ui/Modal";
 import { MatchScoreOverlay } from "../ui/MatchScoreOverlay";
@@ -120,6 +123,8 @@ import { PlayerStatsOverlay } from "../ui/PlayerStatsOverlay";
 import { getPlayerSkinTint } from "../ui/PlayerSkinTone";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
+import { getCameraRenderScale } from "../systems/HighDensityRendering";
+import { startSceneCrossfade } from "../systems/SceneCrossfade";
 import { MATH_RANDOM_SOURCE } from "../utils/Random";
 
 const SCREEN_WIDTH = 390;
@@ -133,10 +138,7 @@ const GROUND_SHADOW_DEPTH = PLAYER_DEPTH_BASE - 1;
 const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
 const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
 const LINEOUT_ACTION_DEPTH = 1500;
-const TRAINING_TOOLBAR_CENTER_Y = MATCH_SCORE_OVERLAY_LAYOUT.y
-  + MATCH_SCORE_OVERLAY_LAYOUT.height / 2;
-const TRAINING_TOOLBAR_HORIZONTAL_INSET = 22;
-const TRAINING_TIMELINE_SLOT_COUNT = LINEOUT_V3_MAX_PHASES + 4;
+const TRAINING_SEQUENCE_CENTER_Y = MATCH_SCORE_OVERLAY_LAYOUT.y + 48;
 const V3_METERS_TO_PIXELS = 34;
 const TRAINING_ACTION_OVERLAY_DATA_KEY = "training-action-overlay";
 const RUGBY_DASH_WIDTH = 18;
@@ -235,6 +237,9 @@ type SecondaryBallWaypoint = BallAnimationWaypoint & {
 
 export type LineoutSceneData = {
   mode: "training" | "match";
+  entryTransition?: "from-match-simulation";
+  transitionPitchPositionMeters?: number;
+  transitionLateralPosition?: number;
   combinationId?: string;
   combinationConfirmed?: boolean;
   trainingMode?: "practice" | "edit" | "defense-edit";
@@ -242,6 +247,7 @@ export type LineoutSceneData = {
   editorSelectedPosition?: LineoutPosition;
   defensiveSize?: DefensiveLineoutSize;
   defensiveDraftIds?: Array<string | null>;
+  combinationOverlayOpen?: boolean;
 };
 
 type LineoutLayout = {
@@ -327,12 +333,20 @@ type BallShadowFlightProfile = {
 
 export class LineoutScene extends Phaser.Scene {
   private mode: "training" | "match" = "training";
+  private enterFromMatchSimulation = false;
+  private transitionPitchPositionMeters?: number;
+  private transitionLateralPosition?: number;
   private trainingMode: "practice" | "edit" | "defense-edit" = "edit";
   private selectedCombinationId?: string;
   private combinationConfirmed = false;
   private trainingEditorPhaseIndex: number | null = null;
   private trainingEditorSelectedPosition: LineoutPosition | null = null;
   private trainingActionOverlay?: Phaser.GameObjects.Container;
+  private trainingCombinationOverlay?: CombinationListOverlay;
+  private trainingSequenceBar?: CombinationSequenceBar;
+  private trainingCombinationsButton?: UIButton;
+  private trainingChampionshipButton?: UIButton;
+  private shouldOpenTrainingCombinationOverlay = false;
   private defensiveEditorSize: DefensiveLineoutSize = 7;
   private defensiveDraftIds: Array<string | null> | null = null;
   private selectedCombination!: Combination;
@@ -377,6 +391,7 @@ export class LineoutScene extends Phaser.Scene {
   private v3ContestStartedAtMs: number | null = null;
   private v3ThrowGesture: ThrowGestureState | null = null;
   private v3ThrowPowerGauge?: ThrowPowerGauge;
+  private v3ThrowPowerGaugeHideTimer?: Phaser.Time.TimerEvent;
   private v3OpponentCombinationStartsAtMs: number | null = null;
   private v3OpponentThrowAtMs: number | null = null;
   private v3AiJumpAtMs: number | null = null;
@@ -394,6 +409,7 @@ export class LineoutScene extends Phaser.Scene {
   private v3CameraFlightStartedAtMs = 0;
   private v3CameraReceptionTargetId: string | null = null;
   private v3ResolutionHandled = false;
+  private sceneCameraBaseZoom = 1;
   private v3GroupHandles = new Map<string, Phaser.GameObjects.Container>();
   private v3GroupDrag: DefensiveGroupDragState | null = null;
   private readonly activeSlotPatterns: Record<number, number[]> = {
@@ -412,6 +428,9 @@ export class LineoutScene extends Phaser.Scene {
 
   init(data: LineoutSceneData): void {
     this.mode = data.mode ?? "training";
+    this.enterFromMatchSimulation = data.entryTransition === "from-match-simulation";
+    this.transitionPitchPositionMeters = data.transitionPitchPositionMeters;
+    this.transitionLateralPosition = data.transitionLateralPosition;
     this.selectedCombinationId = data.combinationId;
     this.combinationConfirmed = data.combinationConfirmed ?? false;
     this.trainingMode = data.trainingMode ?? (this.mode === "training" ? "edit" : "practice");
@@ -419,6 +438,7 @@ export class LineoutScene extends Phaser.Scene {
     this.trainingEditorSelectedPosition = data.editorSelectedPosition ?? null;
     this.defensiveEditorSize = data.defensiveSize ?? 7;
     this.defensiveDraftIds = data.defensiveDraftIds?.slice(0, 7) ?? null;
+    this.shouldOpenTrainingCombinationOverlay = data.combinationOverlayOpen ?? false;
   }
 
   preload(): void {
@@ -439,6 +459,13 @@ export class LineoutScene extends Phaser.Scene {
     const match = GameStore.getMatch();
 
     this.resetSceneState();
+    this.sceneCameraBaseZoom = getCameraRenderScale(this);
+    this.cameras.main
+      .resetFX()
+      .setZoom(this.sceneCameraBaseZoom)
+      .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+      .setAlpha(this.enterFromMatchSimulation ? 0 : 1);
+    this.input.enabled = true;
     this.currentMatchLineout = this.mode === "match" ? match?.lineouts[match.currentLineoutIndex] : undefined;
     this.allCombinations = normalizeOffensiveCombinations(save.offensiveCombinations);
 
@@ -486,6 +513,44 @@ export class LineoutScene extends Phaser.Scene {
     this.initializeV3Runtime();
     this.input.on("pointermove", this.trackV3ThrowGesture, this);
     this.input.on("pointerup", this.completeV3ThrowGesture, this);
+    if (this.enterFromMatchSimulation) this.startMatchLineoutEntryTransition(layout);
+  }
+
+  private startMatchLineoutEntryTransition(layout: LineoutLayout): void {
+    const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
+    const camera = this.cameras.main;
+    const focus = this.getLineoutTransitionFocus(layout);
+
+    this.enterFromMatchSimulation = false;
+    this.input.enabled = false;
+    camera
+      .setZoom(this.sceneCameraBaseZoom * transition.lineoutArrivalZoom)
+      .centerOn(focus.x, focus.y);
+    camera.pan(
+      SCREEN_WIDTH / 2,
+      SCREEN_HEIGHT / 2,
+      transition.lineoutArrivalDurationMs,
+      "Sine.easeOut",
+      true
+    );
+    camera.zoomTo(
+      this.sceneCameraBaseZoom,
+      transition.lineoutArrivalDurationMs,
+      "Cubic.easeOut",
+      true
+    );
+    this.events.once(Phaser.Scenes.Events.TRANSITION_COMPLETE, () => {
+      camera
+        .setZoom(this.sceneCameraBaseZoom)
+        .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        .setAlpha(1);
+      this.input.enabled = true;
+    });
+  }
+
+  private getLineoutTransitionFocus(layout: LineoutLayout): { x: number; y: number } {
+    const throwingSide = this.isDefensiveMatch() ? "opponent" : "us";
+    return this.getHookerBallStart(throwingSide, layout);
   }
 
   update(time: number, delta: number): void {
@@ -512,7 +577,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private renderBackground(layout: LineoutLayout): void {
-    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, 0x09131c);
+    this.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, UI.colors.background);
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
     const isHomeMatch = isCurrentMatchAtHome(save.championship);
@@ -566,7 +631,7 @@ export class LineoutScene extends Phaser.Scene {
     const matchStatusY = MATCH_SCORE_OVERLAY_LAYOUT.y + MATCH_SCORE_OVERLAY_LAYOUT.height + 14;
     this.statusText = this.add.text(195, matchStatusY, "", {
       font: "bold 11px Arial",
-      color: "#fca5a5",
+      color: UI.colors.textDanger,
       align: "center",
       wordWrap: { width: 300 }
     }).setOrigin(0.5);
@@ -577,7 +642,7 @@ export class LineoutScene extends Phaser.Scene {
   private renderPitch(layout: LineoutLayout): void {
     this.renderDashedPitchLine(SCREEN_WIDTH / 2, layout.fifteenLineY, layout.fieldWidth, 3, 0.95);
     this.renderDashedPitchLine(SCREEN_WIDTH / 2, layout.fiveMeterLineY, layout.fieldWidth, 2, 0.72);
-    this.add.rectangle(SCREEN_WIDTH / 2, layout.touchLineY, layout.fieldWidth, 3, 0xffffff, 0.95);
+    this.add.rectangle(SCREEN_WIDTH / 2, layout.touchLineY, layout.fieldWidth, 3, UI.colors.line, 0.95);
 
     this.refreshUserSlotIndicators(layout);
 
@@ -612,7 +677,7 @@ export class LineoutScene extends Phaser.Scene {
 
     while (currentX < endX) {
       const dashWidth = Math.min(RUGBY_DASH_WIDTH, endX - currentX);
-      this.add.rectangle(currentX + dashWidth / 2, y, dashWidth, height, 0xffffff, alpha);
+      this.add.rectangle(currentX + dashWidth / 2, y, dashWidth, height, UI.colors.line, alpha);
       currentX += RUGBY_DASH_WIDTH + RUGBY_DASH_GAP;
     }
   }
@@ -646,10 +711,10 @@ export class LineoutScene extends Phaser.Scene {
         this.positionY(index as LineoutPosition, layout) + slotBottomOffset - slotHeight / 2,
         slotWidth,
         slotHeight,
-        0xffffff,
+        UI.colors.line,
         0.04
       )
-        .setStrokeStyle(2, 0xffffff, 0.5);
+        .setStrokeStyle(2, UI.colors.line, 0.5);
       this.userSlotIndicators.push(indicator);
     }
   }
@@ -900,7 +965,7 @@ export class LineoutScene extends Phaser.Scene {
       this.statusText?.setText(
         t("lineout.v3.defensivePlayerCountError")
           .replace("{size}", String(this.defensiveEditorSize))
-      ).setColor("#f87171");
+      ).setColor(UI.colors.textDanger);
     }
   }
 
@@ -1179,21 +1244,112 @@ export class LineoutScene extends Phaser.Scene {
 
     if (this.trainingMode === "edit") {
       this.renderTrainingTimeline();
-    } else if (this.trainingMode === "defense-edit") {
-      this.renderDefensiveSizeToolbar();
     }
     if (this.trainingMode === "practice") {
       return;
     }
-    new UIButton(this, 103, layout.navigationY, 164, 44, t("button.combinations"), () => (
-      navigateTo(this, "CombinationListScene", { combinationId: this.selectedCombination.id })
-    ))
-      .setDepth(LINEOUT_ACTION_DEPTH);
-    new UIButton(this, 287, layout.navigationY, 164, 44, t("menu.championship"), () => (
-      navigateTo(this, "ChampionshipScene")
-    ), {
-      variant: "secondary"
-    }).setDepth(LINEOUT_ACTION_DEPTH);
+    this.renderTrainingNavigation(layout, false);
+    if (this.shouldOpenTrainingCombinationOverlay) {
+      this.shouldOpenTrainingCombinationOverlay = false;
+      this.openTrainingCombinationOverlay();
+    }
+  }
+
+  private renderTrainingNavigation(layout: LineoutLayout, overlayOpen: boolean): void {
+    this.trainingCombinationsButton?.destroy();
+    this.trainingChampionshipButton?.destroy();
+
+    this.trainingCombinationsButton = new UIButton(
+      this,
+      103,
+      layout.navigationY,
+      164,
+      44,
+      t("button.combinations"),
+      () => overlayOpen
+        ? this.closeTrainingCombinationOverlay()
+        : this.openTrainingCombinationOverlay(),
+      {
+        variant: overlayOpen ? "selected" : "secondary",
+        textColor: overlayOpen ? UI.colors.text : undefined
+      }
+    ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
+    this.trainingChampionshipButton = new UIButton(
+      this,
+      287,
+      layout.navigationY,
+      164,
+      44,
+      t("menu.championship"),
+      () => navigateTo(this, "ChampionshipScene"),
+      { variant: "secondary", enabled: !overlayOpen }
+    ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
+  }
+
+  private openTrainingCombinationOverlay(): void {
+    if (this.mode !== "training" || this.trainingMode === "practice") return;
+    this.closeTrainingCombinationOverlay(false);
+    this.hidePlayerInspector();
+    this.hideTrainingActionOverlay();
+    this.trainingSequenceBar?.destroy();
+    this.trainingSequenceBar = undefined;
+    this.dragState = null;
+
+    const save = GameStore.getSave();
+    const division = getDivision(save.currentDivisionId);
+    const allCombinations = normalizeOffensiveCombinations(save.offensiveCombinations);
+    const activeCombinations = getActiveOffensiveCombinations(
+      allCombinations,
+      save.offensiveRepertoire
+    );
+    const combinations = activeCombinations.length > 0
+      ? activeCombinations
+      : getAvailableOffensiveCombinations(allCombinations, division.offensiveCombinations);
+
+    this.trainingCombinationOverlay = new CombinationListOverlay(this, {
+      combinations,
+      initialTab: this.trainingMode === "defense-edit" ? "defense" : "attack",
+      selectedCombinationId: this.selectedCombination.id,
+      selectedDefensiveSize: this.defensiveEditorSize,
+      onClose: () => this.closeTrainingCombinationOverlay(),
+      onRename: (combinationId, name) => {
+        GameStore.setOffensiveCombinations(renameCombination(
+          GameStore.getSave().offensiveCombinations,
+          combinationId,
+          name
+        ));
+        this.scene.restart({
+          mode: "training",
+          trainingMode: "edit",
+          combinationId,
+          combinationOverlayOpen: true
+        } satisfies LineoutSceneData);
+      },
+      onSelectCombination: (combinationId) => {
+        if (combinationId === this.selectedCombination.id && this.trainingMode === "edit") {
+          this.closeTrainingCombinationOverlay();
+          return;
+        }
+        this.scene.restart({
+          mode: "training",
+          trainingMode: "edit",
+          combinationId
+        } satisfies LineoutSceneData);
+      },
+      onSelectDefensiveSize: (size) => this.restartDefensiveEditor(size)
+    }).setDepth(UI_DEPTH.overlayBackdrop);
+    this.renderTrainingNavigation(this.getLayout(), true);
+  }
+
+  private closeTrainingCombinationOverlay(renderNavigation = true): void {
+    this.trainingCombinationOverlay?.destroy();
+    this.trainingCombinationOverlay = undefined;
+    if (renderNavigation && this.mode === "training" && this.trainingMode !== "practice") {
+      if (this.trainingMode === "edit") {
+        this.renderTrainingTimeline();
+      }
+      this.renderTrainingNavigation(this.getLayout(), false);
+    }
   }
 
   private renderTrainingTimeline(): void {
@@ -1207,73 +1363,32 @@ export class LineoutScene extends Phaser.Scene {
       );
     }
 
-    this.renderTrainingToolbarPanel();
-    this.createTrainingTimelineBubble(
-      this.getTrainingToolbarSlotX(0, TRAINING_TIMELINE_SLOT_COUNT),
-      "P",
-      this.trainingEditorPhaseIndex === null,
-      () => {
-        this.restartTrainingEditor({ editorPhaseIndex: null });
-      }
-    );
-    this.createTrainingTimelineBubble(
-      this.getTrainingToolbarSlotX(1, TRAINING_TIMELINE_SLOT_COUNT),
-      "−",
-      false,
-      () => this.removeTrainingPhase(),
-      phaseCount > 1
-    );
-
-    plan.phases.forEach((_phase, index) => {
-      const phaseX = this.getTrainingToolbarSlotX(index + 2, TRAINING_TIMELINE_SLOT_COUNT);
-      if (index > 0) {
-        const previousPhaseX = this.getTrainingToolbarSlotX(index + 1, TRAINING_TIMELINE_SLOT_COUNT);
-        this.add.text((previousPhaseX + phaseX) / 2, TRAINING_TOOLBAR_CENTER_Y, "→", {
-          font: "bold 10px Arial",
-          color: UI.colors.text
-        }).setOrigin(0.5).setDepth(LINEOUT_ACTION_DEPTH + 0.1);
-      }
-      this.createTrainingTimelineBubble(
-        phaseX,
-        String(index + 1),
-        this.trainingEditorPhaseIndex === index,
-        () => this.restartTrainingEditor({
-          editorPhaseIndex: index,
-          editorSelectedPosition: undefined
-        })
-      );
-    });
-    this.createTrainingTimelineBubble(
-      this.getTrainingToolbarSlotX(phaseCount + 2, TRAINING_TIMELINE_SLOT_COUNT),
-      "+",
-      false,
-      () => this.addTrainingPhase(),
-      phaseCount < LINEOUT_V3_MAX_PHASES
-    );
-    this.createTrainingTimelineBubble(
-      this.getTrainingToolbarSlotX(TRAINING_TIMELINE_SLOT_COUNT - 1, TRAINING_TIMELINE_SLOT_COUNT),
-      ">",
-      false,
-      () => {
+    this.trainingSequenceBar?.destroy();
+    this.trainingSequenceBar = new CombinationSequenceBar(this, 195, TRAINING_SEQUENCE_CENTER_Y, {
+      phaseCount,
+      maximumPhaseCount: LINEOUT_V3_MAX_PHASES,
+      selectedPhaseIndex: this.trainingEditorPhaseIndex,
+      labels: {
+        placement: t("lineout.v3.initialPlacementShort"),
+        phase: t("lineout.v3.phaseNumber"),
+        removePhase: t("lineout.v3.deletePhaseNumber"),
+        train: t("lineout.v3.practiceCombination")
+      },
+      onSelectPlacement: () => this.restartTrainingEditor({ editorPhaseIndex: null }),
+      onSelectPhase: (phaseIndex) => this.restartTrainingEditor({
+        editorPhaseIndex: phaseIndex,
+        editorSelectedPosition: undefined
+      }),
+      onAddPhase: () => this.addTrainingPhase(),
+      onRemovePhase: () => this.removeTrainingPhase(),
+      onTrain: () => {
         navigateTo(this, "LineoutScene", {
           mode: "training",
           trainingMode: "practice",
           combinationId: this.selectedCombination.id
         } satisfies LineoutSceneData);
       }
-    );
-  }
-
-  private renderDefensiveSizeToolbar(): void {
-    this.renderTrainingToolbarPanel();
-    DEFENSIVE_LINEOUT_SIZES.forEach((size, index) => {
-      this.createTrainingTimelineBubble(
-        this.getTrainingToolbarSlotX(index, DEFENSIVE_LINEOUT_SIZES.length),
-        String(size),
-        size === this.defensiveEditorSize,
-        () => this.restartDefensiveEditor(size)
-      );
-    });
+    }).setDepth(LINEOUT_ACTION_DEPTH);
   }
 
   private bindDefensiveTrainingSlotToken(token: PlayerToken, slotIndex: number): void {
@@ -1308,57 +1423,6 @@ export class LineoutScene extends Phaser.Scene {
         startedWhileDefenseUnlocked: true
       };
     });
-  }
-
-  private createTrainingTimelineBubble(
-    x: number,
-    label: string,
-    active: boolean,
-    onSelect: () => void,
-    enabled = true
-  ): void {
-    const style = BUTTON_STYLES[active ? "primary" : "secondary"];
-    this.add.circle(x, TRAINING_TOOLBAR_CENTER_Y + 3, 18, 0x020617, enabled ? 0.48 : 0.2)
-      .setDepth(LINEOUT_ACTION_DEPTH + 0.05);
-    const bubble = this.add.circle(
-      x,
-      TRAINING_TOOLBAR_CENTER_Y,
-      18,
-      style.background,
-      enabled ? 1 : 0.42
-    )
-      .setStrokeStyle(2, style.border, enabled ? 1 : 0.35)
-      .setDepth(LINEOUT_ACTION_DEPTH + 0.1);
-    this.add.ellipse(x, TRAINING_TOOLBAR_CENTER_Y - 6, 23, 7, style.bevel, enabled ? 0.58 : 0.18)
-      .setDepth(LINEOUT_ACTION_DEPTH + 0.15);
-    const text = this.add.text(x, TRAINING_TOOLBAR_CENTER_Y, label, {
-      font: "bold 17px Arial",
-      color: style.textColor
-    }).setOrigin(0.5).setAlpha(enabled ? 1 : 0.4).setDepth(LINEOUT_ACTION_DEPTH + 0.2);
-    if (!enabled) return;
-    bubble.setInteractive({ useHandCursor: true }).on("pointerup", onSelect);
-    text.setInteractive({ useHandCursor: true }).on("pointerup", onSelect);
-  }
-
-  private getTrainingToolbarSlotX(slotIndex: number, slotCount: number): number {
-    const left = MATCH_SCORE_OVERLAY_LAYOUT.x + TRAINING_TOOLBAR_HORIZONTAL_INSET;
-    const right = MATCH_SCORE_OVERLAY_LAYOUT.x
-      + MATCH_SCORE_OVERLAY_LAYOUT.width
-      - TRAINING_TOOLBAR_HORIZONTAL_INSET;
-    if (slotCount <= 1) return (left + right) / 2;
-    return left + slotIndex * ((right - left) / (slotCount - 1));
-  }
-
-  private renderTrainingToolbarPanel(): void {
-    renderMenuPanel(this, {
-      x: MATCH_SCORE_OVERLAY_LAYOUT.x + MATCH_SCORE_OVERLAY_LAYOUT.width / 2,
-      y: TRAINING_TOOLBAR_CENTER_Y,
-      width: MATCH_SCORE_OVERLAY_LAYOUT.width,
-      height: MATCH_SCORE_OVERLAY_LAYOUT.height,
-      accentColor: UI.colors.accent,
-      fillColor: UI.colors.panelDark,
-      showAccent: false
-    }).setDepth(LINEOUT_ACTION_DEPTH);
   }
 
   private addTrainingPhase(): void {
@@ -1402,10 +1466,10 @@ export class LineoutScene extends Phaser.Scene {
         action.x,
         action.y,
         29,
-        enabled ? (active ? UI.colors.accent : 0x0f2940) : 0x475569,
+        enabled ? (active ? UI.colors.accent : UI.colors.panelRaised) : UI.colors.panel,
         enabled ? 0.98 : 0.62
       )
-        .setStrokeStyle(2, enabled && active ? 0xffffff : 0x94a3b8, enabled ? 0.95 : 0.45)
+        .setStrokeStyle(2, enabled && active ? UI.colors.accentStrong : UI.colors.outlineStrong, enabled ? 0.95 : 0.45)
         .setData(TRAINING_ACTION_OVERLAY_DATA_KEY, true);
       const label = this.add.text(action.x, action.y, action.label, {
         font: "bold 9px Arial",
@@ -2310,11 +2374,11 @@ export class LineoutScene extends Phaser.Scene {
     const engine = this.v3Engine;
     if (!engine) return;
     const handleOffsetY = jumperToken.getVisualCenterOffsetY();
-    const background = this.add.circle(0, 0, 19, 0x10271b, 0.98)
+    const background = this.add.circle(0, 0, 19, UI.colors.panelDark, 0.98)
       .setStrokeStyle(2, UI.colors.accent);
     const label = this.add.text(0, 0, "↕", {
       font: "bold 22px Arial",
-      color: "#facc15"
+      color: UI.colors.textAccent
     }).setOrigin(0.5);
     const hitbox = this.add.zone(0, 0, 48, 58).setInteractive({ useHandCursor: true });
     const handle = this.add.container(
@@ -2397,10 +2461,13 @@ export class LineoutScene extends Phaser.Scene {
   private completeV3ThrowGesture(pointer: Phaser.Input.Pointer): void {
     const gesture = this.v3ThrowGesture;
     if (!gesture || gesture.pointer.id !== pointer.id) return;
-    this.v3ThrowGesture = null;
-    this.destroyV3ThrowPowerGauge();
-    if (!this.v3Engine) return;
     const point = this.getPointerWorldPosition(pointer);
+    this.updateV3ThrowPowerGauge(point);
+    this.v3ThrowGesture = null;
+    if (!this.v3Engine) {
+      this.destroyV3ThrowPowerGauge();
+      return;
+    }
     const throwGesture: LineoutV3ThrowGesture = {
       distancePixels: Math.max(0, gesture.gestureStartY - point.y),
       durationMs: Math.max(
@@ -2410,9 +2477,11 @@ export class LineoutScene extends Phaser.Scene {
     };
     const released = this.v3Engine.releaseThrow(throwGesture);
     if (!released.validation.valid) {
+      this.destroyV3ThrowPowerGauge();
       this.flashStatus(t(`lineout.v3.gesture.${released.validation.reason}`));
       return;
     }
+    this.scheduleV3ThrowPowerGaugeHide();
     this.handleV3Events(released.events);
     this.scheduleV3AiDefensiveJump();
   }
@@ -2641,8 +2710,8 @@ export class LineoutScene extends Phaser.Scene {
     const graphics = this.add.graphics();
     const levelLabel = this.add.text(0, 0, "", {
       font: "bold 15px Arial",
-      color: "#ffffff",
-      stroke: "#10271b",
+      color: UI.colors.text,
+      stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5);
     const container = this.add.container(0, 0, [graphics, levelLabel])
@@ -2692,15 +2761,15 @@ export class LineoutScene extends Phaser.Scene {
         positionProgress - Math.floor(positionProgress)
       );
     const activeColor = level === 0
-      ? 0x94a3b8
-      : validation.valid ? 0xfacc15 : 0xef4444;
+      ? UI.colors.outlineStrong
+      : validation.valid ? UI.colors.accent : UI.colors.danger;
     const activeTargetY = level > 0
       ? positionTargetY(level as LineoutPosition)
       : null;
 
     gauge.graphics.clear();
 
-    gauge.graphics.fillStyle(0x071018, 0.54);
+    gauge.graphics.fillStyle(UI.colors.scrim, 0.54);
     gauge.graphics.fillRoundedRect(
       railX - 4,
       seventhPositionY - 8,
@@ -2709,7 +2778,7 @@ export class LineoutScene extends Phaser.Scene {
       4
     );
 
-    gauge.graphics.lineStyle(2, 0xcbd5e1, 0.28);
+    gauge.graphics.lineStyle(2, UI.colors.outlineStrong, 0.34);
     gauge.graphics.beginPath();
     gauge.graphics.moveTo(railX, throwStartY);
     gauge.graphics.lineTo(railX, seventhPositionY);
@@ -2730,7 +2799,7 @@ export class LineoutScene extends Phaser.Scene {
     for (let position = 1; position <= 7; position += 1) {
       const markerY = positionTargetY(position as LineoutPosition);
       const isActive = position === level;
-      gauge.graphics.fillStyle(isActive ? activeColor : 0xcbd5e1, isActive ? 1 : 0.56);
+      gauge.graphics.fillStyle(isActive ? activeColor : UI.colors.outlineStrong, isActive ? 1 : 0.56);
       gauge.graphics.fillCircle(railX, markerY, isActive ? 4 : 2.5);
     }
 
@@ -2747,7 +2816,7 @@ export class LineoutScene extends Phaser.Scene {
       gauge.graphics.lineTo(railX - 9, activeTargetY);
       gauge.graphics.strokePath();
 
-      gauge.graphics.fillStyle(0x10271b, 0.94);
+      gauge.graphics.fillStyle(UI.colors.panelDark, 0.94);
       gauge.graphics.fillRoundedRect(railX - 48, activeTargetY - 12, 26, 24, 7);
       gauge.graphics.lineStyle(1, activeColor, 0.9);
       gauge.graphics.strokeRoundedRect(railX - 48, activeTargetY - 12, 26, 24, 7);
@@ -2765,14 +2834,27 @@ export class LineoutScene extends Phaser.Scene {
     gauge.levelLabel
       .setVisible(activeTargetY !== null)
       .setText(level > 0 ? String(level) : "")
-      .setColor(validation.valid ? "#fef08a" : "#fecaca")
+      .setColor(validation.valid ? UI.colors.textAccent : UI.colors.textDanger)
       .setPosition(railX - 35, activeTargetY ?? firstPositionY);
     gauge.container.setPosition(0, 0);
   }
 
   private destroyV3ThrowPowerGauge(): void {
+    this.v3ThrowPowerGaugeHideTimer?.remove(false);
+    this.v3ThrowPowerGaugeHideTimer = undefined;
     this.v3ThrowPowerGauge?.container.destroy(true);
     this.v3ThrowPowerGauge = undefined;
+  }
+
+  private scheduleV3ThrowPowerGaugeHide(): void {
+    this.v3ThrowPowerGaugeHideTimer?.remove(false);
+    this.v3ThrowPowerGaugeHideTimer = this.time.delayedCall(
+      LINEOUT_BALANCE.gameplayV3.timing.throwPowerGaugeHoldMs,
+      () => {
+        this.v3ThrowPowerGaugeHideTimer = undefined;
+        this.destroyV3ThrowPowerGauge();
+      }
+    );
   }
 
   private updateV3Runtime(delta: number): void {
@@ -5144,7 +5226,7 @@ export class LineoutScene extends Phaser.Scene {
         trainingMode: "edit",
         combinationId: this.selectedCombination.id
       } satisfies LineoutSceneData)
-      : () => this.scene.start("MatchScene");
+      : () => this.startMatchSimulationReturnTransition();
     const summary = presentation.summaryKeys.map((key) => t(key)).join(" ");
     const resultTone = result.displayedResult === "won" || result.displayedResult === "won_dirty"
       ? "success"
@@ -5165,6 +5247,40 @@ export class LineoutScene extends Phaser.Scene {
         }
       }
     });
+  }
+
+  private startMatchSimulationReturnTransition(): void {
+    const transition = LINEOUT_BALANCE.match.visualSimulation.lineoutTransition;
+    const duration = transition.lineoutExitDurationMs;
+    const camera = this.cameras.main;
+    const focus = this.getLineoutTransitionFocus(this.getLayout());
+    const match = GameStore.getMatch();
+    const pitchPositionMeters = this.transitionPitchPositionMeters
+      ?? this.currentMatchLineout?.ballPositionMeters
+      ?? match?.ballPositionMeters;
+    const lateralPosition = this.transitionLateralPosition
+      ?? match?.ballLateralPosition;
+
+    this.input.enabled = false;
+    camera.pan(focus.x, focus.y, duration, "Sine.easeInOut", true);
+    camera.zoomTo(
+      this.sceneCameraBaseZoom * transition.lineoutExitZoom,
+      duration,
+      "Cubic.easeInOut",
+      true
+    );
+    const transitionData = {
+      entryTransition: "from-lineout",
+      transitionPitchPositionMeters: pitchPositionMeters,
+      transitionLateralPosition: lateralPosition
+    };
+    const started = startSceneCrossfade(
+      this,
+      "MatchScene",
+      transitionData,
+      Math.max(duration, transition.simulationReturnDurationMs)
+    );
+    if (!started) this.scene.start("MatchScene", {});
   }
 
   private buildResultDetails(reasonKey: string | undefined, details: LineoutResultDetail[]): string {
@@ -5343,6 +5459,12 @@ export class LineoutScene extends Phaser.Scene {
     this.trainingAssignedPlayers = [];
     this.trainingActionOverlay?.destroy();
     this.trainingActionOverlay = undefined;
+    this.trainingCombinationOverlay?.destroy();
+    this.trainingCombinationOverlay = undefined;
+    this.trainingSequenceBar?.destroy();
+    this.trainingSequenceBar = undefined;
+    this.trainingCombinationsButton = undefined;
+    this.trainingChampionshipButton = undefined;
     this.dragState = null;
     this.inspectedPlayer = null;
     this.inspectorPanel = undefined;

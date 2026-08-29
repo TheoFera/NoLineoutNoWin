@@ -1,6 +1,10 @@
 import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config/DisplayConfig";
 
+export function getCameraRenderScale(scene: Phaser.Scene): 1 | 2 {
+  return scene.cameras.main.width > GAME_WIDTH ? 2 : 1;
+}
+
 export function installHighDensityRendering(game: Phaser.Game, renderScale: 1 | 2): void {
   if (renderScale === 1) {
     return;

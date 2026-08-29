@@ -134,6 +134,7 @@ export const LINEOUT_BALANCE = {
       phaseDurationMs: 460,
       movementPhaseLeadMs: 120,
       opponentPreparationMs: 4_500,
+      throwPowerGaugeHoldMs: 700,
       resultOverlayDelayMs: 900,
       baseFlightDurationMs: 430,
       flightDurationPerMeterMs: 47,
@@ -466,7 +467,17 @@ export const LINEOUT_BALANCE = {
       halfTimePauseDurationMs: 1600,
       halfTimeKickoffDurationMs: 850,
       tryCelebrationExtraDurationMs: 1200,
-      tryCelebrationDisplayDurationMs: 800
+      tryCelebrationDisplayDurationMs: 800,
+      lineoutTransition: {
+        simulationZoomDurationMs: 650,
+        simulationZoom: 3,
+        lineoutArrivalDurationMs: 650,
+        lineoutArrivalZoom: 1.45,
+        lineoutExitDurationMs: 600,
+        lineoutExitZoom: 1.45,
+        simulationReturnDurationMs: 600,
+        simulationReturnZoom: 2
+      }
     },
     minimumEndMinute: 80,
     maximumEndMinute: 82

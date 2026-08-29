@@ -54,8 +54,8 @@ export class ChampionshipScene extends Phaser.Scene {
       y: 456,
       width: standingsPanelWidth,
       height: 396,
-      accentColor: 0x2f73d1,
-      fillColor: 0x071326
+      accentColor: UI.colors.info,
+      fillColor: UI.colors.panelDark
     });
 
     this.add.text(195, 202, `${t("championship.round")} ${getCurrentRoundLabel(championship)}`, {
@@ -74,23 +74,23 @@ export class ChampionshipScene extends Phaser.Scene {
     this.add.text(teamNameX, standingsHeaderY, t("championship.tableClub"), tableHeaderStyle).setOrigin(0, 0.5);
     this.add.text(pointsColumnCenterX, standingsHeaderY, t("championship.tablePoints"), tableHeaderStyle).setOrigin(0.5);
     this.add.text(goalAverageColumnCenterX, standingsHeaderY, t("championship.goalAverageShort"), tableHeaderStyle).setOrigin(0.5);
-    this.add.rectangle(standingsPanelCenterX, standingsHeaderY + 14, 322, 2, 0xf8fafc, 0.25);
+    this.add.rectangle(standingsPanelCenterX, standingsHeaderY + 14, 322, 2, UI.colors.divider, 0.35);
 
     visibleStandings.forEach((record, index) => {
       const y = firstStandingRowY + index * 40;
       const isPlayerTeam = record.teamId === "player_team";
       const isNextOpponent = record.teamId === nextOpponentId;
       const rank = standings.findIndex((item) => item.teamId === record.teamId) + 1;
-      const nameColor = isPlayerTeam ? "#fde68a" : UI.colors.text;
-      const statisticsColor = isNextOpponent ? "#bfdbfe" : UI.colors.text;
+      const nameColor = isPlayerTeam ? UI.colors.textAccent : UI.colors.text;
+      const statisticsColor = isNextOpponent ? UI.colors.textInfo : UI.colors.text;
       const goalAverage = getGoalAverage(record);
       const formattedGoalAverage = goalAverage > 0 ? `+${goalAverage}` : String(goalAverage);
 
-      this.add.rectangle(195, y + 16, 322, 2, 0xf8fafc, 0.1);
+      this.add.rectangle(195, y + 16, 322, 2, UI.colors.divider, 0.16);
       if (isPlayerTeam) {
         this.add.rectangle(28, y, 6, 24, UI.colors.accent, 0.95);
       } else if (isNextOpponent) {
-        this.add.rectangle(28, y, 6, 24, 0x60a5fa, 0.95);
+        this.add.rectangle(28, y, 6, 24, UI.colors.info, 0.95);
       }
       this.add.text(32, y, `${rank}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
       const teamName = this.add.text(teamNameX, y, record.name, {
@@ -108,7 +108,9 @@ export class ChampionshipScene extends Phaser.Scene {
       }).setOrigin(0.5);
     });
 
-    new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"));
+    new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"), {
+      variant: "primary"
+    });
     new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
       variant: "secondary"
     });
@@ -120,7 +122,7 @@ export class ChampionshipScene extends Phaser.Scene {
     const scale = Math.max(390 / source.width, 844 / source.height);
 
     background.setScale(scale);
-    this.add.rectangle(195, 422, 390, 844, 0x020617, 0.3);
+    this.add.rectangle(195, 422, 390, 844, UI.colors.scrim, 0.26);
   }
 
   private buildVisibleStandings(standings: ChampionshipTeamRecord[], nextOpponentId: string | null): ChampionshipTeamRecord[] {

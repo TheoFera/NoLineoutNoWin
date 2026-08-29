@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { UI } from "./UITheme";
 
 export function renderResultOverlayPanel(
   scene: Phaser.Scene,
@@ -9,11 +10,11 @@ export function renderResultOverlayPanel(
 ): Phaser.GameObjects.Graphics {
   const graphics = scene.add.graphics();
 
-  graphics.fillStyle(0x000000, 0.46);
-  graphics.fillRoundedRect(left + 3, top + 5, width, height, 16);
-  graphics.fillStyle(0x07111a, 0.95);
-  graphics.lineStyle(2, 0x64748b, 0.76);
-  graphics.fillRoundedRect(left, top, width, height, 16);
-  graphics.strokeRoundedRect(left, top, width, height, 16);
+  graphics.fillStyle(UI.colors.scrim, 0.42);
+  graphics.fillRoundedRect(left + 3, top + 5, width, height, UI.radius);
+  graphics.fillStyle(UI.colors.panelDark, 0.95);
+  graphics.lineStyle(2, UI.colors.outline, 0.9);
+  graphics.fillRoundedRect(left, top, width, height, UI.radius);
+  graphics.strokeRoundedRect(left, top, width, height, UI.radius);
   return graphics;
 }

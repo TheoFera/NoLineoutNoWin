@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { UI } from "./UITheme";
 
 export const MATCH_PITCH_TEXTURE_KEY = "lineout-pitch-background";
 
@@ -109,7 +110,7 @@ export function renderMatchPitchBackdrop(
   overlayAlpha: number,
   appearance: MatchPitchAppearance = HOME_PITCH_APPEARANCE
 ): void {
-  scene.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, 0x09131c);
+  scene.add.rectangle(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT, UI.colors.background);
 
   if (scene.textures.exists(MATCH_PITCH_TEXTURE_KEY)) {
     scene.add.image(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, MATCH_PITCH_TEXTURE_KEY)
@@ -125,7 +126,7 @@ export function renderMatchPitchBackdrop(
     SCREEN_HEIGHT / 2,
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
-    0x020617,
+    UI.colors.scrim,
     overlayAlpha
   );
   renderWeatherEffects(scene, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, appearance);
@@ -144,7 +145,7 @@ export function renderPitchSurface(
       .setDisplaySize(width, height)
       .setTint(appearance.tint);
   } else {
-    scene.add.rectangle(x, y, width, height, 0x1f6d45);
+    scene.add.rectangle(x, y, width, height, UI.colors.pitch);
   }
 
   renderTerrainColorWash(scene, x - width / 2, y - height / 2, width, height, appearance);

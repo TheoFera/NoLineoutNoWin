@@ -13,6 +13,7 @@ Ce fichier sert à choisir la documentation utile sans charger tout le dépôt d
 | Gameplay officiel, geste de lancer, plans, mouvements, saut, timing et résolution | `docs/GAMEPLAY_V3.md` |
 | IA de touche, génération des joueurs ou simulation entre les touches | `docs/GAMEPLAY_V3.md`, puis les fichiers directement concernés |
 | Choix techniques déjà arbitrés | `docs/DECISIONS_TECHNIQUES.md` |
+| Créer ou modifier une interface, un menu, un panneau ou un tutoriel | `docs/DESIGN_SYSTEM.md` |
 | Intégration globale de plusieurs domaines | uniquement les documents des domaines réellement concernés |
 
 ## Documents qui ne sont pas requis pour coder
