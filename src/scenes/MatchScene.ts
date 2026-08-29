@@ -834,26 +834,16 @@ export class MatchScene extends Phaser.Scene {
     const drawPosts = (positionMeters: 0 | 100): void => {
       const nearBase = this.getPitchPoint(positionMeters, 0.16);
       const farBase = this.getPitchPoint(positionMeters, -0.16);
-      const goalDirection = positionMeters === 0 ? -1 : 1;
-      const postSplay = 18;
       const nearTop = {
-        x: nearBase.x + goalDirection * postSplay,
+        x: nearBase.x,
         y: nearBase.y - 66
       };
       const farTop = {
-        x: farBase.x - goalDirection * postSplay,
+        x: farBase.x,
         y: farBase.y - 54
       };
-      const pointOnPost = (
-        base: Phaser.Math.Vector2,
-        top: { x: number; y: number },
-        height: number
-      ): { x: number; y: number } => ({
-        x: Phaser.Math.Linear(base.x, top.x, height / (base.y - top.y)),
-        y: base.y - height
-      });
-      const nearCrossbar = pointOnPost(nearBase, nearTop, 23);
-      const farCrossbar = pointOnPost(farBase, farTop, 18);
+      const nearCrossbar = { x: nearBase.x, y: nearBase.y - 23 };
+      const farCrossbar = { x: farBase.x, y: farBase.y - 18 };
 
       graphics.lineStyle(6, UI.colors.outlineStrong, 1);
       graphics.lineBetween(nearBase.x, nearBase.y, nearTop.x, nearTop.y);
