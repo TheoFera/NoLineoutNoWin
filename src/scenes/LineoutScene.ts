@@ -3108,7 +3108,9 @@ export class LineoutScene extends Phaser.Scene {
         && ["ready", "moving", "unavailable"].includes(state.activity)
         && !isMoving
       ) token.resetPose();
-      this.syncPlayerTokenDepth(token);
+      // L'élévation ne doit pas modifier la profondeur : le sauteur reste trié
+      // d'après son point d'appui au sol, devant son lifteur arrière.
+      this.syncPlayerTokenDepth(token, groundY + approachY);
     });
     if (!snapshot.defenseLocked) {
       this.v3GroupHandles.forEach((handle, jumperId) => {
@@ -4636,7 +4638,7 @@ export class LineoutScene extends Phaser.Scene {
           ease: "Sine.easeOut",
           onUpdate: () => {
             targetToken.setShadowElevation(originalTargetY - targetToken.y);
-            this.syncPlayerTokenDepth(targetToken);
+            this.syncPlayerTokenDepth(targetToken, originalTargetY);
           },
           onComplete: () => {
             targetToken.y = originalTargetY;
@@ -5395,8 +5397,8 @@ export class LineoutScene extends Phaser.Scene {
     return PLAYER_DEPTH_BASE + feetY;
   }
 
-  private syncPlayerTokenDepth(token: PlayerToken): void {
-    token.setDepth(this.getPlayerDepth(token.y));
+  private syncPlayerTokenDepth(token: PlayerToken, groundFeetY: number = token.y): void {
+    token.setDepth(this.getPlayerDepth(groundFeetY));
     token.setShadowDepth(GROUND_SHADOW_DEPTH);
   }
 
