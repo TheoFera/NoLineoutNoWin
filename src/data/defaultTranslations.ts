@@ -718,7 +718,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "lineout.v3.sequenceTitle": { fr: "Combinaison offensive", en: "Attacking combination" },
   "lineout.v3.initialPlacementShort": { fr: "Départ", en: "Start" },
   "lineout.v3.phaseNumber": { fr: "Phase {number}", en: "Phase {number}" },
-  "lineout.v3.deletePhaseNumber": { fr: "Supprimer la phase {number}", en: "Delete phase {number}" },
+  "lineout.v3.deletePhaseNumber": { fr: "Supprimer phase {number}", en: "Delete phase {number}" },
   "lineout.v3.planSubtitle": { fr: "Construis la combinaison phase par phase", en: "Build the move phase by phase" },
   "lineout.v3.phase": { fr: "Phase {current} / {total}", en: "Phase {current} / {total}" },
   "lineout.v3.addPhase": { fr: "Ajouter", en: "Add" },

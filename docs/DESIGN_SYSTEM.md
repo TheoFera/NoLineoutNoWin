@@ -42,6 +42,7 @@ Avant de créer un style, vérifier si le besoin est déjà couvert par :
 | Besoin | Fichier à réutiliser |
 |---|---|
 | Couleurs, typographie, espacements, rayons et mouvement | `src/ui/UITheme.ts` |
+| Surface rectangulaire arrondie réutilisable | `src/ui/UIRoundedRectangle.ts` |
 | Bouton et états tactiles | `src/ui/UIButton.ts` |
 | Variantes des boutons | `src/ui/ButtonStyle.ts` |
 | Fond, en-tête et panneau de menu | `src/ui/MenuChrome.ts` |
@@ -87,6 +88,7 @@ Utiliser les variantes de `UIButton` :
 - `secondary` : navigation et action ordinaire ;
 - `selected` : valeur d'un réglage ou onglet actif, jamais simple action principale ;
 - `danger` : suppression, abandon ou réinitialisation ;
+- `dangerFilled` : action destructive rouge remplie lorsqu'elle doit partager exactement le gabarit d'une action remplie adjacente ;
 - `ghost` : commande périphérique peu importante.
 
 Tailles visuelles recommandées :

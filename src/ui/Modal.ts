@@ -5,6 +5,7 @@ import { UI_DEPTH } from "./UIDepth";
 import { UIButton } from "./UIButton";
 import type { ButtonVariant } from "./ButtonStyle";
 import { UI } from "./UITheme";
+import { UIRoundedRectangle } from "./UIRoundedRectangle";
 
 export type ModalSecondaryAction = {
   label: string;
@@ -76,7 +77,7 @@ export class Modal extends Phaser.GameObjects.Container {
       202,
       topPadding + titleText.height + titleGap + bodyText.height + buttonGap + buttonHeight + bottomPadding
     );
-    const bg = scene.add.rectangle(0, 0, 332, panelHeight, tone.background, 0.98)
+    const bg = new UIRoundedRectangle(scene, 0, 0, 332, panelHeight, tone.background, 0.98)
       .setStrokeStyle(2, tone.border);
     const panelTop = -panelHeight / 2;
     const titleY = panelTop + topPadding + titleText.height / 2;

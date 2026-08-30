@@ -1,6 +1,6 @@
 # Gameplay V3 — Source de vérité
 
-Version du jeu : 1.0.1
+Version du jeu : 1.0.2
 
 Ce document décrit le gameplay actuellement officiel de **No Lineout No Win**.
 Il remplace les documents Gameplay V2 pour toute décision future. Les anciens

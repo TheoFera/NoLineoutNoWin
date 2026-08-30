@@ -32,6 +32,7 @@ import { getContrastingOpponentColors } from "../ui/JerseyColorContrast";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { MatchScoreOverlay } from "../ui/MatchScoreOverlay";
 import { formatMatchMinute } from "../ui/MatchScoreOverlayLayout";
 import { MatchStatsOverlay } from "../ui/MatchStatsOverlay";
@@ -45,6 +46,7 @@ import {
 import {
   getSimulationStadiumTier,
   MatchSimulationCrowd,
+  SIMULATION_COMMENTATORS_BOTTOM_Y,
   SIMULATION_RAILING_BOTTOM_Y,
   type SimulationCrowdReaction
 } from "../ui/MatchSimulationStadium";
@@ -57,23 +59,25 @@ type MatchSceneData = {
   transitionLateralPosition?: number;
 };
 
+const SIMULATION_FIELD_TOP = SIMULATION_RAILING_BOTTOM_Y + 8;
+const SIMULATION_FIELD_HEIGHT = 237;
 const SIMULATION_FIELD = {
   nearLeft: 10,
   nearRight: 380,
   farLeft: 38,
   farRight: 352,
-  top: 398,
-  bottom: 635,
+  top: SIMULATION_FIELD_TOP,
+  bottom: SIMULATION_FIELD_TOP + SIMULATION_FIELD_HEIGHT,
   centerX: 195,
-  centerY: 516.5,
+  centerY: SIMULATION_FIELD_TOP + SIMULATION_FIELD_HEIGHT / 2,
   width: 370,
-  height: 237,
-  lateralRange: 118.5,
+  height: SIMULATION_FIELD_HEIGHT,
+  lateralRange: SIMULATION_FIELD_HEIGHT / 2,
   inGoalRatio: 21 / 370
 } as const;
 
 const SIMULATION_DEPTH = {
-  commentators: 3.5,
+  commentators: 2.5,
   pitch: 6,
   markings: 7,
   ball: 20,
@@ -84,8 +88,6 @@ const SIMULATION_DEPTH = {
 
 const MATCH_COMMENTATORS = {
   centerX: 195,
-  bottomY: SIMULATION_RAILING_BOTTOM_Y,
-  bubbleTailY: 321,
   regional: {
     textureKey: "match-commentators-regional",
     texturePath: "assets/images/match-commentators-regional.png",
@@ -390,6 +392,10 @@ export class MatchScene extends Phaser.Scene {
     for (const meter of [5, 40, 60, 95]) {
       this.renderDashedTransverseLine(meter);
     }
+    this.add.text(195, 195, t("match.simulationInProgress"), {
+      font: "bold 20px Arial",
+      color: UI.colors.text
+    }).setOrigin(0.5);
     const initialActionKey = match.minute === 0
       ? "match.action.restart"
       : "match.action.handPlay";
@@ -432,10 +438,6 @@ export class MatchScene extends Phaser.Scene {
         color: UI.colors.text
       }
     ).setOrigin(0.5);
-    this.add.text(195, field.bottom + 64, t("match.simulationInProgress"), {
-      font: "bold 20px Arial",
-      color: UI.colors.text
-    }).setOrigin(0.5);
   }
 
   private startLineoutTransition(match: MatchStateData, lineout: MatchLineoutEvent): void {
@@ -519,10 +521,12 @@ export class MatchScene extends Phaser.Scene {
     initialMessage: string,
     divisionId: MatchStateData["home"]["divisionId"]
   ): void {
-    const appearance = MATCH_COMMENTATORS[getSimulationStadiumTier(divisionId)];
+    const stadiumTier = getSimulationStadiumTier(divisionId);
+    const appearance = MATCH_COMMENTATORS[stadiumTier];
+    const commentatorsBottomY = SIMULATION_COMMENTATORS_BOTTOM_Y[stadiumTier];
     this.add.image(
       MATCH_COMMENTATORS.centerX,
-      MATCH_COMMENTATORS.bottomY,
+      commentatorsBottomY,
       appearance.textureKey
     )
       .setOrigin(0.5, 1)
@@ -532,12 +536,14 @@ export class MatchScene extends Phaser.Scene {
     const leftText = this.renderCommentatorPlaceholder(
       appearance.leftTailX,
       124,
-      "left"
+      "left",
+      commentatorsBottomY - appearance.height + 14
     );
     const rightText = this.renderCommentatorPlaceholder(
       appearance.rightTailX,
       266,
-      "right"
+      "right",
+      commentatorsBottomY - appearance.height + 14
     );
 
     leftText.setText(initialMessage);
@@ -549,7 +555,8 @@ export class MatchScene extends Phaser.Scene {
   private renderCommentatorPlaceholder(
     tailTargetX: number,
     bubbleX: number,
-    side: "left" | "right"
+    side: "left" | "right",
+    tailTargetY: number
   ): Phaser.GameObjects.Text {
     const bubbleY = 257;
     const bubbleWidth = 124;
@@ -564,7 +571,7 @@ export class MatchScene extends Phaser.Scene {
     const tailBaseX = side === "left" ? bubbleX - 31 : bubbleX + 31;
     const tailPoints = [
       new Phaser.Math.Vector2(tailBaseX - 8, bubbleBottom - 2),
-      new Phaser.Math.Vector2(tailTargetX, MATCH_COMMENTATORS.bubbleTailY),
+      new Phaser.Math.Vector2(tailTargetX, tailTargetY),
       new Phaser.Math.Vector2(tailBaseX + 8, bubbleBottom - 2)
     ];
     bubble.fillStyle(UI.colors.paper, 1);
@@ -627,7 +634,8 @@ export class MatchScene extends Phaser.Scene {
     this.updateSimulationActionText("match.action.halfTime");
     this.scoreOverlay?.setMinute(t("match.halfTimeShort"));
 
-    const panel = this.add.rectangle(
+    const panel = new UIRoundedRectangle(
+      this,
       SIMULATION_FIELD.centerX,
       SIMULATION_FIELD.centerY,
       238,
@@ -1236,8 +1244,8 @@ export class MatchScene extends Phaser.Scene {
       .setDepth(SIMULATION_DEPTH.tryCelebration + 1)
       .setAlpha(0)
       .setScale(0.72);
-    const shadow = this.add.rectangle(0, 6, 230, 82, UI.colors.scrim, 0.72);
-    const background = this.add.rectangle(0, 0, 230, 82, colors.primary, 0.96)
+    const shadow = new UIRoundedRectangle(this, 0, 6, 230, 82, UI.colors.scrim, 0.72);
+    const background = new UIRoundedRectangle(this, 0, 0, 230, 82, colors.primary, 0.96)
       .setStrokeStyle(4, colors.secondary, 1);
     const title = this.add.text(0, 0, t("match.tryCelebration.title"), {
       font: "bold 36px Arial",

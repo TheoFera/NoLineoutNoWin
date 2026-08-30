@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { UI } from "./UITheme";
 
-export type ButtonVariant = "primary" | "secondary" | "selected" | "danger" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "selected" | "danger" | "dangerFilled" | "ghost";
 export type ButtonVisualState = "normal" | "pressed" | "disabled";
 
 type ButtonPalette = {
@@ -39,6 +39,13 @@ export const BUTTON_STYLES: Record<ButtonVariant, ButtonPalette> = {
     border: UI.colors.danger,
     pressedBackground: UI.colors.dangerSurface,
     textColor: UI.colors.textDanger,
+    shadow: UI.colors.scrim
+  },
+  dangerFilled: {
+    background: UI.colors.danger,
+    border: UI.colors.dangerSurface,
+    pressedBackground: UI.colors.dangerSurface,
+    textColor: UI.colors.text,
     shadow: UI.colors.scrim
   },
   ghost: {

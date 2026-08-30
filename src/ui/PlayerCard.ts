@@ -3,12 +3,14 @@ import type { Player } from "../models/Player";
 import { isHooker } from "../models/Player";
 import { t } from "../systems/I18n";
 import { UI } from "./UITheme";
+import { UIRoundedRectangle } from "./UIRoundedRectangle";
 
 export class PlayerCard extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, x: number, y: number, player: Player) {
     super(scene, x, y);
 
-    const bg = scene.add.rectangle(0, 0, 220, 120, UI.colors.panelDark, 0.95).setStrokeStyle(2, UI.colors.outline);
+    const bg = new UIRoundedRectangle(scene, 0, 0, 220, 120, UI.colors.panelDark, 0.95)
+      .setStrokeStyle(2, UI.colors.outline);
     const title = scene.add.text(-95, -44, `${t("team.numberPrefix")}${player.number} - ${player.nickname}`, {
       font: UI.font.subtitle,
       color: UI.colors.text

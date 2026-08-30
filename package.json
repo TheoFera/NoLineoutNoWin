@@ -1,6 +1,6 @@
 {
   "name": "no-lineout-no-win",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Jeu mobile tactique de touche au rugby - Phaser 3 + TypeScript + Capacitor.",

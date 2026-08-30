@@ -10,6 +10,7 @@ import { renderMenuBackdrop } from "../ui/MenuChrome";
 import { UIButton } from "../ui/UIButton";
 import { PlayerCard } from "../ui/PlayerCard";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 
 export class TeamScene extends Phaser.Scene {
   private team!: Team;
@@ -74,9 +75,17 @@ export class TeamScene extends Phaser.Scene {
 
   private renderHookerPanel(): void {
     const selected = this.inspectedPlayerId === "hooker";
-    const panel = this.add.rectangle(195, 114, 338, 52, selected ? UI.colors.panelRaised : UI.colors.panelDark, 0.96)
-      .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline);
-    panel.setInteractive();
+    const panel = new UIRoundedRectangle(
+      this,
+      195,
+      114,
+      338,
+      52,
+      selected ? UI.colors.panelRaised : UI.colors.panelDark,
+      0.96
+    )
+      .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline)
+      .setRoundedInteractive({ useHandCursor: true });
     panel.on("pointerup", () => {
       this.inspectedPlayerId = "hooker";
       this.renderScene();
@@ -103,9 +112,17 @@ export class TeamScene extends Phaser.Scene {
     slotLayout.forEach(({ position, x, y }) => {
       const player = this.team.lineoutPlayers[position - 1];
       const selected = this.selectedLineoutPosition === position;
-      const slot = this.add.rectangle(x, y, 74, 36, selected ? UI.colors.panelRaised : UI.colors.panelDark, 1)
-        .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline);
-      slot.setInteractive();
+      const slot = new UIRoundedRectangle(
+        this,
+        x,
+        y,
+        74,
+        36,
+        selected ? UI.colors.panelRaised : UI.colors.panelDark,
+        1
+      )
+        .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline)
+        .setRoundedInteractive({ useHandCursor: true });
       slot.on("pointerup", () => {
         this.selectedLineoutPosition = position;
         this.renderScene();
@@ -121,9 +138,17 @@ export class TeamScene extends Phaser.Scene {
       const y = 348 + index * 32;
       const selectedForLineout = isSelectedForLineout(this.team, player.id);
       const inspected = this.inspectedPlayerId === player.id;
-      const row = this.add.rectangle(195, y, 338, 28, inspected ? UI.colors.panelRaised : UI.colors.panelDark, 0.96)
-        .setStrokeStyle(1, selectedForLineout ? UI.colors.accent : UI.colors.outline);
-      row.setInteractive();
+      const row = new UIRoundedRectangle(
+        this,
+        195,
+        y,
+        338,
+        28,
+        inspected ? UI.colors.panelRaised : UI.colors.panelDark,
+        0.96
+      )
+        .setStrokeStyle(1, selectedForLineout ? UI.colors.accent : UI.colors.outline)
+        .setRoundedInteractive({ useHandCursor: true });
       row.on("pointerup", () => {
         this.inspectedPlayerId = player.id;
         this.renderScene();

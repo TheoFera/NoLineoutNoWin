@@ -17,6 +17,7 @@ import { t } from "../systems/I18n";
 import { navigateTo } from "../systems/Navigation";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { CombinationSequenceBar } from "../ui/CombinationSequenceBar";
 import { renderMenuBackdrop } from "../ui/MenuChrome";
 
@@ -67,7 +68,8 @@ export class CombinationPlanScene extends Phaser.Scene {
     this.phaseIndex = Phaser.Math.Clamp(this.phaseIndex, 0, plan.phases.length - 1);
 
     renderMenuBackdrop(this, { showGuideLines: false });
-    this.add.rectangle(195, 60, 354, 82, UI.colors.panelDark, 0.98).setStrokeStyle(2, UI.colors.outline);
+    new UIRoundedRectangle(this, 195, 60, 354, 82, UI.colors.panelDark, 0.98)
+      .setStrokeStyle(2, UI.colors.outline);
     const activeIndex = activeCombinations.findIndex((item) => item.id === this.combination.id);
     this.add.text(195, 42, getCombinationDisplayName(
       this.combination,
@@ -127,7 +129,8 @@ export class CombinationPlanScene extends Phaser.Scene {
   }
 
   private renderActions(actions: CombinationPhaseAction[]): void {
-    this.add.rectangle(195, 335, 350, 188, UI.colors.panelRaised, 0.96).setStrokeStyle(1, UI.colors.outline);
+    new UIRoundedRectangle(this, 195, 335, 350, 188, UI.colors.panelRaised, 0.96)
+      .setStrokeStyle(1, UI.colors.outline);
     this.add.text(34, 252, t("lineout.v3.phaseActions"), {
       font: "bold 14px Arial",
       color: UI.colors.textAccent
@@ -281,23 +284,20 @@ export class CombinationPlanScene extends Phaser.Scene {
   private addPhase(): void {
     const plan = getV3CombinationPlan(this.combination);
     if (plan.phases.length >= LINEOUT_V3_MAX_PHASES) return;
-    plan.phases.splice(this.phaseIndex + 1, 0, {
+    plan.phases.push({
       id: `phase-${Date.now()}`,
       actions: []
     });
-    this.phaseIndex += 1;
+    this.phaseIndex = plan.phases.length - 1;
     this.persist(plan, "select");
   }
 
   private deletePhase(): void {
     const plan = getV3CombinationPlan(this.combination);
-    if (plan.phases.length === 1) {
-      plan.phases[0].actions = [];
-      this.persist(plan, "select");
-      return;
-    }
-    plan.phases.splice(this.phaseIndex, 1);
-    this.phaseIndex = Math.min(this.phaseIndex, plan.phases.length - 1);
+    const lastPhaseIndex = plan.phases.length - 1;
+    if (plan.phases.length <= 1 || this.phaseIndex !== lastPhaseIndex) return;
+    plan.phases.pop();
+    this.phaseIndex = plan.phases.length - 1;
     this.persist(plan, "select");
   }
 

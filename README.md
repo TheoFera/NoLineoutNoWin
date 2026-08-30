@@ -2,7 +2,7 @@
 
 Jeu mobile tactique de touche au rugby.
 
-Version actuelle : **1.0.1** — gameplay officiel V3.
+Version actuelle : **1.0.2** — gameplay officiel V3.
 
 ## Stack
 

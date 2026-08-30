@@ -20,6 +20,7 @@ import { RugbyPlayer } from "../ui/RugbyPlayer";
 import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { applyDomControlStyle } from "../ui/DomControlStyle";
 
 const SCREEN_WIDTH = 390;
@@ -38,13 +39,13 @@ type SkinSelector = {
 
 type HairStyleSelector = {
   hairStyleId: PlayerHairStyleId;
-  background: Phaser.GameObjects.Rectangle;
+  background: UIRoundedRectangle;
   label: Phaser.GameObjects.Text;
 };
 
 type AccessorySelector = {
   accessoryId: PlayerAccessoryId;
-  background: Phaser.GameObjects.Rectangle;
+  background: UIRoundedRectangle;
   label: Phaser.GameObjects.Text;
 };
 
@@ -256,9 +257,9 @@ export class TeamCreationScene extends Phaser.Scene {
 
     this.hairStyleSelectors = PLAYER_HAIR_STYLE_OPTIONS.map((hairStyleId, index) => {
       const x = 75 + index * 80;
-      const background = this.add.rectangle(x, 638, 72, 32, UI.colors.panelDark, 0.96)
+      const background = new UIRoundedRectangle(this, x, 638, 72, 32, UI.colors.panelDark, 0.96)
         .setStrokeStyle(2, UI.colors.line)
-        .setInteractive({ useHandCursor: true });
+        .setRoundedInteractive({ useHandCursor: true });
       const label = this.add.text(x, 638, t(`teamCreation.hairStyle.${hairStyleId}`), {
         font: "bold 12px Arial",
         color: UI.colors.text,
@@ -278,9 +279,9 @@ export class TeamCreationScene extends Phaser.Scene {
 
     this.accessorySelectors = PLAYER_ACCESSORY_OPTIONS.map((accessoryId, index) => {
       const x = 75 + index * 80;
-      const background = this.add.rectangle(x, 703, 72, 32, UI.colors.panelDark, 0.96)
+      const background = new UIRoundedRectangle(this, x, 703, 72, 32, UI.colors.panelDark, 0.96)
         .setStrokeStyle(2, UI.colors.line)
-        .setInteractive({ useHandCursor: true });
+        .setRoundedInteractive({ useHandCursor: true });
       const label = this.add.text(x, 703, t(`teamCreation.accessory.${accessoryId}`), {
         font: "bold 12px Arial",
         color: UI.colors.text,
@@ -386,7 +387,7 @@ export class TeamCreationScene extends Phaser.Scene {
   }
 
   private refreshAppearanceSelector(
-    background: Phaser.GameObjects.Rectangle,
+    background: UIRoundedRectangle,
     label: Phaser.GameObjects.Text,
     available: boolean,
     selected: boolean
@@ -399,7 +400,7 @@ export class TeamCreationScene extends Phaser.Scene {
         .setColor(selected ? UI.colors.textOnAccent : UI.colors.text)
         .setAlpha(available ? 1 : 0.35);
       if (available) {
-        background.setInteractive({ useHandCursor: true });
+        background.setRoundedInteractive({ useHandCursor: true });
       } else {
         background.disableInteractive();
       }

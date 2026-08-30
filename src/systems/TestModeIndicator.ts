@@ -4,6 +4,7 @@ import { t } from "./I18n";
 import { pushNavigationState } from "./Navigation";
 import { UI_DEPTH } from "../ui/UIDepth";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 
 type TestModeOverlay = {
   container: Phaser.GameObjects.Container;
@@ -45,7 +46,7 @@ export function registerTestModeIndicator(game: Phaser.Game): void {
 }
 
 function createOverlay(scene: Phaser.Scene, label: string): TestModeOverlay {
-  const background = scene.add.rectangle(0, 0, 188, 22, UI.colors.panelDark, 0.96)
+  const background = new UIRoundedRectangle(scene, 0, 0, 188, 22, UI.colors.panelDark, 0.96)
     .setStrokeStyle(1, UI.colors.warning);
   const hitArea = scene.add.zone(0, 0, 188, 48)
     .setInteractive({ useHandCursor: true })

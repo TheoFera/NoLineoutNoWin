@@ -104,6 +104,7 @@ import { CombinationSequenceBar } from "../ui/CombinationSequenceBar";
 import { CombinationListOverlay } from "../ui/CombinationListOverlay";
 import { UI_DEPTH } from "../ui/UIDepth";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { Modal } from "../ui/Modal";
 import { MatchScoreOverlay } from "../ui/MatchScoreOverlay";
 import { LineoutCombinationOverlay } from "../ui/LineoutCombinationOverlay";
@@ -138,7 +139,9 @@ const GROUND_SHADOW_DEPTH = PLAYER_DEPTH_BASE - 1;
 const PLAYER_LABEL_DEPTH_OFFSET = 0.1;
 const PLAYER_HITBOX_DEPTH_OFFSET = 0.2;
 const LINEOUT_ACTION_DEPTH = 1500;
-const TRAINING_SEQUENCE_CENTER_Y = MATCH_SCORE_OVERLAY_LAYOUT.y + 48;
+const TRAINING_SEQUENCE_CENTER_Y = (
+  MATCH_SCORE_OVERLAY_LAYOUT.y + MATCH_SCORE_OVERLAY_LAYOUT.height / 2
+);
 const V3_METERS_TO_PIXELS = 34;
 const TRAINING_ACTION_OVERLAY_DATA_KEY = "training-action-overlay";
 const RUGBY_DASH_WIDTH = 18;
@@ -378,7 +381,7 @@ export class LineoutScene extends Phaser.Scene {
   private hookerHeldBallRestY?: number;
   private hookerIdleBreathingProfile?: IdleBreathingProfile;
   private hookerIdleBreathingActive = false;
-  private userSlotIndicators: Phaser.GameObjects.Rectangle[] = [];
+  private userSlotIndicators: UIRoundedRectangle[] = [];
   private v3Engine?: LineoutV3Engine;
   private v3BallSprite?: Phaser.GameObjects.Image;
   private v3BallShadow?: Phaser.GameObjects.Image;
@@ -705,7 +708,8 @@ export class LineoutScene extends Phaser.Scene {
     for (let index = 1; index <= 7; index += 1) {
       if (occupiedPositions.has(index as LineoutPosition)) continue;
 
-      const indicator = this.add.rectangle(
+      const indicator = new UIRoundedRectangle(
+        this,
         layout.attackX,
         this.positionY(index as LineoutPosition, layout) + slotBottomOffset - slotHeight / 2,
         slotWidth,
@@ -1436,10 +1440,10 @@ export class LineoutScene extends Phaser.Scene {
 
   private removeTrainingPhase(): void {
     const plan = getV3CombinationPlan(this.selectedCombination);
-    if (plan.phases.length <= 1) return;
-    const index = this.trainingEditorPhaseIndex ?? plan.phases.length - 1;
-    plan.phases.splice(index, 1);
-    this.persistTrainingPlan(plan, Math.min(index, plan.phases.length - 1));
+    const lastPhaseIndex = plan.phases.length - 1;
+    if (plan.phases.length <= 1 || this.trainingEditorPhaseIndex !== lastPhaseIndex) return;
+    plan.phases.pop();
+    this.persistTrainingPlan(plan, plan.phases.length - 1);
   }
 
   private renderTrainingActionOverlay(token: PlayerToken, playerPosition: LineoutPosition): void {

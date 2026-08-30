@@ -11,6 +11,7 @@ import { renderMenuHeader } from "../ui/MenuChrome";
 import { RugbyPlayer } from "../ui/RugbyPlayer";
 import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UI } from "../ui/UITheme";
+import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { applyDomControlStyle } from "../ui/DomControlStyle";
 
 export class ClubCreationScene extends Phaser.Scene {
@@ -21,8 +22,8 @@ export class ClubCreationScene extends Phaser.Scene {
   private positionInputHandler: (() => void) | null = null;
   private selectedPrimaryColor = DEFAULT_PRIMARY_COLOR;
   private selectedSecondaryColor = DEFAULT_SECONDARY_COLOR;
-  private previewNameplate!: Phaser.GameObjects.Rectangle;
-  private previewBackdrop!: Phaser.GameObjects.Rectangle;
+  private previewNameplate!: UIRoundedRectangle;
+  private previewBackdrop!: UIRoundedRectangle;
   private previewPlayer!: RugbyPlayer;
   private previewText!: Phaser.GameObjects.Text;
   private errorText!: Phaser.GameObjects.Text;
@@ -90,8 +91,10 @@ export class ClubCreationScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.createSecondaryColorInput();
 
-    this.previewBackdrop = this.add.rectangle(195, 480, 176, 40, this.selectedSecondaryColor, 1).setStrokeStyle(2, UI.colors.line);
-    this.previewNameplate = this.add.rectangle(195, 480, 164, 30, this.selectedPrimaryColor, 1).setStrokeStyle(2, UI.colors.line);
+    this.previewBackdrop = new UIRoundedRectangle(this, 195, 480, 176, 40, this.selectedSecondaryColor, 1)
+      .setStrokeStyle(2, UI.colors.line);
+    this.previewNameplate = new UIRoundedRectangle(this, 195, 480, 164, 30, this.selectedPrimaryColor, 1)
+      .setStrokeStyle(2, UI.colors.line);
     this.previewPlayer = new RugbyPlayer(this, 195, 685, "stand_front", this.getPreviewKit(), "medium_standard")
       .setVisualSize(previewPlayerWidth, previewPlayerHeight);
     this.previewText = this.add.text(195, 480, t("club.defaultName"), {
