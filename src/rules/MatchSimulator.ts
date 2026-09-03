@@ -47,19 +47,6 @@ const OPPONENT_THROW_CAUSES: TouchCause[] = [
   "deflection"
 ];
 
-export function generateMatchLineouts(
-  division: Division,
-  maxMinute: number,
-  randomSource: RandomSource = MATH_RANDOM_SOURCE
-): MatchLineoutEvent[] {
-  const totalLineouts = randomInt(
-    division.minimumMatchLineouts,
-    division.maximumMatchLineouts,
-    randomSource
-  );
-  return generateLineoutsForTotal(totalLineouts, maxMinute, randomSource).lineouts;
-}
-
 function generateLineoutsForTotal(
   totalLineouts: number,
   maxMinute: number,
@@ -324,11 +311,6 @@ export function applyLineoutResolutionToMatch(
   }
 
   return updateDerivedPercentages(next);
-}
-
-/** @deprecated Use applyLineoutResolutionToMatch with the official resolution. */
-export function updateMatchAfterLineout(match: MatchStateData): MatchStateData {
-  return updateDerivedPercentages(match);
 }
 
 export function getPitchZoneFromPosition(positionMeters: number): MatchLineoutEvent["pitchZone"] {

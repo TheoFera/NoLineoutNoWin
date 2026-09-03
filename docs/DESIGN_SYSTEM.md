@@ -208,6 +208,12 @@ Le terrain et les joueurs restent prioritaires. Les plaques TV utilisent `panelD
 
 L'action de progression reste principale. Les détails et l'annulation utilisent une variante secondaire.
 
+Exception pour la fin d'une touche en match : aucun panneau ni bouton « Continuer ».
+Une pulsation verte ou rouge sur les bords, sans texte ni symbole près des joueurs,
+complète la réception ou la récupération visible. Le centre reste dégagé, puis le
+dézoom et la simulation reprennent automatiquement. En entraînement, le panneau
+de résultat et les détails restent disponibles.
+
 ## 12. Futur tutoriel avec personnage
 
 Tout contrôle important susceptible d'être expliqué doit pouvoir recevoir un ancrage via `markTutorialAnchor`.

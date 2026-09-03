@@ -2,10 +2,6 @@ import type { LineoutPosition } from "../models/Combination";
 import type { FieldPlayer } from "../models/Player";
 import type { Team } from "../models/Team";
 
-export function getLineoutPlayerAtPosition(team: Team, position: LineoutPosition): FieldPlayer {
-  return team.lineoutPlayers[position - 1];
-}
-
 export function getLineoutBenchPlayers(team: Team): FieldPlayer[] {
   const selectedIds = new Set(team.lineoutPlayers.map((player) => player.id));
   return team.fieldPlayers.filter((player) => !selectedIds.has(player.id));

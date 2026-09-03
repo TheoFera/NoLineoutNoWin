@@ -4,6 +4,16 @@ import type { JerseyColors } from "../models/Team";
 
 export type SimulationCrowdReaction = "play" | "danger" | "celebrate" | "disappointed";
 export type SimulationStadiumTier = "regional" | "federal" | "national";
+// Trois réglages de mise en page : le décor remonte quand la tribune est plus petite.
+// Les coordonnées internes du stade restent identiques pour conserver sa perspective.
+export const SIMULATION_LAYOUT_BY_TIER = {
+  regional: { sceneryOffsetY: -80, bubbleY: 273 },
+  federal: { sceneryOffsetY: -40, bubbleY: 268 },
+  national: { sceneryOffsetY: 0, bubbleY: 285 }
+} as const satisfies Readonly<Record<SimulationStadiumTier, {
+  sceneryOffsetY: number;
+  bubbleY: number;
+}>>;
 type RailingMaterial = "wood" | "white";
 type PixelSpectator = { container: Phaser.GameObjects.Container; leftArm: Phaser.GameObjects.Rectangle; rightArm: Phaser.GameObjects.Rectangle; baseX: number; baseY: number; baseScale: number; ambientDelay: number };
 
@@ -34,9 +44,11 @@ const SKINS = [0xf1c27d, 0xd6a06f, 0x9a623f, 0x6f432b] as const;
 
 export class MatchSimulationCrowd {
   private readonly spectators: PixelSpectator[] = [];
+  private readonly verticalOffsetY: number;
 
   constructor(private readonly scene: Phaser.Scene, divisionId: DivisionId, colors: JerseyColors, seedKey: string) {
     const tier = getSimulationStadiumTier(divisionId);
+    this.verticalOffsetY = SIMULATION_LAYOUT_BY_TIER[tier].sceneryOffsetY;
     const random = createSeededRandom(hashString(seedKey));
     const railingMaterial: RailingMaterial = hashString(`rambarde:${seedKey}`) % 2 === 0
       ? "wood"
@@ -65,7 +77,8 @@ export class MatchSimulationCrowd {
   }
 
   private renderStructure(tier: SimulationStadiumTier, colors: JerseyColors): void {
-    const g = this.scene.add.graphics().setDepth(DEPTH.structure);
+    const g = this.scene.add.graphics().setDepth(DEPTH.structure)
+      .setPosition(0, this.verticalOffsetY);
     if (tier === "regional") {
       return;
     }
@@ -236,7 +249,8 @@ export class MatchSimulationCrowd {
 
   private createSpectator(x: number, y: number, scale: number, random: () => number): PixelSpectator {
     const baseX = Math.round(x);
-    const container = this.scene.add.container(baseX, Math.round(y)).setScale(scale).setDepth(DEPTH.crowd);
+    const baseY = Math.round(y + this.verticalOffsetY);
+    const container = this.scene.add.container(baseX, baseY).setScale(scale).setDepth(DEPTH.crowd);
     const skin = SKINS[Math.floor(random() * SKINS.length)];
     const clothes = CLOTHES[Math.floor(random() * CLOTHES.length)];
     const legs = this.scene.add.rectangle(0, -4, 3, 4, 0x17242b).setOrigin(0.5, 0);
@@ -246,11 +260,12 @@ export class MatchSimulationCrowd {
     const leftArm = this.scene.add.rectangle(-3, -9, 1, 5, clothes).setOrigin(0.5, 0);
     const rightArm = this.scene.add.rectangle(3, -9, 1, 5, clothes).setOrigin(0.5, 0);
     container.add([legs, leftArm, rightArm, body, head, hair]);
-    return { container, leftArm, rightArm, baseX, baseY: y, baseScale: scale, ambientDelay: random() * 900 };
+    return { container, leftArm, rightArm, baseX, baseY, baseScale: scale, ambientDelay: random() * 900 };
   }
 
   private renderRailing(tier: SimulationStadiumTier, material: RailingMaterial): void {
-    const g = this.scene.add.graphics().setDepth(DEPTH.railing);
+    const g = this.scene.add.graphics().setDepth(DEPTH.railing)
+      .setPosition(0, this.verticalOffsetY);
     const topY = SIMULATION_RAILING_TOP_Y;
     const bottomY = RAIL_Y;
     const mainColor = material === "wood" ? 0x9a6538 : 0xf3f0e7;

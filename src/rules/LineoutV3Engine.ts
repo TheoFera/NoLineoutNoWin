@@ -12,6 +12,7 @@ import type {
   LineoutV3Setup,
   LineoutV3Snapshot,
   LineoutV3ThrowGesture,
+  LineoutV3ThrowPowerFeedback,
   LineoutV3ThrowValidation
 } from "../models/LineoutV3";
 import type { FieldPlayer } from "../models/Player";
@@ -131,6 +132,54 @@ export class LineoutV3Engine {
       return { valid: false, reason: "tooSlow" };
     }
     return { valid: true };
+  }
+
+  getThrowPowerFeedback(distancePixels: number): LineoutV3ThrowPowerFeedback | null {
+    const requestedDepthMeters = getLineoutV3DepthForGestureDistance(distancePixels);
+    const targetDepths = this.getPlannedReceptionDepths();
+    if (targetDepths.length === 0) return null;
+
+    const expectedDepthMeters = targetDepths.reduce((nearest, depth) => (
+      Math.abs(depth - requestedDepthMeters) < Math.abs(nearest - requestedDepthMeters)
+        ? depth
+        : nearest
+    ));
+    // Le dosage mesure le geste, sans mélanger la précision du talonneur ou le duel.
+    const errorMeters = Math.abs(requestedDepthMeters - expectedDepthMeters);
+    const grade = errorMeters <= V3.throwFeedback.perfectDepthToleranceMeters
+      ? "perfect"
+      : errorMeters <= V3.throwFeedback.closeDepthToleranceMeters ? "close" : "miss";
+    return { grade, requestedDepthMeters, expectedDepthMeters };
+  }
+
+  private getPlannedReceptionDepths(): number[] {
+    const depthByPosition = new Map<LineoutPosition, number>();
+    this.playerIdByAttackingPosition.forEach((playerId, position) => {
+      const player = this.playersById.get(playerId);
+      if (player) depthByPosition.set(position, this.getReservedDepth(player));
+    });
+    const jumperPositions = new Set<LineoutPosition>();
+    getV3CombinationPlan(this.setup.combination).phases.forEach((phase, phaseIndex) => {
+      phase.actions.forEach((action) => {
+        if (!depthByPosition.has(action.playerPosition)) return;
+        if (action.type === "jump") jumperPositions.add(action.playerPosition);
+        // Les mouvements déjà lancés utilisent leur destination réelle, y compris
+        // un éventuel ajustement du moteur pour éviter un joueur. Seules les phases
+        // encore à venir utilisent les destinations prévues par la combinaison.
+        if (action.type === "move" && phaseIndex >= this.nextPhaseIndex) {
+          depthByPosition.set(action.playerPosition, clamp(
+            action.destinationDepthMeters,
+            V3.depth.minimumMeters,
+            V3.depth.maximumMeters
+          ));
+        }
+      });
+    });
+    // Sans saut prévu, les joueurs placés sur le terrain peuvent recevoir à la main.
+    const receiverPositions = jumperPositions.size > 0
+      ? [...jumperPositions]
+      : [...depthByPosition.keys()];
+    return receiverPositions.map((position) => depthByPosition.get(position)!);
   }
 
   releaseThrow(gesture: LineoutV3ThrowGesture): {

@@ -47,6 +47,7 @@ import {
   getSimulationStadiumTier,
   MatchSimulationCrowd,
   SIMULATION_COMMENTATORS_BOTTOM_Y,
+  SIMULATION_LAYOUT_BY_TIER,
   SIMULATION_RAILING_BOTTOM_Y,
   type SimulationCrowdReaction
 } from "../ui/MatchSimulationStadium";
@@ -75,6 +76,15 @@ const SIMULATION_FIELD = {
   lateralRange: SIMULATION_FIELD_HEIGHT / 2,
   inGoalRatio: 21 / 370
 } as const;
+
+function createSimulationField(verticalOffsetY: number) {
+  return {
+    ...SIMULATION_FIELD,
+    top: SIMULATION_FIELD.top + verticalOffsetY,
+    bottom: SIMULATION_FIELD.bottom + verticalOffsetY,
+    centerY: SIMULATION_FIELD.centerY + verticalOffsetY
+  };
+}
 
 const SIMULATION_DEPTH = {
   commentators: 2.5,
@@ -115,6 +125,7 @@ const MATCH_COMMENTATORS = {
 } as const;
 
 export class MatchScene extends Phaser.Scene {
+  private simulationField = createSimulationField(0);
   private scoreOverlay?: MatchScoreOverlay;
   private simulationBall?: Phaser.GameObjects.Image;
   private ballPositionText?: Phaser.GameObjects.Text;
@@ -356,10 +367,12 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private renderSimulationBoard(match: MatchStateData): void {
-    const field = SIMULATION_FIELD;
     const save = GameStore.getSave();
     const isHomeMatch = isCurrentMatchAtHome(save.championship);
     const venueTeam = isHomeMatch ? match.home : match.away;
+    const layout = SIMULATION_LAYOUT_BY_TIER[getSimulationStadiumTier(venueTeam.divisionId)];
+    this.simulationField = createSimulationField(layout.sceneryOffsetY);
+    const field = this.simulationField;
     const pitchAppearance = getMatchPitchAppearance(
       venueTeam.id,
       match.id,
@@ -418,7 +431,7 @@ export class MatchScene extends Phaser.Scene {
     const ballY = pendingTry
       ? this.getPitchY(pendingTry.lateralPosition)
       : isInitialKickoff
-        ? SIMULATION_FIELD.centerY
+        ? this.simulationField.centerY
         : this.getPitchY(match.ballLateralPosition);
     this.simulationBall = this.add.image(ballX, ballY, "lineout-ball")
       .setDisplaySize(16, 23)
@@ -523,7 +536,9 @@ export class MatchScene extends Phaser.Scene {
   ): void {
     const stadiumTier = getSimulationStadiumTier(divisionId);
     const appearance = MATCH_COMMENTATORS[stadiumTier];
-    const commentatorsBottomY = SIMULATION_COMMENTATORS_BOTTOM_Y[stadiumTier];
+    const layout = SIMULATION_LAYOUT_BY_TIER[stadiumTier];
+    const commentatorsBottomY = SIMULATION_COMMENTATORS_BOTTOM_Y[stadiumTier]
+      + layout.sceneryOffsetY;
     this.add.image(
       MATCH_COMMENTATORS.centerX,
       commentatorsBottomY,
@@ -537,13 +552,15 @@ export class MatchScene extends Phaser.Scene {
       appearance.leftTailX,
       124,
       "left",
-      commentatorsBottomY - appearance.height + 14
+      commentatorsBottomY - appearance.height + 14,
+      layout.bubbleY
     );
     const rightText = this.renderCommentatorPlaceholder(
       appearance.rightTailX,
       266,
       "right",
-      commentatorsBottomY - appearance.height + 14
+      commentatorsBottomY - appearance.height + 14,
+      layout.bubbleY
     );
 
     leftText.setText(initialMessage);
@@ -556,9 +573,9 @@ export class MatchScene extends Phaser.Scene {
     tailTargetX: number,
     bubbleX: number,
     side: "left" | "right",
-    tailTargetY: number
+    tailTargetY: number,
+    bubbleY: number
   ): Phaser.GameObjects.Text {
-    const bubbleY = 257;
     const bubbleWidth = 124;
     const bubbleHeight = 64;
     const bubbleLeft = bubbleX - bubbleWidth / 2;
@@ -636,8 +653,8 @@ export class MatchScene extends Phaser.Scene {
 
     const panel = new UIRoundedRectangle(
       this,
-      SIMULATION_FIELD.centerX,
-      SIMULATION_FIELD.centerY,
+      this.simulationField.centerX,
+      this.simulationField.centerY,
       238,
       82,
       UI.colors.panelDark,
@@ -646,8 +663,8 @@ export class MatchScene extends Phaser.Scene {
       .setStrokeStyle(3, UI.colors.accent, 0.95)
       .setDepth(SIMULATION_DEPTH.halfTimePanel);
     const label = this.add.text(
-      SIMULATION_FIELD.centerX,
-      SIMULATION_FIELD.centerY,
+      this.simulationField.centerX,
+      this.simulationField.centerY,
       t("match.halfTime"),
       {
         font: "bold 28px Arial",
@@ -666,7 +683,7 @@ export class MatchScene extends Phaser.Scene {
       this.updateSimulationActionText("match.action.secondHalfKickoff");
       this.simulationBall?.setPosition(
         this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
-        SIMULATION_FIELD.centerY
+        this.simulationField.centerY
       );
       this.setSimulationBallLooseStyle();
       this.animateBallFlight(
@@ -705,7 +722,7 @@ export class MatchScene extends Phaser.Scene {
       GameStore.setMatch(nextMatch);
       this.simulationBall?.setPosition(
         this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
-        SIMULATION_FIELD.centerY
+        this.simulationField.centerY
       );
       this.setSimulationBallTeamStyle(nextMatch, concedingOwner);
       this.updateSimulationActionText("match.action.restart");
@@ -734,8 +751,8 @@ export class MatchScene extends Phaser.Scene {
       const maskGraphics = this.make.graphics({ x: 0, y: 0 });
       maskGraphics.fillStyle(0xffffff, 1)
         .fillPoints([farLeft, farRight, nearRight, nearLeft], true);
-      this.add.image(SIMULATION_FIELD.centerX, SIMULATION_FIELD.centerY, MATCH_PITCH_TEXTURE_KEY)
-        .setDisplaySize(SIMULATION_FIELD.width, SIMULATION_FIELD.height)
+      this.add.image(this.simulationField.centerX, this.simulationField.centerY, MATCH_PITCH_TEXTURE_KEY)
+        .setDisplaySize(this.simulationField.width, this.simulationField.height)
         .setTint(appearance.tint)
         .setDepth(SIMULATION_DEPTH.pitch)
         .setMask(maskGraphics.createGeometryMask());
@@ -818,12 +835,12 @@ export class MatchScene extends Phaser.Scene {
     }
 
     bases.forEach((base, index) => {
-      const farSide = base.y < SIMULATION_FIELD.centerY;
+      const farSide = base.y < this.simulationField.centerY;
       const outsideY = base.y + (farSide ? -3 : 3);
       const poleHeight = farSide ? 8 : 10;
       const poleWidth = farSide ? 1 : 2;
       const flagWidth = farSide ? 4 : 5;
-      const flagDirection = base.x < SIMULATION_FIELD.centerX ? 1 : -1;
+      const flagDirection = base.x < this.simulationField.centerX ? 1 : -1;
       graphics.lineStyle(poleWidth + 1, UI.colors.scrim, 0.55);
       graphics.lineBetween(base.x + 1, outsideY + 1, base.x + 1, outsideY - poleHeight + 1);
       graphics.lineStyle(poleWidth, UI.colors.line, 1);
@@ -1038,7 +1055,7 @@ export class MatchScene extends Phaser.Scene {
       : action.state.ballLateralPosition;
     const targetX = this.getPitchX(action.state.ballPositionMeters, targetLateralPosition);
     const targetY = action.kind === "lineout"
-      ? SIMULATION_FIELD.centerY + lineoutDirection * (SIMULATION_FIELD.height / 2 - 6)
+      ? this.simulationField.centerY + lineoutDirection * (this.simulationField.height / 2 - 6)
       : openPlayTargetY;
     const arcHeight = action.kind === "clearanceKick"
       ? LINEOUT_BALANCE.match.visualSimulation.kickArcHeightPixels
@@ -1107,9 +1124,9 @@ export class MatchScene extends Phaser.Scene {
     const visualConfig = LINEOUT_BALANCE.match.visualSimulation;
     const lateralDistancePixels = Math.abs(targetY - ball.y);
     const minimumLateralDistance = visualConfig.passLateralStepMinimum
-      * SIMULATION_FIELD.lateralRange;
+      * this.simulationField.lateralRange;
     const maximumLateralDistance = visualConfig.passLateralStepMaximum
-      * SIMULATION_FIELD.lateralRange;
+      * this.simulationField.lateralRange;
     const distanceRatio = Phaser.Math.Clamp(
       (lateralDistancePixels - minimumLateralDistance)
       / Math.max(1, maximumLateralDistance - minimumLateralDistance),
@@ -1132,8 +1149,8 @@ export class MatchScene extends Phaser.Scene {
     const backwardDirection = previous.ballOwner === "player" ? -1 : 1;
     const passTargetX = Phaser.Math.Clamp(
       ball.x + backwardDirection * backwardDistancePixels,
-      SIMULATION_FIELD.nearLeft,
-      SIMULATION_FIELD.nearRight
+      this.simulationField.nearLeft,
+      this.simulationField.nearRight
     );
     const passDurationRatio = Phaser.Math.FloatBetween(
       visualConfig.passDurationRatioMinimum,
@@ -1203,7 +1220,7 @@ export class MatchScene extends Phaser.Scene {
         this.time.delayedCall(celebrationDuration, () => {
           this.simulationBall?.setPosition(
             this.getPitchX(LINEOUT_BALANCE.match.restartPositionMeters),
-            SIMULATION_FIELD.centerY
+            this.simulationField.centerY
           );
           this.setSimulationBallTeamStyle(frame, concedingOwner);
           this.updateSimulationActionText("match.action.restart");
@@ -1233,14 +1250,14 @@ export class MatchScene extends Phaser.Scene {
     );
     const colors = this.getDisplayedTeamColors(match, scoringOwner);
     const flash = this.add.rectangle(
-      SIMULATION_FIELD.centerX,
-      SIMULATION_FIELD.centerY,
-      SIMULATION_FIELD.width,
-      SIMULATION_FIELD.height,
+      this.simulationField.centerX,
+      this.simulationField.centerY,
+      this.simulationField.width,
+      this.simulationField.height,
       colors.primary,
       0.22
     ).setDepth(SIMULATION_DEPTH.tryCelebration).setAlpha(0);
-    const panel = this.add.container(SIMULATION_FIELD.centerX, SIMULATION_FIELD.centerY)
+    const panel = this.add.container(this.simulationField.centerX, this.simulationField.centerY)
       .setDepth(SIMULATION_DEPTH.tryCelebration + 1)
       .setAlpha(0)
       .setScale(0.72);
@@ -1259,8 +1276,8 @@ export class MatchScene extends Phaser.Scene {
       const angle = Phaser.Math.DegToRad(index * (360 / 14));
       const distance = index % 2 === 0 ? 150 : 120;
       const piece = this.add.rectangle(
-        SIMULATION_FIELD.centerX,
-        SIMULATION_FIELD.centerY,
+        this.simulationField.centerX,
+        this.simulationField.centerY,
         index % 3 === 0 ? 8 : 5,
         12,
         index % 2 === 0 ? colors.primary : colors.secondary,
@@ -1268,8 +1285,8 @@ export class MatchScene extends Phaser.Scene {
       ).setDepth(SIMULATION_DEPTH.tryCelebration);
       this.tweens.add({
         targets: piece,
-        x: SIMULATION_FIELD.centerX + Math.cos(angle) * distance,
-        y: SIMULATION_FIELD.centerY + Math.sin(angle) * distance,
+        x: this.simulationField.centerX + Math.cos(angle) * distance,
+        y: this.simulationField.centerY + Math.sin(angle) * distance,
         angle: index % 2 === 0 ? 180 : -180,
         alpha: 0,
         duration: Math.max(1, duration),
@@ -1296,7 +1313,7 @@ export class MatchScene extends Phaser.Scene {
           this.tweens.add({
             targets: panel,
             alpha: 0,
-            y: SIMULATION_FIELD.centerY - 20,
+            y: this.simulationField.centerY - 20,
             duration: Math.max(1, duration * 0.25),
             ease: "Cubic.easeIn",
             onComplete: () => panel.destroy()
@@ -1442,8 +1459,8 @@ export class MatchScene extends Phaser.Scene {
     const position = Phaser.Math.Clamp(positionMeters, 0, LINEOUT_BALANCE.match.pitchLengthMeters);
     const { left, right } = this.getFieldEdges(lateralPosition);
     const fieldWidth = right - left;
-    const tryLineLeft = left + fieldWidth * SIMULATION_FIELD.inGoalRatio;
-    const tryLineRight = right - fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    const tryLineLeft = left + fieldWidth * this.simulationField.inGoalRatio;
+    const tryLineRight = right - fieldWidth * this.simulationField.inGoalRatio;
     return Phaser.Math.Linear(
       tryLineLeft,
       tryLineRight,
@@ -1452,8 +1469,8 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private getPitchY(lateralPosition = 0): number {
-    return SIMULATION_FIELD.centerY
-      + Phaser.Math.Clamp(lateralPosition, -1, 1) * SIMULATION_FIELD.lateralRange;
+    return this.simulationField.centerY
+      + Phaser.Math.Clamp(lateralPosition, -1, 1) * this.simulationField.lateralRange;
   }
 
   private getPitchPoint(positionMeters: number, lateralPosition = 0): Phaser.Math.Vector2 {
@@ -1474,21 +1491,21 @@ export class MatchScene extends Phaser.Scene {
   private getFieldEdges(lateralPosition: number): { left: number; right: number } {
     const depthRatio = (Phaser.Math.Clamp(lateralPosition, -1, 1) + 1) / 2;
     return {
-      left: Phaser.Math.Linear(SIMULATION_FIELD.farLeft, SIMULATION_FIELD.nearLeft, depthRatio),
-      right: Phaser.Math.Linear(SIMULATION_FIELD.farRight, SIMULATION_FIELD.nearRight, depthRatio)
+      left: Phaser.Math.Linear(this.simulationField.farLeft, this.simulationField.nearLeft, depthRatio),
+      right: Phaser.Math.Linear(this.simulationField.farRight, this.simulationField.nearRight, depthRatio)
     };
   }
 
   private getPitchPositionMeters(x: number, y: number): number {
     const lateralPosition = Phaser.Math.Clamp(
-      (y - SIMULATION_FIELD.centerY) / SIMULATION_FIELD.lateralRange,
+      (y - this.simulationField.centerY) / this.simulationField.lateralRange,
       -1,
       1
     );
     const { left, right } = this.getFieldEdges(lateralPosition);
     const fieldWidth = right - left;
-    const tryLineLeft = left + fieldWidth * SIMULATION_FIELD.inGoalRatio;
-    const tryLineRight = right - fieldWidth * SIMULATION_FIELD.inGoalRatio;
+    const tryLineLeft = left + fieldWidth * this.simulationField.inGoalRatio;
+    const tryLineRight = right - fieldWidth * this.simulationField.inGoalRatio;
     return Phaser.Math.Clamp(
       ((x - tryLineLeft) / Math.max(1, tryLineRight - tryLineLeft))
         * LINEOUT_BALANCE.match.pitchLengthMeters,

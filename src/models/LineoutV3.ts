@@ -61,6 +61,12 @@ export type LineoutV3ThrowValidation =
   | { valid: true }
   | { valid: false; reason: "tooShort" | "tooSlow" };
 
+export type LineoutV3ThrowPowerFeedback = {
+  grade: "perfect" | "close" | "miss";
+  requestedDepthMeters: number;
+  expectedDepthMeters: number;
+};
+
 export type LineoutV3BallTrajectory = {
   requestedDepthMeters: number;
   actualDepthMeters: number;

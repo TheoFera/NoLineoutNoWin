@@ -69,10 +69,6 @@ export function addUsage(
   };
 }
 
-export function applyPlayerProgression(team: Team, usageMap: Record<string, MatchPlayerUsage>): Team {
-  return resolvePlayerProgression(team, usageMap).team;
-}
-
 export function resolvePlayerProgression(
   team: Team,
   matchUsage: Record<string, MatchPlayerUsage>,

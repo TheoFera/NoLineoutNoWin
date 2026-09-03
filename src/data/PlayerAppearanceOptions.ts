@@ -160,10 +160,6 @@ export function cloneTeamPlayerDrafts(players: readonly TeamPlayerDraft[]): Team
   }));
 }
 
-export function isTeamPlayerNumber(number: number): number is TeamPlayerNumber {
-  return TEAM_PLAYER_NUMBERS.includes(number as TeamPlayerNumber);
-}
-
 export function getGeneratedTeamSkinToneId(teamId: string, rosterIndex: number): PlayerSkinToneId {
   let teamHash = 0;
   for (const character of teamId) {

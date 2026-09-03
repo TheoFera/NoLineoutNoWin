@@ -76,22 +76,6 @@ function inferDivisionFromLegacyBase(base: number): DivisionId {
   }, "regionale_3" as DivisionId);
 }
 
-export function createDefaultHooker(
-  id: string,
-  nickname: string,
-  base = 60,
-  randomSource: RandomSource = MATH_RANDOM_SOURCE
-): Hooker {
-  return generateLineoutRoster({
-    divisionId: inferDivisionFromLegacyBase(base),
-    prefix: `${id}_fallback_`,
-    hookerId: id,
-    hookerNickname: nickname,
-    clubModifier: 0,
-    rng: randomSource
-  }).hooker;
-}
-
 export function createDefaultFieldPlayers(
   base = 60,
   prefix = "p",
@@ -105,14 +89,6 @@ export function createDefaultFieldPlayers(
     clubModifier: 0,
     rng: randomSource
   }).fieldPlayers;
-}
-
-export function createDefaultLineoutPlayers(
-  base = 60,
-  prefix = "p",
-  randomSource: RandomSource = MATH_RANDOM_SOURCE
-): FieldPlayer[] {
-  return createDefaultFieldPlayers(base, prefix, randomSource).slice(0, DEFAULT_TEAM_SIZE);
 }
 
 export function createDefaultPlayerTeam(

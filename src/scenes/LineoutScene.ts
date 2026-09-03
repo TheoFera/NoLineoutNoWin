@@ -108,6 +108,7 @@ import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { Modal } from "../ui/Modal";
 import { MatchScoreOverlay } from "../ui/MatchScoreOverlay";
 import { LineoutCombinationOverlay } from "../ui/LineoutCombinationOverlay";
+import { LineoutResultPulse } from "../ui/LineoutResultPulse";
 import { MatchStatsOverlay } from "../ui/MatchStatsOverlay";
 import {
   getMatchPitchAppearance,
@@ -309,10 +310,13 @@ type ThrowPowerGauge = {
   container: Phaser.GameObjects.Container;
   graphics: Phaser.GameObjects.Graphics;
   levelLabel: Phaser.GameObjects.Text;
+  successStar: Phaser.GameObjects.Star;
 };
 
 type DefensiveGroupDragState = {
   pointer: Phaser.Input.Pointer;
+  startY: number;
+  homeY: number;
   jumperId: string;
   lifterIds: string[];
   handle: Phaser.GameObjects.Container;
@@ -412,6 +416,7 @@ export class LineoutScene extends Phaser.Scene {
   private v3CameraFlightStartedAtMs = 0;
   private v3CameraReceptionTargetId: string | null = null;
   private v3ResolutionHandled = false;
+  private resultFeedbackStarted = false;
   private sceneCameraBaseZoom = 1;
   private v3GroupHandles = new Map<string, Phaser.GameObjects.Container>();
   private v3GroupDrag: DefensiveGroupDragState | null = null;
@@ -514,6 +519,9 @@ export class LineoutScene extends Phaser.Scene {
       this.renderActions(layout);
     }
     this.initializeV3Runtime();
+    // L'audio mobile doit être réactivé pendant une interaction, avant le sifflet.
+    this.input.on("pointerdown", () => prepareGameAudio(this));
+    this.input.on("pointerup", () => prepareGameAudio(this));
     this.input.on("pointermove", this.trackV3ThrowGesture, this);
     this.input.on("pointerup", this.completeV3ThrowGesture, this);
     if (this.enterFromMatchSimulation) this.startMatchLineoutEntryTransition();
@@ -1776,6 +1784,9 @@ export class LineoutScene extends Phaser.Scene {
     this.dragState.moved = true;
     const layout = this.getLayout();
     const directionalAction = this.getDirectionalPlayerAction(this.dragState, pointerPosition);
+    // Le point saisi sur le corps reste sous le doigt pendant le déplacement.
+    const targetX = this.dragState.homeX + (pointerPosition.x - this.dragState.startX);
+    const targetY = this.dragState.homeY + (pointerPosition.y - this.dragState.startY);
 
     if (origin.kind === "training-action") {
       if (directionalAction !== null) {
@@ -1791,7 +1802,7 @@ export class LineoutScene extends Phaser.Scene {
       const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
       const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
       token.x = layout.attackX + getPlayerAlignmentOffsetX(token.player.id);
-      token.y = Phaser.Math.Clamp(pointerPosition.y, minY, maxY);
+      token.y = Phaser.Math.Clamp(targetY, minY, maxY);
       this.syncPlayerTokenDepth(token);
       return;
     }
@@ -1802,8 +1813,8 @@ export class LineoutScene extends Phaser.Scene {
       || origin.kind === "training-defense-slot"
       || origin.kind === "training-defense-reserve"
     ) {
-      token.x = Phaser.Math.Clamp(pointerPosition.x, 28, 362);
-      token.y = Phaser.Math.Clamp(pointerPosition.y, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
+      token.x = Phaser.Math.Clamp(targetX, 28, 362);
+      token.y = Phaser.Math.Clamp(targetY, layout.fieldTop + layout.playerHeight - 4, layout.navigationY - 32);
       this.syncPlayerTokenDepth(token);
       return;
     }
@@ -1823,7 +1834,7 @@ export class LineoutScene extends Phaser.Scene {
       }
       const minY = Math.min(this.positionY(1, layout), this.positionY(7, layout));
       const maxY = Math.max(this.positionY(1, layout), this.positionY(7, layout));
-      token.y = Phaser.Math.Clamp(pointerPosition.y, minY, maxY);
+      token.y = Phaser.Math.Clamp(targetY, minY, maxY);
       if (this.v3Engine && !this.v3Engine.getSnapshot().defenseLocked) {
         this.v3Engine.moveDefender(
           token.player.id,
@@ -2396,6 +2407,8 @@ export class LineoutScene extends Phaser.Scene {
       if (lifterIds.length === 0) return;
       this.v3GroupDrag = {
         pointer,
+        startY: this.getPointerWorldPosition(pointer).y,
+        homeY: handle.y,
         jumperId: jumperToken.player.id,
         lifterIds,
         handle,
@@ -2418,7 +2431,7 @@ export class LineoutScene extends Phaser.Scene {
     const firstPositionY = this.positionY(1, layout) + drag.handleOffsetY;
     const seventhPositionY = this.positionY(7, layout) + drag.handleOffsetY;
     drag.handle.y = Phaser.Math.Clamp(
-      point.y,
+      drag.homeY + (point.y - drag.startY),
       Math.min(firstPositionY, seventhPositionY),
       Math.max(firstPositionY, seventhPositionY)
     );
@@ -2465,7 +2478,7 @@ export class LineoutScene extends Phaser.Scene {
     const gesture = this.v3ThrowGesture;
     if (!gesture || gesture.pointer.id !== pointer.id) return;
     const point = this.getPointerWorldPosition(pointer);
-    this.updateV3ThrowPowerGauge(point);
+    this.updateV3ThrowPowerGauge(point, true);
     this.v3ThrowGesture = null;
     if (!this.v3Engine) {
       this.destroyV3ThrowPowerGauge();
@@ -2527,7 +2540,8 @@ export class LineoutScene extends Phaser.Scene {
       const hudCandidates: Array<Phaser.GameObjects.GameObject | undefined> = [
         this.matchScoreOverlay,
         this.statusText,
-        this.inspectorPanel
+        this.inspectorPanel,
+        this.v3ThrowPowerGauge?.container
       ];
       this.v3CameraHudObjects = hudCandidates.filter(
         (object): object is Phaser.GameObjects.GameObject => object !== undefined
@@ -2578,6 +2592,8 @@ export class LineoutScene extends Phaser.Scene {
         ? resolution.details.recoveryPlayerId
         : null;
     this.v3CameraPhase = "reception";
+    // En match, le retour coloré se termine avant de lancer le dézoom.
+    if (this.mode === "match") return;
     this.time.delayedCall(holdDurationMs, () => {
       if (this.v3CameraPhase === "reception") this.v3CameraPhase = "return";
     });
@@ -2663,7 +2679,7 @@ export class LineoutScene extends Phaser.Scene {
     };
   }
 
-  private restoreV3DynamicCamera(): void {
+  private restoreV3DynamicCamera(preserveView = false): void {
     if (!this.v3HudCamera && this.v3CameraPhase === "idle") return;
     const fieldCamera = this.cameras.main;
     this.v3CameraHudObjects.forEach((object) => {
@@ -2676,10 +2692,12 @@ export class LineoutScene extends Phaser.Scene {
       });
       this.cameras.remove(this.v3HudCamera);
     }
-    fieldCamera
-      .resetFX()
-      .setZoom(this.v3CameraBaseZoom)
-      .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    fieldCamera.resetFX();
+    if (!preserveView) {
+      fieldCamera
+        .setZoom(this.v3CameraBaseZoom)
+        .centerOn(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    }
     this.v3HudCamera = undefined;
     this.v3CameraHudObjects = [];
     this.v3CameraWorldObjects = [];
@@ -2717,12 +2735,15 @@ export class LineoutScene extends Phaser.Scene {
       stroke: UI.colors.textStroke,
       strokeThickness: 3
     }).setOrigin(0.5);
-    const container = this.add.container(0, 0, [graphics, levelLabel])
+    const successStar = this.add.star(0, 0, 5, 5, 11, UI.colors.success)
+      .setStrokeStyle(1.5, UI.colors.paperRaised, 0.9)
+      .setVisible(false);
+    const container = this.add.container(0, 0, [graphics, levelLabel, successStar])
       .setDepth(LINEOUT_ACTION_DEPTH + 20);
-    this.v3ThrowPowerGauge = { container, graphics, levelLabel };
+    this.v3ThrowPowerGauge = { container, graphics, levelLabel, successStar };
   }
 
-  private updateV3ThrowPowerGauge(point: Phaser.Math.Vector2): void {
+  private updateV3ThrowPowerGauge(point: Phaser.Math.Vector2, released = false): void {
     const gesture = this.v3ThrowGesture;
     const gauge = this.v3ThrowPowerGauge;
     const engine = this.v3Engine;
@@ -2735,6 +2756,9 @@ export class LineoutScene extends Phaser.Scene {
       this.time.now - (gesture.gestureStartedAtMs ?? gesture.contactStartedAtMs)
     );
     const validation = engine.validateThrowGesture({ distancePixels, durationMs });
+    const feedback = released && validation.valid
+      ? engine.getThrowPowerFeedback(distancePixels)
+      : null;
     const requestedDepth = getLineoutV3DepthForGestureDistance(distancePixels);
     const level = distancePixels < minimumDistance
       ? 0
@@ -2747,6 +2771,10 @@ export class LineoutScene extends Phaser.Scene {
     );
     const firstPositionY = positionTargetY(1);
     const seventhPositionY = positionTargetY(7);
+    const depthTargetY = (depthMeters: number): number => (
+      firstPositionY - (depthMeters - LINEOUT_BALANCE.gameplayV3.depth.minimumMeters)
+        / LINEOUT_BALANCE.gameplayV3.depth.positionSpacingMeters * layout.slotGap
+    );
     const throwStartY = Math.max(firstPositionY + 22, this.getHookerBallStart("us", layout).y);
     const positionProgress = Phaser.Math.Clamp(
       (requestedDepth - LINEOUT_BALANCE.gameplayV3.depth.minimumMeters)
@@ -2756,44 +2784,52 @@ export class LineoutScene extends Phaser.Scene {
     );
     const lowerTargetPosition = (Math.floor(positionProgress) + 1) as LineoutPosition;
     const upperTargetPosition = (Math.ceil(positionProgress) + 1) as LineoutPosition;
-    const targetY = distancePixels < minimumDistance
-      ? Phaser.Math.Linear(throwStartY, firstPositionY, distancePixels / minimumDistance)
-      : Phaser.Math.Linear(
-        positionTargetY(lowerTargetPosition),
-        positionTargetY(upperTargetPosition),
-        positionProgress - Math.floor(positionProgress)
-      );
-    const activeColor = level === 0
-      ? UI.colors.outlineStrong
-      : validation.valid ? UI.colors.accent : UI.colors.danger;
-    const activeTargetY = level > 0
-      ? positionTargetY(level as LineoutPosition)
-      : null;
+    const targetY = feedback
+      ? depthTargetY(feedback.requestedDepthMeters)
+      : distancePixels < minimumDistance
+        ? Phaser.Math.Linear(throwStartY, firstPositionY, distancePixels / minimumDistance)
+        : Phaser.Math.Linear(
+          positionTargetY(lowerTargetPosition),
+          positionTargetY(upperTargetPosition),
+          positionProgress - Math.floor(positionProgress)
+        );
+    const activeColor = feedback
+      ? feedback.grade === "perfect"
+        ? UI.colors.success
+        : feedback.grade === "close" ? UI.colors.warning : UI.colors.danger
+      : level === 0
+        ? UI.colors.outlineStrong
+        : validation.valid ? UI.colors.accent : UI.colors.danger;
+    const activeTargetY = feedback
+      ? targetY
+      : level > 0 ? positionTargetY(level as LineoutPosition) : null;
+    const expectedTargetY = feedback ? depthTargetY(feedback.expectedDepthMeters) : null;
+    const railTopY = Math.min(seventhPositionY, targetY, expectedTargetY ?? seventhPositionY);
 
     gauge.graphics.clear();
 
     gauge.graphics.fillStyle(UI.colors.scrim, 0.54);
     gauge.graphics.fillRoundedRect(
       railX - 4,
-      seventhPositionY - 8,
+      railTopY - 8,
       8,
-      throwStartY - seventhPositionY + 16,
+      throwStartY - railTopY + 16,
       4
     );
 
     gauge.graphics.lineStyle(2, UI.colors.outlineStrong, 0.34);
     gauge.graphics.beginPath();
     gauge.graphics.moveTo(railX, throwStartY);
-    gauge.graphics.lineTo(railX, seventhPositionY);
+    gauge.graphics.lineTo(railX, railTopY);
     gauge.graphics.strokePath();
 
-    gauge.graphics.lineStyle(7, activeColor, 0.1);
+    gauge.graphics.lineStyle(7, activeColor, feedback ? 0.3 : 0.1);
     gauge.graphics.beginPath();
     gauge.graphics.moveTo(railX, throwStartY);
     gauge.graphics.lineTo(railX, targetY);
     gauge.graphics.strokePath();
 
-    gauge.graphics.lineStyle(2, activeColor, 0.95);
+    gauge.graphics.lineStyle(feedback ? 4 : 2, activeColor, 0.95);
     gauge.graphics.beginPath();
     gauge.graphics.moveTo(railX, throwStartY);
     gauge.graphics.lineTo(railX, targetY);
@@ -2834,10 +2870,34 @@ export class LineoutScene extends Phaser.Scene {
       );
     }
 
+    if (feedback && feedback.grade !== "perfect" && expectedTargetY !== null) {
+      // Le trait clair marque la profondeur attendue ; l'accolade montre l'écart.
+      gauge.graphics.lineStyle(2, activeColor, 1);
+      gauge.graphics.beginPath();
+      gauge.graphics.moveTo(railX + 3, targetY);
+      gauge.graphics.lineTo(railX + 9, targetY);
+      gauge.graphics.lineTo(railX + 9, expectedTargetY);
+      gauge.graphics.lineTo(railX + 3, expectedTargetY);
+      gauge.graphics.strokePath();
+      gauge.graphics.lineStyle(3, UI.colors.paperRaised, 1);
+      gauge.graphics.lineBetween(railX - 10, expectedTargetY, railX + 3, expectedTargetY);
+    }
+    gauge.successStar
+      .setVisible(feedback?.grade === "perfect")
+      .setPosition(railX - 35, targetY);
+    if (feedback?.grade === "perfect") {
+      gauge.successStar.setScale(0.6);
+      this.tweens.add({
+        targets: gauge.successStar,
+        scale: 1,
+        duration: UI.motion.quickMs * 2,
+        ease: "Back.easeOut"
+      });
+    }
     gauge.levelLabel
-      .setVisible(activeTargetY !== null)
+      .setVisible(activeTargetY !== null && feedback?.grade !== "perfect")
       .setText(level > 0 ? String(level) : "")
-      .setColor(validation.valid ? UI.colors.textAccent : UI.colors.textDanger)
+      .setColor(feedback ? UI.colors.text : validation.valid ? UI.colors.textAccent : UI.colors.textDanger)
       .setPosition(railX - 35, activeTargetY ?? firstPositionY);
     gauge.container.setPosition(0, 0);
   }
@@ -2845,7 +2905,12 @@ export class LineoutScene extends Phaser.Scene {
   private destroyV3ThrowPowerGauge(): void {
     this.v3ThrowPowerGaugeHideTimer?.remove(false);
     this.v3ThrowPowerGaugeHideTimer = undefined;
-    this.v3ThrowPowerGauge?.container.destroy(true);
+    const gauge = this.v3ThrowPowerGauge;
+    if (gauge) {
+      this.tweens.killTweensOf(gauge.successStar);
+      this.v3CameraHudObjects = this.v3CameraHudObjects.filter((object) => object !== gauge.container);
+      gauge.container.destroy(true);
+    }
     this.v3ThrowPowerGauge = undefined;
   }
 
@@ -3229,8 +3294,13 @@ export class LineoutScene extends Phaser.Scene {
     if (this.v3ResolutionHandled) return;
     this.v3ResolutionHandled = true;
     this.v3GroupHandles.forEach((handle) => handle.setVisible(false));
+    const perspective = this.isDefensiveMatch() ? "defending" : "throwing";
+    const result = adaptV3ResolutionForPerspective(resolution, perspective);
     const groundRecoveryAnimationDurationMs = resolution.primaryReason === "lineout.v3.reason.groundRecovery"
-      ? this.animateV3GroundRecovery(resolution)
+      ? this.animateV3GroundRecovery(
+        resolution,
+        this.mode === "match" ? () => this.showResult(result) : undefined
+      )
       : 0;
     if (groundRecoveryAnimationDurationMs === 0) {
       if (resolution.outcome === "knockOn") {
@@ -3243,9 +3313,6 @@ export class LineoutScene extends Phaser.Scene {
       resolution,
       groundRecoveryAnimationDurationMs || LINEOUT_CAMERA_ANIMATION.resultHoldDurationMs
     );
-    const perspective = this.isDefensiveMatch() ? "defending" : "throwing";
-    const result = adaptV3ResolutionForPerspective(resolution, perspective);
-
     const match = GameStore.getMatch();
     if (this.mode === "match" && match) {
       const throwingSide = this.isDefensiveMatch() ? "opponent" : "us";
@@ -3292,6 +3359,8 @@ export class LineoutScene extends Phaser.Scene {
       }
       GameStore.setMatch(updated);
     }
+    // Une récupération en match annonce son résultat à la fin réelle du ramassage.
+    if (this.mode === "match" && groundRecoveryAnimationDurationMs > 0) return;
     this.time.delayedCall(
       Math.max(
         LINEOUT_BALANCE.gameplayV3.timing.resultOverlayDelayMs,
@@ -3304,7 +3373,8 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private animateV3GroundRecovery(
-    resolution: NonNullable<ReturnType<LineoutV3Engine["getSnapshot"]>["resolution"]>
+    resolution: NonNullable<ReturnType<LineoutV3Engine["getSnapshot"]>["resolution"]>,
+    onComplete?: () => void
   ): number {
     const recoveryPlayerId = typeof resolution.details.recoveryPlayerId === "string"
       ? resolution.details.recoveryPlayerId
@@ -3387,6 +3457,7 @@ export class LineoutScene extends Phaser.Scene {
             onComplete: () => {
               token.attachToBody(ball, placement.x, placement.y);
               ball.setAngle(placement.angle);
+              onComplete?.();
             }
           });
         }
@@ -3605,82 +3676,6 @@ export class LineoutScene extends Phaser.Scene {
       depth.minimumMeters + positionIndex * depth.positionSpacingMeters,
       0,
       depth.maximumMeters + depth.ballContinuationMeters
-    );
-  }
-
-  private throwLineout(targetPlayerId?: string): void {
-    prepareGameAudio(this);
-
-    if (this.isResolving) {
-      return;
-    }
-
-    if (targetPlayerId) {
-      const targetToken = this.attackTokens.find((token) => token.player.id === targetPlayerId);
-      if (targetToken) {
-        this.selectTarget(targetToken);
-      }
-    }
-
-    const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
-    const targetOption = this.findSelectedTargetOption();
-    if (!targetToken || !targetOption) {
-      this.flashStatus(t("lineout.status.selectTarget"));
-      return;
-    }
-
-    this.isResolving = true;
-    const save = GameStore.getSave();
-    const match = GameStore.getMatch();
-    const pitchZone = match?.lineouts[match.currentLineoutIndex]?.pitchZone ?? "middle";
-    const result = resolveLineout(
-      {
-        throwingSide: "us",
-        pitchZone,
-        minute: this.currentMatchLineout?.minute ?? match?.minute ?? 0,
-        numberOfPlayers: Math.max(2, countAssignedPlayers(this.selectedCombination)),
-        hooker: save.playerTeam.hooker,
-        attackingPlayers: this.attackSlotPlayers,
-        defendingPlayers: this.defenseSlotPlayers,
-        combination: this.selectedCombination,
-        targetPlayerId: this.selectedTargetId ?? undefined,
-        targetPosition: this.selectedTargetPosition ?? undefined,
-        defensiveJumpPosition: this.opponentDefensiveJumpPosition ?? undefined,
-        maximumFatigueByPlayerId: match?.maximumFatigueByPlayerId
-      }
-    );
-
-    if (this.mode === "match" && match) {
-      const updated = result.resolution
-        ? applyLineoutResolutionToMatch(match, result.resolution, "us")
-        : { ...match };
-      updated.lineouts[updated.currentLineoutIndex].resolved = true;
-      updated.minute = this.currentMatchLineout?.minute ?? updated.minute;
-      updated.currentLineoutIndex += 1;
-      updated.playerUsage = this.recordOffensiveUsage(updated.playerUsage, save.playerTeam.hooker.id);
-      this.recordOffensiveSummary(updated, result);
-      GameStore.setMatch(updated);
-      if (this.selectedTargetPosition) {
-        GameStore.observePlayerLineoutTarget(
-          match.away.id,
-          this.selectedCombination.id,
-          this.selectedTargetPosition
-        );
-      }
-    }
-
-    this.playThrowAnimation(
-      "us",
-      this.selectedTargetPosition ?? 4,
-      this.attackTokens,
-      this.defenseTokens,
-      this.opponentDefensiveJumpPosition ?? undefined,
-      getLineoutAnimationTargetType(result, targetOption.type),
-      result,
-      () => {
-      this.isResolving = false;
-      this.showResult(result);
-      }
     );
   }
 
@@ -4731,21 +4726,6 @@ export class LineoutScene extends Phaser.Scene {
     };
   }
 
-  private recordOffensiveUsage(usageMap: Record<string, MatchPlayerUsage>, hookerId: string): Record<string, MatchPlayerUsage> {
-    let updated = addUsage(usageMap, hookerId, "throwing", 1);
-    const targetToken = this.attackTokens.find((token) => token.player.id === this.selectedTargetId);
-    if (targetToken) {
-      updated = addUsage(updated, targetToken.player.id, "speed", 1);
-      updated = addUsage(updated, targetToken.player.id, "technique", 1);
-    }
-
-    for (const player of this.getSupportPlayersAroundTarget()) {
-      updated = addUsage(updated, player.id, "strength", 1);
-    }
-
-    return updated;
-  }
-
   private recordDefensiveUsage(
     usageMap: Record<string, MatchPlayerUsage>,
     result: LineoutResult
@@ -4887,17 +4867,6 @@ export class LineoutScene extends Phaser.Scene {
     });
   }
 
-  private createSpreadSlots(players: FieldPlayer[], count: number): Array<FieldPlayer | null> {
-    const slots: Array<FieldPlayer | null> = Array(7).fill(null);
-    const positions = this.getActiveSlotIndices(count);
-
-    players.slice(0, positions.length).forEach((player, index) => {
-      slots[positions[index]] = player;
-    });
-
-    return slots;
-  }
-
   private syncDefenseTokenPositions(layout: LineoutLayout): void {
     for (const token of this.attackTokens) {
       const slotIndex = this.attackSlotPlayers.findIndex((player) => player?.id === token.player.id);
@@ -4990,21 +4959,6 @@ export class LineoutScene extends Phaser.Scene {
   private findDefenseTargetSlot(y: number, layout: LineoutLayout): number {
     const rawIndex = Math.round((layout.slotStartY - y) / layout.slotGap);
     return Phaser.Math.Clamp(rawIndex, 0, 6);
-  }
-
-  private nearestActivePosition(y: number, activeSlots: number[], layout: LineoutLayout): number {
-    let bestSlot = activeSlots[0];
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const slotIndex of activeSlots) {
-      const distance = Math.abs(y - this.positionY((slotIndex + 1) as LineoutPosition, layout));
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestSlot = slotIndex;
-      }
-    }
-
-    return bestSlot;
   }
 
   private getSupportPlayersAroundTarget(): FieldPlayer[] {
@@ -5209,29 +5163,32 @@ export class LineoutScene extends Phaser.Scene {
     return layout.reserveY + (6 - index) * layout.slotGap;
   }
 
-  private nearestPosition(y: number, layout: LineoutLayout): LineoutPosition {
-    const rawPosition = Math.round((layout.slotStartY - y) / layout.slotGap) + 1;
-    const maxPosition = this.getCurrentLineoutSize();
-    return Phaser.Math.Clamp(rawPosition, 1, maxPosition) as LineoutPosition;
-  }
-
   private showResult(result: LineoutResult): void {
-    this.restoreV3DynamicCamera();
+    if (this.resultFeedbackStarted) return;
+    this.resultFeedbackStarted = true;
     if (
       this.mode === "match"
-      && (result.resolution?.outcome === "knockOn" || result.internalEvent === "knock_on")
+      && (
+        result.resolution?.outcome === "knockOn"
+        || result.resolution?.outcome === "notStraight"
+        || result.internalEvent === "knock_on"
+        || result.internalEvent === "not_straight"
+      )
     ) {
       playRefereeWhistle(this);
     }
 
+    if (this.mode === "match") {
+      this.showMatchResultPulse(result);
+      return;
+    }
+    this.restoreV3DynamicCamera();
     const presentation = buildLineoutResultPresentation(result);
-    const continueMatch = this.mode === "training"
-      ? () => this.scene.restart({
-        mode: "training",
-        trainingMode: "edit",
-        combinationId: this.selectedCombination.id
-      } satisfies LineoutSceneData)
-      : () => this.startMatchSimulationReturnTransition();
+    const continueMatch = () => this.scene.restart({
+      mode: "training",
+      trainingMode: "edit",
+      combinationId: this.selectedCombination.id
+    } satisfies LineoutSceneData);
     const summary = presentation.summaryKeys.map((key) => t(key)).join(" ");
     const resultTone = result.displayedResult === "won" || result.displayedResult === "won_dirty"
       ? "success"
@@ -5251,6 +5208,23 @@ export class LineoutScene extends Phaser.Scene {
           );
         }
       }
+    });
+  }
+
+  private showMatchResultPulse(result: LineoutResult): void {
+    this.input.enabled = false;
+    this.destroyV3ThrowPowerGauge();
+    const won = result.displayedResult === "won" || result.displayedResult === "won_dirty";
+    const pulse = new LineoutResultPulse(this, won);
+    if (this.v3HudCamera) {
+      this.v3CameraHudObjects.push(pulse);
+      this.cameras.main.ignore(pulse);
+    }
+    pulse.play(() => {
+      this.v3CameraHudObjects = this.v3CameraHudObjects.filter((object) => object !== pulse);
+      pulse.destroy();
+      this.restoreV3DynamicCamera(true);
+      this.startMatchSimulationReturnTransition();
     });
   }
 
@@ -5302,14 +5276,6 @@ export class LineoutScene extends Phaser.Scene {
       return `${Math.round(detail.value)} / 100`;
     }
     return String(detail.value);
-  }
-
-  private getCurrentLineoutSize(): number {
-    if (this.isDefensiveMatch()) {
-      return this.currentMatchLineout?.numberOfPlayers ?? 7;
-    }
-
-    return 7;
   }
 
   private getLayout(): LineoutLayout {
@@ -5496,6 +5462,7 @@ export class LineoutScene extends Phaser.Scene {
     this.v3OpponentThrowAtMs = null;
     this.v3AiJumpAtMs = null;
     this.v3ResolutionHandled = false;
+    this.resultFeedbackStarted = false;
     this.destroyV3GroupHandles();
     this.v3GroupDrag = null;
     this.statusClearTimer?.remove(false);

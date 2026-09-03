@@ -131,13 +131,6 @@ export function hasValidCombinationForMatch(combinations: Combination[]): boolea
   return combinations.some(isCombinationValidForMatch);
 }
 
-export function getTargetPlayerId(
-  combination: Combination,
-  targetPosition: LineoutPosition
-): string | null {
-  return normalizeCombinationSlots(combination.slots)[targetPosition - 1]?.playerId ?? null;
-}
-
 export function getTargetOptionPlayerPosition(option: CombinationTargetOption): LineoutPosition {
   return (option.type === "directCatch"
     ? option.roles.directCatcherPosition
@@ -242,40 +235,6 @@ export function getCombinationDisplayName(
       .replace("{number}", String(defaultIndex + 1));
   }
   return translate(combination.nameKey);
-}
-
-export function orderPlayersForCombination(players: FieldPlayer[], combination?: Combination): FieldPlayer[] {
-  if (!combination) {
-    return players.slice(0, 7);
-  }
-
-  const byId = new Map(players.map((player) => [player.id, player]));
-  const ordered: FieldPlayer[] = [];
-  const used = new Set<string>();
-  const sortedSlots = normalizeCombinationSlots(combination.slots).slice().sort((left, right) => left.position - right.position);
-
-  for (const slot of sortedSlots) {
-    if (!slot.playerId) {
-      continue;
-    }
-
-    const player = byId.get(slot.playerId);
-    if (!player || used.has(player.id)) {
-      continue;
-    }
-    ordered.push(player);
-    used.add(player.id);
-  }
-
-  for (const player of players) {
-    if (used.has(player.id)) {
-      continue;
-    }
-    ordered.push(player);
-    used.add(player.id);
-  }
-
-  return ordered.slice(0, 7);
 }
 
 export function getPlayersAssignedToCombination(players: FieldPlayer[], combination?: Combination): Array<FieldPlayer | null> {

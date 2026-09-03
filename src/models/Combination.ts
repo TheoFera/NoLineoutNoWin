@@ -126,8 +126,3 @@ export function isLineoutPosition(value: number): value is LineoutPosition {
   return Number.isInteger(value) && value >= 1 && value <= 7;
 }
 
-export function normalizePosition(value: number): LineoutPosition {
-  const rounded = Math.round(value);
-  const clamped = Math.min(7, Math.max(1, rounded));
-  return clamped as LineoutPosition;
-}

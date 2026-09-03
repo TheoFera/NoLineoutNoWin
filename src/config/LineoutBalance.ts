@@ -1,5 +1,3 @@
-export const LINEOUT_BALANCE_SPECIFICATION_STATUS = "v3_source_of_truth_loaded" as const;
-
 export const LINEOUT_BALANCE = {
   positions: {
     minimum: 1,
@@ -190,6 +188,17 @@ export const LINEOUT_BALANCE = {
       maximumHeightErrorMeters: 0.72,
       minimumLateralErrorMeters: 0.03,
       maximumLateralErrorMeters: 0.9
+    },
+    throwFeedback: {
+      perfectDepthToleranceMeters: 0.25,
+      closeDepthToleranceMeters: 0.85
+    },
+    resultFeedback: {
+      edgeWidthPixels: 34,
+      edgeOpacity: 0.65,
+      riseDurationMs: 180,
+      holdDurationMs: 220,
+      fadeDurationMs: 600
     },
     reach: {
       depthMeters: 0.48,
@@ -497,78 +506,3 @@ export const LINEOUT_REFERENCE_RATES = {
   }
 } as const;
 
-// Ces valeurs servent uniquement aux résolveurs historiques et ne définissent pas l'équilibrage V3.
-export const LEGACY_LINEOUT_BALANCE = {
-  throwing: {
-    distanceFactors: [1, 0.96, 0.9, 0.8, 0.67, 0.52, 0.35],
-    randomMin: -8,
-    randomMax: 8
-  },
-  jumping: {
-    jumperWeight: 0.7,
-    liftWeight: 0.3,
-    fullSupportMultiplier: 1,
-    rightOnlyJumpMultiplier: 0.6,
-    rightOnlyLiftMultiplier: 0.6,
-    averageRightOnlyMultiplier: 0.7,
-    averageLeftOnlyMultiplier: 0.4,
-    noSupportLift: 10,
-    minimumQuality: 0,
-    maximumQuality: 100
-  },
-  counter: {
-    onePositionAheadBase: 82,
-    samePositionBase: 50,
-    twoPositionsAheadBase: 30,
-    furtherAheadBase: 14,
-    behindBase: 6,
-    missingDefenderMultiplier: 0.35,
-    missingDefenderMinimum: 5,
-    missingDefenderMaximum: 30,
-    statBaseline: 50,
-    handsWeight: 0.25,
-    jumpWeight: 0.45,
-    minimum: 5,
-    maximum: 95
-  },
-  resolution: {
-    counterResistanceMinimum: 5,
-    counterResistanceMaximum: 100,
-    productScoreMultiplier: 4.5,
-    minimumScore: 5,
-    maximumScore: 95,
-    rollMinimum: 1,
-    rollMaximum: 100,
-    cleanCatchMargin: 18,
-    automaticCleanCatchScore: 70,
-    faultThrowMaximum: 25,
-    faultCounterMinimum: 50,
-    faultFailureMargin: 15
-  },
-  effects: {
-    missingTarget: { possession: -10, occupation: -8 },
-    cleanCatch: { possession: 10, occupation: 10 },
-    dirtyCatch: { possession: 5, occupation: 3 },
-    lost: { possession: -12, occupation: -10 },
-    fault: { possession: -12, occupation: -10 },
-    missedDefense: { possession: -8, occupation: -6 }
-  },
-  match: {
-    ourThrowThreshold: 0.45,
-    firstLineoutMinute: 4,
-    lastLineoutMinute: 78,
-    minimumOpponentPlayers: 4,
-    maximumPlayers: 7,
-    stateMinimum: 0,
-    stateMaximum: 100,
-    possessionScoreWeight: 0.45,
-    occupationScoreWeight: 0.55,
-    scoringRandomMin: -20,
-    scoringRandomMax: 20,
-    ourScoringThreshold: 82,
-    opponentScoringThreshold: 18,
-    tryRollThreshold: 0.55,
-    tryPoints: 7,
-    penaltyPoints: 3
-  }
-} as const;

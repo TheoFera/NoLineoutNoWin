@@ -105,8 +105,17 @@ La résolution distingue notamment :
 - ballon non touché ;
 - récupération au sol.
 
-Les détails numériques restent internes. L'interface affiche un résultat court,
-une explication et des retours utiles sur le geste ou le timing.
+Les détails numériques restent internes. Au relâchement d'un lancer valide, la
+barre évalue uniquement la profondeur demandée par rapport à la réception prévue
+par la combinaison : vert avec une étoile pour un bon dosage, orange ou rouge
+avec un repère d'écart sinon. Les déplacements prévus sont pris en compte ; ce
+retour ne garantit ni la précision réelle du talonneur ni la réception.
+
+En match, après la réception ou la récupération, une pulsation sur les bords de
+l'écran indique le résultat pour le joueur (vert ou rouge), sans texte ni symbole
+près des joueurs. Le dézoom et la simulation reprennent automatiquement après
+cette pulsation. Le sifflet accompagne les en-avant et les lancers sanctionnés
+« pas droits ». L'entraînement conserve son panneau de résultat et ses détails.
 
 ## 7. IA et match
 

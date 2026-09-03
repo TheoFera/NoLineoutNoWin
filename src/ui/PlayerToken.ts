@@ -36,7 +36,6 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   private numberText: Phaser.GameObjects.Text;
   private rugbyPlayer?: RugbyPlayer;
   private defaultPose?: PoseName;
-  private defaultBodyShape?: BodyShapeName;
   private walkingFrame?: RugbyPlayerWalkingFrame;
   private walkingDistanceMeters = 0;
   private lastMovementPosition?: { depthMeters: number; lateralMeters: number };
@@ -54,15 +53,13 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.player = player;
     this.idleBreathingProfile = createIdleBreathingProfile(player.id);
-    const hitboxWidth = visualConfig ? visualConfig.displayWidth + 8 : 48;
-    const hitboxHeight = visualConfig ? Math.max(46, Math.round(visualConfig.displayHeight * 0.58)) : 68;
+    const hitboxWidth = visualConfig ? Math.max(48, visualConfig.displayWidth + 8) : 48;
+    const hitboxHeight = visualConfig ? Math.max(48, Math.round(visualConfig.displayHeight * 0.58)) : 68;
     const ringWidth = visualConfig ? visualConfig.displayWidth + 8 : 44;
     const ringHeight = visualConfig ? visualConfig.displayHeight + 8 : 68;
     const bodyWidth = visualConfig?.displayWidth ?? 34;
     const bodyHeight = visualConfig?.displayHeight ?? 44;
 
-    // Keep the interactive zone tighter than the full sprite so stacked lineout players stay individually draggable.
-    this.hitTarget = scene.add.zone(-hitboxWidth / 2, -hitboxHeight + 4, hitboxWidth, hitboxHeight).setOrigin(0);
     this.shadow = visualConfig
       ? new PlayerGroundShadow(
           scene,
@@ -76,6 +73,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
       : undefined;
     this.selectionRing = scene.add.ellipse(0, -ringHeight / 2 + 4, ringWidth, ringHeight).setStrokeStyle(4, UI.colors.accent).setVisible(false);
     this.tokenBody = this.createBody(scene, color, visualConfig);
+    // Centrer la zone sur le corps réellement affiché, tout en la gardant compacte
+    // pour pouvoir saisir séparément les joueurs qui se chevauchent.
+    const hitboxCenterY = this.rugbyPlayer ? this.getVisualCenterOffsetY() : 0;
+    this.hitTarget = scene.add.zone(0, hitboxCenterY, hitboxWidth, hitboxHeight);
     const numberY = -Math.max(12, (visualConfig?.displayHeight ?? 64) * 0.42);
     this.numberText = scene.add.text(0, numberY, String(player.number), {
       font: "bold 12px Arial",
@@ -249,7 +250,6 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   }
 
   setBodyShape(bodyShape: BodyShapeName): this {
-    this.defaultBodyShape = bodyShape;
     this.rugbyPlayer?.setBodyShape(bodyShape);
     this.shadow?.setBodyShape(bodyShape);
     return this;
@@ -258,7 +258,6 @@ export class PlayerToken extends Phaser.GameObjects.Container {
   private createBody(scene: Phaser.Scene, color: number, visualConfig?: PlayerTokenVisualConfig): Phaser.GameObjects.GameObject {
     if (visualConfig) {
       this.defaultPose = visualConfig.pose;
-      this.defaultBodyShape = visualConfig.bodyShape;
       this.rugbyPlayer = new RugbyPlayer(
         scene,
         0,
