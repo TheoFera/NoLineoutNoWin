@@ -133,7 +133,7 @@ export const LINEOUT_BALANCE = {
       movementPhaseLeadMs: 120,
       opponentPreparationMs: 4_500,
       throwPowerGaugeHoldMs: 700,
-      resultOverlayDelayMs: 900,
+      resultOverlayDelayMs: 750,
       baseFlightDurationMs: 430,
       flightDurationPerMeterMs: 47,
       minimumFlightDurationMs: 500,
@@ -194,11 +194,31 @@ export const LINEOUT_BALANCE = {
       closeDepthToleranceMeters: 0.85
     },
     resultFeedback: {
-      edgeWidthPixels: 34,
-      edgeOpacity: 0.65,
-      riseDurationMs: 180,
+      edgeWidthPixels: 46,
+      edgeOpacity: 0.78,
+      edgeFalloffExponent: 1.6,
+      riseDurationMs: 140,
       holdDurationMs: 220,
       fadeDurationMs: 600
+    },
+    camera: {
+      // Le rapprochement rapide au lâcher accentue l'impulsion du ballon.
+      releaseZoom: 1.10,
+      flightZoom: 1.14,
+      contestZoom: 1.06,
+      receptionZoom: 1.035,
+      horizontalFollowRatio: 0.25,
+      verticalFollowRatio: 0.18,
+      maximumHorizontalShiftPixels: 8,
+      maximumVerticalShiftPixels: 12,
+      responseDurationMs: 120,
+      flightResponseDurationMs: 80,
+      releaseRampDurationMs: 220,
+      resultHoldDurationMs: 220,
+      returnDurationMs: 450,
+      cleanupDelayMs: 720,
+      contestShakeDurationMs: 80,
+      contestShakeIntensity: 0.002
     },
     reach: {
       depthMeters: 0.48,

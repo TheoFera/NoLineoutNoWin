@@ -208,11 +208,13 @@ Le terrain et les joueurs restent prioritaires. Les plaques TV utilisent `panelD
 
 L'action de progression reste principale. Les détails et l'annulation utilisent une variante secondaire.
 
-Exception pour la fin d'une touche en match : aucun panneau ni bouton « Continuer ».
+Exception pour la fin d'une touche en match ou dans le mode « S'entraîner » : aucun
+panneau ni bouton « Continuer ».
 Une pulsation verte ou rouge sur les bords, sans texte ni symbole près des joueurs,
 complète la réception ou la récupération visible. Le centre reste dégagé, puis le
-dézoom et la simulation reprennent automatiquement. En entraînement, le panneau
-de résultat et les détails restent disponibles.
+dézoom et la simulation reprennent automatiquement en match. Dans le mode
+« S'entraîner », le dézoom est suivi d'un retour automatique à l'éditeur de la
+combinaison.
 
 ## 12. Futur tutoriel avec personnage
 

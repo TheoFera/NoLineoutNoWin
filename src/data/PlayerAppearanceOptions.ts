@@ -6,7 +6,7 @@ import {
   type PlayerHairStyleId,
   type PlayerSkinToneId
 } from "../models/PlayerAppearance.ts";
-import type { TeamPlayerDraft, TeamPlayerNumber } from "../models/TeamCreation.ts";
+import type { TeamPlayerDraft } from "../models/TeamCreation.ts";
 import { TEAM_PLAYER_NUMBERS } from "../models/TeamCreation.ts";
 import {
   MATH_RANDOM_SOURCE,

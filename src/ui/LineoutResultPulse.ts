@@ -9,13 +9,13 @@ export class LineoutResultPulse extends Phaser.GameObjects.Graphics {
     super(scene);
     scene.add.existing(this);
     this.setDepth(UI_DEPTH.overlayContent + 1).setAlpha(0);
-    const { edgeWidthPixels, edgeOpacity } = LINEOUT_BALANCE.gameplayV3.resultFeedback;
+    const { edgeWidthPixels, edgeOpacity, edgeFalloffExponent } = LINEOUT_BALANCE.gameplayV3.resultFeedback;
     const color = won ? UI.colors.success : UI.colors.danger;
 
     // Des bandes de plus en plus transparentes laissent le centre du terrain libre.
     // Les coins sont dessinés une seule fois pour conserver une luminosité uniforme.
     for (let inset = 0; inset < edgeWidthPixels; inset += 1) {
-      const opacity = edgeOpacity * Math.pow(1 - inset / edgeWidthPixels, 2);
+      const opacity = edgeOpacity * Math.pow(1 - inset / edgeWidthPixels, edgeFalloffExponent);
       const width = GAME_WIDTH - inset * 2;
       const height = GAME_HEIGHT - inset * 2 - 2;
       this.fillStyle(color, opacity);

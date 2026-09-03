@@ -115,7 +115,8 @@ En match, après la réception ou la récupération, une pulsation sur les bords
 l'écran indique le résultat pour le joueur (vert ou rouge), sans texte ni symbole
 près des joueurs. Le dézoom et la simulation reprennent automatiquement après
 cette pulsation. Le sifflet accompagne les en-avant et les lancers sanctionnés
-« pas droits ». L'entraînement conserve son panneau de résultat et ses détails.
+« pas droits ». Le mode « S'entraîner » utilise la même pulsation, puis un dézoom
+et un retour automatique à l'éditeur de la combinaison, sans panneau de résultat.
 
 ## 7. IA et match
 

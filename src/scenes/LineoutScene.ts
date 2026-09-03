@@ -30,7 +30,6 @@ import {
   replaceCombinationLayout,
   replaceCombinationPlan
 } from "../rules/CombinationRules";
-import { resolveLineout } from "../rules/LineoutResolver";
 import { LineoutV3Engine } from "../rules/LineoutV3Engine";
 import { getV3CombinationPlan, LINEOUT_V3_MAX_PHASES } from "../rules/LineoutV3Combination";
 import {
@@ -172,23 +171,7 @@ const LINEOUT_PREPARATION_ANIMATION = {
   defendingDelayMs: 60,
   defendingDurationMs: 140
 } as const;
-const LINEOUT_CAMERA_ANIMATION = {
-  releaseZoom: 1.025,
-  flightZoom: 1.04,
-  contestZoom: 1.06,
-  receptionZoom: 1.035,
-  horizontalFollowRatio: 0.25,
-  verticalFollowRatio: 0.18,
-  maximumHorizontalShiftPixels: 8,
-  maximumVerticalShiftPixels: 12,
-  responseDurationMs: 120,
-  releaseRampDurationMs: 300,
-  resultHoldDurationMs: 220,
-  returnDurationMs: 450,
-  cleanupDelayMs: 720,
-  contestShakeDurationMs: 80,
-  contestShakeIntensity: 0.002
-} as const;
+const LINEOUT_CAMERA_ANIMATION = LINEOUT_BALANCE.gameplayV3.camera;
 
 type LineoutCameraPhase = "idle" | "flight" | "contest" | "reception" | "return";
 
@@ -463,7 +446,6 @@ export class LineoutScene extends Phaser.Scene {
 
   create(): void {
     const save = GameStore.getSave();
-    const division = getDivision(save.currentDivisionId);
     const match = GameStore.getMatch();
 
     this.resetSceneState();
@@ -2592,8 +2574,8 @@ export class LineoutScene extends Phaser.Scene {
         ? resolution.details.recoveryPlayerId
         : null;
     this.v3CameraPhase = "reception";
-    // En match, le retour coloré se termine avant de lancer le dézoom.
-    if (this.mode === "match") return;
+    // Le retour coloré se termine avant de lancer le dézoom, y compris en pratique.
+    if (this.usesResultPulse()) return;
     this.time.delayedCall(holdDurationMs, () => {
       if (this.v3CameraPhase === "reception") this.v3CameraPhase = "return";
     });
@@ -2655,7 +2637,9 @@ export class LineoutScene extends Phaser.Scene {
     );
     const responseDuration = this.v3CameraPhase === "return"
       ? LINEOUT_CAMERA_ANIMATION.returnDurationMs / 4
-      : LINEOUT_CAMERA_ANIMATION.responseDurationMs;
+      : this.v3CameraPhase === "flight"
+        ? LINEOUT_CAMERA_ANIMATION.flightResponseDurationMs
+        : LINEOUT_CAMERA_ANIMATION.responseDurationMs;
     const smoothing = 1 - Math.exp(-delta / responseDuration);
     this.v3CameraFocusX = Phaser.Math.Linear(this.v3CameraFocusX, targetFocusX, smoothing);
     this.v3CameraFocusY = Phaser.Math.Linear(this.v3CameraFocusY, targetFocusY, smoothing);
@@ -3299,7 +3283,7 @@ export class LineoutScene extends Phaser.Scene {
     const groundRecoveryAnimationDurationMs = resolution.primaryReason === "lineout.v3.reason.groundRecovery"
       ? this.animateV3GroundRecovery(
         resolution,
-        this.mode === "match" ? () => this.showResult(result) : undefined
+        this.usesResultPulse() ? () => this.showResult(result) : undefined
       )
       : 0;
     if (groundRecoveryAnimationDurationMs === 0) {
@@ -3359,8 +3343,8 @@ export class LineoutScene extends Phaser.Scene {
       }
       GameStore.setMatch(updated);
     }
-    // Une récupération en match annonce son résultat à la fin réelle du ramassage.
-    if (this.mode === "match" && groundRecoveryAnimationDurationMs > 0) return;
+    // La pulsation attend la fin réelle du ramassage, en match comme en pratique.
+    if (this.usesResultPulse() && groundRecoveryAnimationDurationMs > 0) return;
     this.time.delayedCall(
       Math.max(
         LINEOUT_BALANCE.gameplayV3.timing.resultOverlayDelayMs,
@@ -4662,7 +4646,7 @@ export class LineoutScene extends Phaser.Scene {
     });
   }
 
-  private getHookerX(throwingSide: "us" | "opponent", layout: LineoutLayout): number {
+  private getHookerX(_throwingSide: "us" | "opponent", layout: LineoutLayout): number {
     if (this.mode === "training") {
       return layout.hookerX;
     }
@@ -5178,8 +5162,8 @@ export class LineoutScene extends Phaser.Scene {
       playRefereeWhistle(this);
     }
 
-    if (this.mode === "match") {
-      this.showMatchResultPulse(result);
+    if (this.usesResultPulse()) {
+      this.showResultPulse(result);
       return;
     }
     this.restoreV3DynamicCamera();
@@ -5211,7 +5195,11 @@ export class LineoutScene extends Phaser.Scene {
     });
   }
 
-  private showMatchResultPulse(result: LineoutResult): void {
+  private usesResultPulse(): boolean {
+    return this.mode === "match" || this.trainingMode === "practice";
+  }
+
+  private showResultPulse(result: LineoutResult): void {
     this.input.enabled = false;
     this.destroyV3ThrowPowerGauge();
     const won = result.displayedResult === "won" || result.displayedResult === "won_dirty";
@@ -5223,8 +5211,24 @@ export class LineoutScene extends Phaser.Scene {
     pulse.play(() => {
       this.v3CameraHudObjects = this.v3CameraHudObjects.filter((object) => object !== pulse);
       pulse.destroy();
-      this.restoreV3DynamicCamera(true);
-      this.startMatchSimulationReturnTransition();
+      if (this.mode === "match") {
+        this.restoreV3DynamicCamera(true);
+        this.startMatchSimulationReturnTransition();
+      } else {
+        this.returnToTrainingEditorAfterResult();
+      }
+    });
+  }
+
+  private returnToTrainingEditorAfterResult(): void {
+    this.v3CameraPhase = "return";
+    this.time.delayedCall(LINEOUT_CAMERA_ANIMATION.returnDurationMs, () => {
+      this.restoreV3DynamicCamera();
+      this.scene.restart({
+        mode: "training",
+        trainingMode: "edit",
+        combinationId: this.selectedCombination.id
+      } satisfies LineoutSceneData);
     });
   }
 
