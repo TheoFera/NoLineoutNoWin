@@ -39,19 +39,19 @@ Le design system s'applique à **toutes les scènes** : chargement, création, g
 
 Avant de créer un style, vérifier si le besoin est déjà couvert par :
 
-| Besoin | Fichier à réutiliser |
-|---|---|
-| Couleurs, typographie, espacements, rayons et mouvement | `src/ui/UITheme.ts` |
-| Surface rectangulaire arrondie réutilisable | `src/ui/UIRoundedRectangle.ts` |
-| Bouton et états tactiles | `src/ui/UIButton.ts` |
-| Variantes des boutons | `src/ui/ButtonStyle.ts` |
-| Fond, en-tête et panneau de menu | `src/ui/MenuChrome.ts` |
-| Fenêtre bloquante ou confirmation | `src/ui/Modal.ts` |
-| Champ HTML au-dessus du canvas | `src/ui/DomControlStyle.ts` |
-| Timeline des combinaisons offensives | `src/ui/CombinationSequenceBar.ts` |
-| Score et statistiques de match | `src/ui/MatchScoreOverlay.ts`, `src/ui/MatchStatsOverlay.ts` |
-| Panneau de résultat | `src/ui/ResultOverlayPanel.ts` |
-| Ancrage d'un futur tutoriel | `src/ui/TutorialAnchor.ts` |
+| Besoin                                                  | Fichier à réutiliser                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| Couleurs, typographie, espacements, rayons et mouvement | `src/ui/UITheme.ts`                                          |
+| Surface rectangulaire arrondie réutilisable             | `src/ui/UIRoundedRectangle.ts`                               |
+| Bouton et états tactiles                                | `src/ui/UIButton.ts`                                         |
+| Variantes des boutons                                   | `src/ui/ButtonStyle.ts`                                      |
+| Fond, en-tête et panneau de menu                        | `src/ui/MenuChrome.ts`                                       |
+| Fenêtre bloquante ou confirmation                       | `src/ui/Modal.ts`                                            |
+| Champ HTML au-dessus du canvas                          | `src/ui/DomControlStyle.ts`                                  |
+| Timeline des combinaisons offensives                    | `src/ui/CombinationSequenceBar.ts`                           |
+| Score et statistiques de match                          | `src/ui/MatchScoreOverlay.ts`, `src/ui/MatchStatsOverlay.ts` |
+| Panneau de résultat                                     | `src/ui/ResultOverlayPanel.ts`                               |
+| Ancrage d'un futur tutoriel                             | `src/ui/TutorialAnchor.ts`                                   |
 
 Ne pas recopier localement les couleurs ou le dessin d'un composant partagé.
 
@@ -59,22 +59,22 @@ Ne pas recopier localement les couleurs ou le dessin d'un composant partagé.
 
 Toutes les valeurs d'interface viennent de `UI.colors.*`. Ne pas introduire de valeur hexadécimale dans une scène pour un élément d'interface.
 
-| Rôle | Usage |
-|---|---|
-| `background` | fond neutre lorsqu'aucun décor n'est affiché |
-| `panelDark` | plaque TV principale |
-| `panel`, `panelAlternate` | surfaces de structure et alternances |
-| `panelRaised` | contrôle ou ligne active |
-| `successSurface`, `infoSurface`, `dangerSurface` | fond discret d'un état explicitement nommé |
-| `outline`, `outlineStrong` | contours neutres |
-| `divider` | séparation légère entre lignes ou groupes |
-| `scrim` | voile au-dessus d'une image et ombre |
-| `paper`, `ink` | bulle claire et texte sombre |
-| `text` | texte principal sur fond sombre |
-| `muted` | aide et information secondaire |
-| `accent` | action principale ou repère de sélection |
-| `success`, `warning`, `danger`, `info` | états explicitement nommés |
-| `attack`, `defense` | information liée au camp, jamais hiérarchie d'un bouton |
+| Rôle                                             | Usage                                                   |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| `background`                                     | fond neutre lorsqu'aucun décor n'est affiché            |
+| `panelDark`                                      | plaque TV principale                                    |
+| `panel`, `panelAlternate`                        | surfaces de structure et alternances                    |
+| `panelRaised`                                    | contrôle ou ligne active                                |
+| `successSurface`, `infoSurface`, `dangerSurface` | fond discret d'un état explicitement nommé              |
+| `outline`, `outlineStrong`                       | contours neutres                                        |
+| `divider`                                        | séparation légère entre lignes ou groupes               |
+| `scrim`                                          | voile au-dessus d'une image et ombre                    |
+| `paper`, `ink`                                   | bulle claire et texte sombre                            |
+| `text`                                           | texte principal sur fond sombre                         |
+| `muted`                                          | aide et information secondaire                          |
+| `accent`                                         | action principale ou repère de sélection                |
+| `success`, `warning`, `danger`, `info`           | états explicitement nommés                              |
+| `attack`, `defense`                              | information liée au camp, jamais hiérarchie d'un bouton |
 
 Le jaune est une couleur d'accent, pas une couleur d'équipe. Un fond jaune indique une action principale. Un contour ou rail jaune accompagné d'un état explicite indique une sélection.
 
@@ -103,11 +103,11 @@ Les glyphes `>` et `›` indiquent une navigation. Une action de lecture ou d'en
 
 ```ts
 new UIButton(this, 195, 720, 260, 48, t("match.playNow"), onPlay, {
-  variant: "primary"
+  variant: "primary",
 });
 
 new UIButton(this, 195, 784, 220, 42, t("button.back"), onBack, {
-  variant: "secondary"
+  variant: "secondary",
 });
 ```
 
@@ -142,7 +142,7 @@ renderMenuPanel(this, {
   height: 400,
   fillColor: UI.colors.panelDark,
   fillAlpha: 0.98,
-  accentColor: UI.colors.outline
+  accentColor: UI.colors.outline,
 });
 ```
 
@@ -168,25 +168,25 @@ Les deux catégories portent le nom de **combinaisons**. Ne pas renommer les com
 
 Cette égalité de navigation n'impose pas le même éditeur :
 
-- une combinaison offensive possède un placement de départ puis des phases ;
+- une combinaison offensive possède un placement de départ puis des tempss ;
 - une combinaison défensive mémorise une organisation par nombre de joueurs, puis le choix et le timing du saut restent joués en direct.
 
 ## 10. Timeline d'une combinaison offensive
 
-Une phase décrit ce qui se passe **entre deux états**. La timeline représente donc des états reliés par des phases :
+Un temps décrit ce qui se passe **entre deux états**. La timeline représente donc des états reliés par des temps :
 
 ```text
-      Phase 1       Phase 2
+      Temps 1       Temps 2
 Départ ●━━━━━━━━●━━━━━━━━●
                   1        2
 ```
 
 - les points représentent le placement initial et les états obtenus ;
-- la ligne entre deux points représente la phase configurable ;
+- la ligne entre deux points représente le temps configurable ;
 - la zone cliquable est le segment, pas uniquement son numéro ;
-- la phase sélectionnée colore toute sa ligne en ambre ;
-- `+` ajoute une phase après le dernier état ;
-- la suppression dit explicitement `Supprimer la phase 2` ;
+- le temps sélectionné colore toute sa ligne en ambre ;
+- `+` ajoute un temps après le dernier état ;
+- la suppression dit explicitement `Supprimer le temps 2` ;
 - l'action utilise le libellé `▶ S'entraîner` ;
 - ne pas répéter « Combinaison offensive » si le contexte l'indique déjà ;
 - le panneau reste aligné avec les autres overlays et ne laisse jamais un bouton sortir de son cadre.

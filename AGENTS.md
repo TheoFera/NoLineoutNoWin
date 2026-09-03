@@ -48,7 +48,7 @@ Ce dépôt contient un jeu mobile Phaser 3 + TypeScript + Capacitor : **No Lineo
 - Le talonneur est un rôle spécial avec `throwing` = Lancer.
 - Ne pas ajouter `reading`, `timing`, `morale`, `endurance`, `agility` ou d'autres stats joueur.
 - La fatigue est une variable temporaire de match exprimée en pourcentage, jamais une stat joueur permanente.
-- Une combinaison V3 contient des phases et des actions `move`, `feint` ou `jump`.
+- Une combinaison V3 contient des temps et des actions `move`, `feint` ou `jump`.
 - Les anciennes options `jumpBlock` et `directCatch` peuvent préparer un plan, mais la résolution dépend toujours de la géométrie réelle.
 - Les rôles aériens et l'éligibilité des lifteurs sont déduits des statistiques et positions réelles, jamais l'inverse.
 - Le nombre total de touches du match est tiré une seule fois selon la division. Il est réparti également entre le joueur et l'IA ; lorsque le total est impair, une équipe dispose d'une seule touche offensive supplémentaire, attribuée aléatoirement.

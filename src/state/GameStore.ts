@@ -20,7 +20,10 @@ import { getDivision } from "../rules/DivisionRules";
 import { normalizeOffensiveRepertoire } from "../rules/LineoutRepertoire";
 import { replaceFailedActiveCombinations } from "../rules/LineoutRepertoire";
 import { getLanguage, t } from "../systems/I18n";
-import { clearSave, loadGame, saveGame, setSavePersistenceSuspended } from "../systems/SaveSystem";
+import {
+  clearSave, loadGame, loadTutorialState, saveGame, saveTutorialState, setSavePersistenceSuspended
+} from "../systems/SaveSystem";
+import type { TutorialState } from "../models/TutorialState";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
 import type { MatchCompletionSummary } from "../models/PlayerProgression";
@@ -56,12 +59,14 @@ export type TestModeState = {
 };
 
 export class GameStore {
+  private static tutorial: TutorialState = { enabled: true, introductionSeen: false };
   private static save: SaveGame | null = null;
   private static match: MatchStateData | null = null;
   private static testModeOriginalSave: SaveGame | null = null;
   private static testModeState: TestModeState | null = null;
 
   static boot(): void {
+    this.tutorial = loadTutorialState();
     setSavePersistenceSuspended(false);
     this.testModeOriginalSave = null;
     this.testModeState = null;
@@ -77,6 +82,24 @@ export class GameStore {
 
   static hasSave(): boolean {
     return this.save !== null;
+  }
+
+  static isTutorialEnabled(): boolean {
+    return this.tutorial.enabled;
+  }
+
+  static setTutorialEnabled(enabled: boolean): void {
+    this.tutorial = { ...this.tutorial, enabled };
+    saveTutorialState(this.tutorial);
+  }
+
+  static shouldShowTutorialIntroduction(): boolean {
+    return !this.hasSave() && this.tutorial.enabled && !this.tutorial.introductionSeen;
+  }
+
+  static completeTutorialIntroduction(): void {
+    this.tutorial = { ...this.tutorial, introductionSeen: true };
+    saveTutorialState(this.tutorial);
   }
 
   static getSave(): SaveGame {

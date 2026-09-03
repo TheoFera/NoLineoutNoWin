@@ -59,25 +59,25 @@ Dans les combinaisons actives comme dans les réserves, le nombre de
 combinaisons ne proposant aucun bloc de saut porté est limité à :
 
 ```ts
-Math.floor(nombreDeCombinaisons / 3)
+Math.floor(nombreDeCombinaisons / 3);
 ```
 
 Deux combinaisons n'en autorisent donc aucune, trois en autorisent une, six en
 autorisent deux. Une ancienne équipe enregistrée qui ne respecte pas cette
 limite reçoit un répertoire compatible avant sa prochaine touche offensive.
 
-| Division | Phases possibles | Feintes maximales | Probabilité d'un mouvement de leurre |
-|---|---:|---:|---:|
-| Régionale 3 | 1 | 0 | 0 % |
-| Régionale 2 | 1 à 2 | 1 | 0 % |
-| Régionale 1 | 2 | 1 | 0 % |
-| Fédérale 3 | 2 | 1 | 10 % |
-| Fédérale 2 | 2 à 4 | 2 | 25 % |
-| Fédérale 1 | 3 à 4 | 2 | 40 % |
-| Nationale 2 | 3 à 4 | 2 | 55 % |
-| Nationale | 3 à 4 | 2 | 70 % |
-| Pro D2 | 4 | 3 | 85 % |
-| Top 14 | 4 | 3 | 100 % |
+| Division    | Temps possibles | Feintes maximales | Probabilité d'un mouvement de leurre |
+| ----------- | --------------: | ----------------: | -----------------------------------: |
+| Régionale 3 |               1 |                 0 |                                  0 % |
+| Régionale 2 |           1 à 2 |                 1 |                                  0 % |
+| Régionale 1 |               2 |                 1 |                                  0 % |
+| Fédérale 3  |               2 |                 1 |                                 10 % |
+| Fédérale 2  |           2 à 4 |                 2 |                                 25 % |
+| Fédérale 1  |           3 à 4 |                 2 |                                 40 % |
+| Nationale 2 |           3 à 4 |                 2 |                                 55 % |
+| Nationale   |           3 à 4 |                 2 |                                 70 % |
+| Pro D2      |               4 |                 3 |                                 85 % |
+| Top 14      |               4 |                 3 |                                100 % |
 
 Ces valeurs sont centralisées dans `src/config/LineoutBalance.ts`. Le tirage du
 plan utilise la source aléatoire injectée de l'IA.
@@ -110,18 +110,18 @@ Le nombre dépend uniquement de la division et doit être identique pour le joue
 
 Valeurs V2 proposées, à aligner avec les valeurs déjà présentes dans le jeu si elles sont déjà définies :
 
-| Division | Actives | Réserves |
-|---|---:|---:|
-| Régionale 3 | 2 | 0 |
-| Régionale 2 | 2 | 1 |
-| Régionale 1 | 3 | 1 |
-| Fédérale 3 | 3 | 2 |
-| Fédérale 2 | 4 | 2 |
-| Fédérale 1 | 4 | 3 |
-| Nationale 2 | 5 | 3 |
-| Nationale | 5 | 4 |
-| Pro D2 | 6 | 4 |
-| Top 14 | 6 | 5 |
+| Division    | Actives | Réserves |
+| ----------- | ------: | -------: |
+| Régionale 3 |       2 |        0 |
+| Régionale 2 |       2 |        1 |
+| Régionale 1 |       3 |        1 |
+| Fédérale 3  |       3 |        2 |
+| Fédérale 2  |       4 |        2 |
+| Fédérale 1  |       4 |        3 |
+| Nationale 2 |       5 |        3 |
+| Nationale   |       5 |        4 |
+| Pro D2      |       6 |        4 |
+| Top 14      |       6 |        5 |
 
 Règle générale : lorsqu’un niveau n’ajoute pas de combinaison active, il ajoute une combinaison de réserve.
 
@@ -143,11 +143,11 @@ failureRate = failedUses / totalUses;
 
 La zone influence d’abord la taille de l’alignement.
 
-| Zone | Touches à 4 | Touches à 5 | Touches à 6 | Touches à 7 |
-|---|---:|---:|---:|---:|
-| Dans ses 22 m | ×0,6 | ×0,6 | ×1,5 | ×1,5 |
-| Entre les 22 m | ×1,4 | ×1,4 | ×0,6 | ×0,6 |
-| Dans les 22 m adverses | ×0,6 | ×0,6 | ×1,5 | ×1,5 |
+| Zone                   | Touches à 4 | Touches à 5 | Touches à 6 | Touches à 7 |
+| ---------------------- | ----------: | ----------: | ----------: | ----------: |
+| Dans ses 22 m          |        ×0,6 |        ×0,6 |        ×1,5 |        ×1,5 |
+| Entre les 22 m         |        ×1,4 |        ×1,4 |        ×0,6 |        ×0,6 |
+| Dans les 22 m adverses |        ×0,6 |        ×0,6 |        ×1,5 |        ×1,5 |
 
 La zone ne choisit pas entre 4 et 5, ni entre 6 et 7. Le style naturel de l’équipe décide à l’intérieur de chaque paire.
 
@@ -155,10 +155,10 @@ La zone ne choisit pas entre 4 et 5, ni entre 6 et 7. Le style naturel de l’é
 
 ```ts
 scoreCombinaison =
-  defaultNaturalWeight * zoneMultiplier
-  + memoryBonus
-  + repetitionPenalty
-  + randomAdjustment;
+  defaultNaturalWeight * zoneMultiplier +
+  memoryBonus +
+  repetitionPenalty +
+  randomAdjustment;
 ```
 
 Le choix final est un tirage pondéré, pas forcément le score maximal.
@@ -167,12 +167,12 @@ Le choix final est un tirage pondéré, pas forcément le score maximal.
 
 Le malus porte principalement sur la cible, plus légèrement sur la combinaison.
 
-| Résultat précédent | Malus cible | Malus combinaison |
-|---|---:|---:|
-| Ballon gagné proprement | 0 | 0 |
-| Ballon gagné difficilement | −5 | 0 |
-| Ballon perdu ou dévié | −15 | −5 |
-| En-avant ou lancer pas droit | −25 | −10 |
+| Résultat précédent           | Malus cible | Malus combinaison |
+| ---------------------------- | ----------: | ----------------: |
+| Ballon gagné proprement      |           0 |                 0 |
+| Ballon gagné difficilement   |          −5 |                 0 |
+| Ballon perdu ou dévié        |         −15 |                −5 |
+| En-avant ou lancer pas droit |         −25 |               −10 |
 
 Une touche réussie peut être rejouée immédiatement.
 
@@ -180,10 +180,10 @@ Une touche réussie peut être rejouée immédiatement.
 
 ```ts
 scoreCible =
-  poidsHabituel * (1 - adaptationEffective)
-  + scoreTactique * adaptationEffective
-  + repetitionPenalty
-  + randomAdjustment;
+  poidsHabituel * (1 - adaptationEffective) +
+  scoreTactique * adaptationEffective +
+  repetitionPenalty +
+  randomAdjustment;
 ```
 
 - Au début, l’IA suit surtout les cibles habituelles de son répertoire.
@@ -211,9 +211,7 @@ La mémoire directe est conservée pour le match retour.
 Pour une combinaison exacte :
 
 ```ts
-frequenceEstimee =
-  frequenceCombinaison * 0.70
-  + frequenceGlobale * 0.30;
+frequenceEstimee = frequenceCombinaison * 0.7 + frequenceGlobale * 0.3;
 ```
 
 Confiance progressive :
@@ -223,30 +221,30 @@ confiance = Math.min(1, observationsDeCetteCombinaison / 5);
 ```
 
 | Observations | Confiance |
-|---:|---:|
-| 0 | 0 % |
-| 1 | 20 % |
-| 2 | 40 % |
-| 3 | 60 % |
-| 4 | 80 % |
-| 5 ou plus | 100 % |
+| -----------: | --------: |
+|            0 |       0 % |
+|            1 |      20 % |
+|            2 |      40 % |
+|            3 |      60 % |
+|            4 |      80 % |
+|    5 ou plus |     100 % |
 
 ## 11. Intelligence tactique continue
 
 Chaque équipe possède un score `aiIntelligence` sur 100.
 
-| Division | Base IA | Choix de la meilleure cible après apprentissage |
-|---|---:|---:|
-| Régionale 3 | 20 | 35 % |
-| Régionale 2 | 28 | 42 % |
-| Régionale 1 | 36 | 49 % |
-| Fédérale 3 | 45 | 57 % |
-| Fédérale 2 | 54 | 65 % |
-| Fédérale 1 | 63 | 73 % |
-| Nationale 2 | 72 | 80 % |
-| Nationale | 80 | 86 % |
-| Pro D2 | 88 | 91 % |
-| Top 14 | 95 | 95 % |
+| Division    | Base IA | Choix de la meilleure cible après apprentissage |
+| ----------- | ------: | ----------------------------------------------: |
+| Régionale 3 |      20 |                                            35 % |
+| Régionale 2 |      28 |                                            42 % |
+| Régionale 1 |      36 |                                            49 % |
+| Fédérale 3  |      45 |                                            57 % |
+| Fédérale 2  |      54 |                                            65 % |
+| Fédérale 1  |      63 |                                            73 % |
+| Nationale 2 |      72 |                                            80 % |
+| Nationale   |      80 |                                            86 % |
+| Pro D2      |      88 |                                            91 % |
+| Top 14      |      95 |                                            95 % |
 
 Chaque club varie de `−5` à `+5` autour de la base de sa division.
 
@@ -289,30 +287,30 @@ Une combinaison proche ou renommée avec un autre identifiant structurel ne tran
 
 ### 13.1 Préparation par division et variation entre clubs
 
-| Division | Préparation vidéo habituelle | Matchs analysés |
-|---|---:|---:|
-| Régionale 3 | 0 à 10 | 0 |
-| Régionale 2 | 5 à 20 | 0 à 1 |
-| Régionale 1 | 10 à 30 | 0 à 1 |
-| Fédérale 3 | 20 à 40 | 1 à 2 |
-| Fédérale 2 | 30 à 50 | 1 à 3 |
-| Fédérale 1 | 40 à 60 | 2 à 4 |
-| Nationale 2 | 50 à 70 | 3 à 5 |
-| Nationale | 60 à 80 | 4 à 6 |
-| Pro D2 | 75 à 90 | 6 à 8 |
-| Top 14 | 85 à 100 | 8 à 12 |
+| Division    | Préparation vidéo habituelle | Matchs analysés |
+| ----------- | ---------------------------: | --------------: |
+| Régionale 3 |                       0 à 10 |               0 |
+| Régionale 2 |                       5 à 20 |           0 à 1 |
+| Régionale 1 |                      10 à 30 |           0 à 1 |
+| Fédérale 3  |                      20 à 40 |           1 à 2 |
+| Fédérale 2  |                      30 à 50 |           1 à 3 |
+| Fédérale 1  |                      40 à 60 |           2 à 4 |
+| Nationale 2 |                      50 à 70 |           3 à 5 |
+| Nationale   |                      60 à 80 |           4 à 6 |
+| Pro D2      |                      75 à 90 |           6 à 8 |
+| Top 14      |                     85 à 100 |          8 à 12 |
 
 Chaque club reçoit une valeur fixe dans la plage de sa division. Cette valeur fait partie de son identité.
 
 ### 13.2 Ancienneté des vidéos
 
-| Match | Poids |
-|---|---:|
-| Dernier match | 100 % |
-| Avant-dernier | 80 % |
-| 3e | 60 % |
-| 4e | 40 % |
-| 5e et suivants | 20 % |
+| Match          | Poids |
+| -------------- | ----: |
+| Dernier match  | 100 % |
+| Avant-dernier  |  80 % |
+| 3e             |  60 % |
+| 4e             |  40 % |
+| 5e et suivants |  20 % |
 
 ### 13.3 Fusion des sources
 

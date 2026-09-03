@@ -22,11 +22,11 @@ plus servir à modifier le jeu.
 
 Les joueurs de champ possèdent uniquement trois statistiques permanentes :
 
-| Code | Nom visible | Effet principal |
-|---|---|---|
-| `speed` | Vitesse | vitesse des déplacements et contribution secondaire au contact |
-| `strength` | Force | efficacité et maintien du lift |
-| `technique` | Technique | qualité du saut, du contact aérien et de la réception |
+| Code        | Nom visible | Effet principal                                                |
+| ----------- | ----------- | -------------------------------------------------------------- |
+| `speed`     | Vitesse     | vitesse des déplacements et contribution secondaire au contact |
+| `strength`  | Force       | efficacité et maintien du lift                                 |
+| `technique` | Technique   | qualité du saut, du contact aérien et de la réception          |
 
 Le talonneur possède `throwing` (**Lancer**), qui détermine la précision de la
 trajectoire.
@@ -43,11 +43,11 @@ Ne pas ajouter de statistique permanente comme `reading`, `timing`, `morale`,
 Une combinaison contient :
 
 - des joueurs affectés aux positions de référence ;
-- un plan composé d'une ou plusieurs phases ;
-- dans chaque phase, des actions `move`, `feint` ou `jump` ;
+- un plan composé d'un ou plusieurs temps ;
+- dans chaque temps, des actions `move`, `feint` ou `jump` ;
 - pour un saut, le sauteur et ses lifteurs compatibles.
 
-Les actions sont exécutées dans l'ordre des phases. Les mouvements utilisent la
+Les actions sont exécutées dans l'ordre des temps. Les mouvements utilisent la
 Vitesse réelle des joueurs. Les sauts offensifs valides nécessitent un lifteur
 avant et un lifteur arrière placés à portée. Les leurres peuvent se déplacer ou
 effectuer une feinte avant le saut final.
@@ -59,7 +59,7 @@ la position physique réelle des joueurs et du ballon.
 ## 4. Touche offensive du joueur
 
 1. Le joueur choisit une combinaison.
-2. La combinaison démarre et exécute ses phases.
+2. La combinaison démarre et exécute ses temps.
 3. Le joueur effectue un geste vertical vers le haut pour lancer.
 4. La distance du geste choisit la profondeur physique demandée.
 5. Un geste trop court ou trop lent est refusé et peut être recommencé.
@@ -122,24 +122,24 @@ et un retour automatique à l'éditeur de la combinaison, sans panneau de résul
 
 - L'IA continue de choisir ses combinaisons et ses cibles selon son identité, sa
   mémoire, sa division et une source aléatoire injectable.
-- Son plan V3 peut ajouter des phases, des feintes et des mouvements de leurre
+- Son plan V3 peut ajouter des temps, des feintes et des mouvements de leurre
   selon la division.
-- Son lancer est synchronisé avec la phase correspondant à sa cible réelle.
+- Son lancer est synchronisé avec le temps correspondant à sa cible réelle.
 - La simulation accélérée du terrain, de la possession, de l'occupation et du
   score reprend entre les touches.
 
 ## 8. Sources techniques
 
-| Domaine | Source principale |
-|---|---|
-| Modèles V3 | `src/models/LineoutV3.ts` et `src/models/Combination.ts` |
-| Moteur | `src/rules/LineoutV3Engine.ts` |
-| Géométrie | `src/rules/LineoutV3Geometry.ts` |
-| Éligibilité des sauts | `src/rules/LineoutV3ActionEligibility.ts` |
-| Plans de combinaison | `src/rules/LineoutV3Combination.ts` |
-| Plans offensifs de l'IA | `src/ai/LineoutAiCombinationPlan.ts` |
-| Équilibrage | `src/config/LineoutBalance.ts`, section `gameplayV3` |
-| Présentation et interactions | `src/scenes/LineoutScene.ts` |
+| Domaine                      | Source principale                                        |
+| ---------------------------- | -------------------------------------------------------- |
+| Modèles V3                   | `src/models/LineoutV3.ts` et `src/models/Combination.ts` |
+| Moteur                       | `src/rules/LineoutV3Engine.ts`                           |
+| Géométrie                    | `src/rules/LineoutV3Geometry.ts`                         |
+| Éligibilité des sauts        | `src/rules/LineoutV3ActionEligibility.ts`                |
+| Plans de combinaison         | `src/rules/LineoutV3Combination.ts`                      |
+| Plans offensifs de l'IA      | `src/ai/LineoutAiCombinationPlan.ts`                     |
+| Équilibrage                  | `src/config/LineoutBalance.ts`, section `gameplayV3`     |
+| Présentation et interactions | `src/scenes/LineoutScene.ts`                             |
 
 Les valeurs réglables doivent rester centralisées dans `LineoutBalance.ts`. Les
 formules métier doivent rester dans `src/rules/` et ne pas être déplacées dans

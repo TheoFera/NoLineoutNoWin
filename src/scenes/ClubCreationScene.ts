@@ -13,6 +13,10 @@ import type { Kit } from "../ui/RugbyPlayerTypes";
 import { UI } from "../ui/UITheme";
 import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
 import { applyDomControlStyle } from "../ui/DomControlStyle";
+import { GameStore } from "../state/GameStore";
+import { CharlesIntroductionOverlay, preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
+
+type ClubCreationSceneData = Partial<ClubDraft> & { showTutorialIntroduction?: boolean };
 
 export class ClubCreationScene extends Phaser.Scene {
   private nameInput: HTMLInputElement | null = null;
@@ -32,12 +36,15 @@ export class ClubCreationScene extends Phaser.Scene {
   private initialClubName = "";
   private selectedLeagueId: FfrLeagueId | null = null;
   private playerDrafts?: ClubDraft["players"];
+  private showTutorialIntroduction = false;
 
   constructor() {
     super("ClubCreationScene");
   }
 
-  init(data: Partial<ClubDraft> = {}): void {
+  init(data: ClubCreationSceneData = {}): void {
+    this.showTutorialIntroduction = data.showTutorialIntroduction === true
+      && GameStore.shouldShowTutorialIntroduction();
     this.initialClubName = data.clubName ?? "";
     this.selectedLeagueId = data.leagueId ?? null;
     this.selectedPrimaryColor = data.primaryColor ?? DEFAULT_PRIMARY_COLOR;
@@ -46,6 +53,7 @@ export class ClubCreationScene extends Phaser.Scene {
   }
 
   preload(): void {
+    if (this.showTutorialIntroduction) preloadCharlesIntroduction(this);
     if (!this.textures.exists("create-club-background")) {
       this.load.image("create-club-background", "assets/images/create-club-background.png");
     }
@@ -119,6 +127,26 @@ export class ClubCreationScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.destroyDomInputs());
     this.events.once("destroy", () => this.destroyDomInputs());
     this.refreshPreview();
+    if (this.showTutorialIntroduction) this.startTutorialIntroduction();
+  }
+
+  private startTutorialIntroduction(): void {
+    // Ces champs HTML passent au-dessus du canvas : les masquer pendant les dialogues.
+    this.setFormAvailable(false);
+    new CharlesIntroductionOverlay(this, () => {
+      GameStore.completeTutorialIntroduction();
+      this.showTutorialIntroduction = false;
+      this.setFormAvailable(true);
+    });
+  }
+
+  private setFormAvailable(available: boolean): void {
+    for (const input of [this.nameInput, this.leagueInput, this.primaryColorInput, this.secondaryColorInput]) {
+      if (!input) continue;
+      input.disabled = !available;
+      input.style.visibility = available ? "visible" : "hidden";
+      if (!available) input.blur();
+    }
   }
 
   private createNameInput(): void {

@@ -64,40 +64,58 @@ export class SettingsScene extends Phaser.Scene {
       variant: currentLanguage === "en" ? "selected" : "secondary"
     });
 
-    this.add.text(195, 466, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
+    this.renderTutorialSettings();
+
+    this.add.text(195, 580, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
 
     if (GameStore.isTestModeActive()) {
-      new MainMenuButton(this, 195, 520, 300, 48, t("testMode.open"), () => {
+      new MainMenuButton(this, 195, 624, 300, 48, t("testMode.open"), () => {
         navigateTo(this, "TestModeScene");
       }, {
         variant: "secondary"
       });
 
-      new MainMenuButton(this, 195, 580, 300, 48, t("testMode.exit"), () => {
+      new MainMenuButton(this, 195, 684, 300, 48, t("testMode.exit"), () => {
         GameStore.exitTestMode();
         navigateTo(this, "MainMenuScene");
       }, {
         variant: "danger"
       });
     } else {
-      new MainMenuButton(this, 195, 528, 300, 58, t("button.resetSave"), () => {
+      new MainMenuButton(this, 195, 632, 300, 58, t("button.resetSave"), () => {
         this.showResetConfirmation();
       }, {
         variant: "danger"
       });
     }
 
-    this.add.text(195, 632, `${t("settings.versionLabel")} ${APP_VERSION}`, {
+    this.add.text(195, 736, `${t("settings.versionLabel")} ${APP_VERSION}`, {
       font: UI.font.small,
       color: UI.colors.muted
     }).setOrigin(0.5);
-    this.add.zone(195, 632, 260, 52)
+    this.add.zone(195, 736, 260, 52)
       .setInteractive()
       .on("pointerup", () => this.handleVersionTap());
 
-    new MainMenuButton(this, 195, 724, 236, 54, t("button.back"), () => navigateTo(this, "MainMenuScene"), {
+    new MainMenuButton(this, 195, 798, 236, 54, t("button.back"), () => navigateTo(this, "MainMenuScene"), {
       variant: "secondary"
     });
+  }
+
+  private renderTutorialSettings(): void {
+    const enabled = GameStore.isTutorialEnabled();
+    this.add.text(195, 448, t("settings.tutorialTitle"), {
+      font: UI.font.subtitle,
+      color: UI.colors.text
+    }).setOrigin(0.5);
+    new MainMenuButton(this, 112, 502, 150, 52, t("settings.tutorialEnabled"), () => {
+      GameStore.setTutorialEnabled(true);
+      this.scene.restart();
+    }, { variant: enabled ? "selected" : "secondary" });
+    new MainMenuButton(this, 278, 502, 150, 52, t("settings.tutorialDisabled"), () => {
+      GameStore.setTutorialEnabled(false);
+      this.scene.restart();
+    }, { variant: enabled ? "secondary" : "selected" });
   }
 
   private renderOptionsBackground(): void {

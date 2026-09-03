@@ -674,6 +674,28 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "settings.resolutionStandard": { fr: "Standard (1×)", en: "Standard (1×)" },
   "settings.resolutionHigh": { fr: "Haute (2×)", en: "High (2×)" },
   "settings.languageTitle": { fr: "Langue", en: "Language" },
+  "settings.tutorialTitle": { fr: "Tutoriel de Charles", en: "Charles’s tutorial" },
+  "settings.tutorialEnabled": { fr: "Activé", en: "Enabled" },
+  "settings.tutorialDisabled": { fr: "Désactivé", en: "Disabled" },
+  "tutorial.charles": { fr: "Charles · Formateur", en: "Charles · Coach" },
+  "tutorial.tapToContinue": { fr: "Touche l’écran pour continuer", en: "Tap the screen to continue" },
+  "tutorial.progress": { fr: "{current} / {total}", en: "{current} / {total}" },
+  "tutorial.introduction.welcome": {
+    fr: "Salut, moi c’est Charles ! Je suis ton nouveau formateur à la touche au rugby.",
+    en: "Hi, I’m Charles! I’m your new rugby lineout coach."
+  },
+  "tutorial.introduction.support": {
+    fr: "Si tu n’as jamais créé de combinaisons, ni lancé en touche, je suis là pour te coacher.",
+    en: "If you’ve never created a combination or thrown into a lineout, I’m here to coach you."
+  },
+  "tutorial.introduction.lineouts": {
+    fr: "Car souviens-toi bien, au rugby, pour gagner ses matchs, il faut commencer par gagner ses touches.",
+    en: "Remember: in rugby, winning matches starts with winning your lineouts."
+  },
+  "tutorial.introduction.club": {
+    fr: "Mais d’abord, rappelle-moi comment s’appelle ton club et qui sont les joueurs de ta jeune équipe.",
+    en: "But first, remind me what your club is called and who the players on your young team are."
+  },
   "settings.currentGameTitle": { fr: "Partie en cours", en: "Current game" },
   "settings.versionLabel": { fr: "Version", en: "Version" },
   "settings.resetConfirmTitle": { fr: "Supprimer la partie ?", en: "Delete the save?" },
@@ -703,7 +725,7 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "lineout.v3.practiceCombination": { fr: "S’entraîner", en: "Practice" },
   "lineout.v3.defaultCombinationName": { fr: "Combi {number}", en: "Set {number}" },
   "lineout.v3.initialPlacement": { fr: "Placement initial", en: "Initial setup" },
-  "lineout.v3.maximumPhases": { fr: "Quatre phases maximum", en: "Four phases maximum" },
+  "lineout.v3.maximumPhases": { fr: "Quatre temps maximum", en: "Four phases maximum" },
   "lineout.v3.movePlayerHint": { fr: "Fais glisser le joueur jusqu'à sa position finale.", en: "Drag the player to their final position." },
   "lineout.v3.defensivePlayerCountError": { fr: "La touche défensive à {size} doit comporter {size} joueurs", en: "The {size}-player defensive lineout must contain {size} players" },
   "button.confirm": { fr: "Valider", en: "Confirm" },
@@ -717,13 +739,13 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "lineout.v3.defensiveCombinationTitle": { fr: "Combinaisons défensives", en: "Defensive combinations" },
   "lineout.v3.sequenceTitle": { fr: "Combinaison offensive", en: "Attacking combination" },
   "lineout.v3.initialPlacementShort": { fr: "Départ", en: "Start" },
-  "lineout.v3.phaseNumber": { fr: "Phase {number}", en: "Phase {number}" },
-  "lineout.v3.deletePhaseNumber": { fr: "Supprimer phase {number}", en: "Delete phase {number}" },
+  "lineout.v3.phaseNumber": { fr: "Temps {number}", en: "Phase {number}" },
+  "lineout.v3.deletePhaseNumber": { fr: "Supprimer temps {number}", en: "Delete phase {number}" },
   "lineout.v3.planSubtitle": { fr: "Construis la combinaison phase par phase", en: "Build the move phase by phase" },
-  "lineout.v3.phase": { fr: "Phase {current} / {total}", en: "Phase {current} / {total}" },
+  "lineout.v3.phase": { fr: "Temps {current} / {total}", en: "Phase {current} / {total}" },
   "lineout.v3.addPhase": { fr: "Ajouter", en: "Add" },
   "lineout.v3.deletePhase": { fr: "Supprimer", en: "Delete" },
-  "lineout.v3.phaseActions": { fr: "Actions de cette phase", en: "Actions in this phase" },
+  "lineout.v3.phaseActions": { fr: "Actions de ce temps", en: "Actions in this phase" },
   "lineout.v3.noAction": { fr: "Aucune action. Sélectionne un joueur pour commencer.", en: "No action. Select a player to begin." },
   "lineout.v3.choosePlayer": { fr: "Choisis un joueur de l’alignement", en: "Choose a lineout player" },
   "lineout.v3.selectPlayerHint": { fr: "Sélectionne d’abord un joueur", en: "Select a player first" },

@@ -27,7 +27,9 @@ export class MainMenuScene extends Phaser.Scene {
       return;
     }
 
-    navigateTo(this, "ClubCreationScene");
+    navigateTo(this, "ClubCreationScene", {
+      showTutorialIntroduction: GameStore.shouldShowTutorialIntroduction()
+    });
   }
 
   private renderBackground(): void {
