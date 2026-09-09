@@ -32,7 +32,7 @@ const RUGBY_PLAYER_WALKING_ASSET_SETS = [
   {
     bodyShape: "medium_large",
     pose: "hand",
-    layers: ["body", "details", "socks"] as const
+    layers: RUGBY_PLAYER_WALKING_LAYER_NAMES
   }
 ] as const satisfies readonly {
   bodyShape: BodyShapeName;
@@ -67,7 +67,11 @@ const HELMET_ASSET_SET_KEYS = new Set([
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
   "medium_standard:lifter_front",
-  "medium_large:hooker_throw_back"
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:hooker_throw_back",
+  "medium_large:jumper",
+  "medium_large:lifter_front"
 ]);
 
 const BALD_ASSET_SET_KEYS = new Set([
@@ -76,7 +80,11 @@ const BALD_ASSET_SET_KEYS = new Set([
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
   "medium_standard:lifter_front",
-  "medium_large:hooker_throw_back"
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:hooker_throw_back",
+  "medium_large:jumper",
+  "medium_large:lifter_front"
 ]);
 
 const MULLET_ASSET_SET_KEYS = new Set([
@@ -84,7 +92,12 @@ const MULLET_ASSET_SET_KEYS = new Set([
   "medium_standard:hand",
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
-  "medium_standard:lifter_front"
+  "medium_standard:lifter_front",
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:hooker_throw_back",
+  "medium_large:jumper",
+  "medium_large:lifter_front"
 ]);
 
 const BUN_ASSET_SET_KEYS = new Set([
@@ -92,7 +105,12 @@ const BUN_ASSET_SET_KEYS = new Set([
   "medium_standard:hand",
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
-  "medium_standard:lifter_front"
+  "medium_standard:lifter_front",
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:hooker_throw_back",
+  "medium_large:jumper",
+  "medium_large:lifter_front"
 ]);
 
 const STRAP_ASSET_SET_KEYS = new Set([
@@ -100,19 +118,30 @@ const STRAP_ASSET_SET_KEYS = new Set([
   "medium_standard:hand",
   "medium_standard:hooker_throw_back",
   "medium_standard:jumper",
-  "medium_standard:lifter_front"
+  "medium_standard:lifter_front",
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:hooker_throw_back",
+  "medium_large:jumper",
+  "medium_large:lifter_front"
 ]);
 
 const MOUSTACHE_ASSET_SET_KEYS = new Set([
   "medium_standard:stand_front",
   "medium_standard:hand",
-  "medium_standard:jumper"
+  "medium_standard:jumper",
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:jumper"
 ]);
 
 const BEARD_ASSET_SET_KEYS = new Set([
   "medium_standard:stand_front",
   "medium_standard:hand",
-  "medium_standard:jumper"
+  "medium_standard:jumper",
+  "medium_large:stand_front",
+  "medium_large:hand",
+  "medium_large:jumper"
 ]);
 
 export function getRugbyPlayerAssetPaths(bodyShape: BodyShapeName, pose: PoseName): RugbyPlayerLayerPaths {

@@ -41,7 +41,7 @@ export function canUsePlayerHairStyle(
 ): boolean {
   return hairStyleId === "short"
     || (
-      bodyShape === "medium_standard"
+      (bodyShape === "medium_standard" || bodyShape === "medium_large")
       && (hairStyleId === "bald" || hairStyleId === "mullet" || hairStyleId === "bun")
     );
 }
@@ -50,7 +50,7 @@ export function canUsePlayerAccessory(
   bodyShape: BodyShapeName,
   _accessoryId: PlayerAccessoryId
 ): boolean {
-  return bodyShape === "medium_standard";
+  return bodyShape === "medium_standard" || bodyShape === "medium_large";
 }
 
 export function createDefaultPlayerAppearance(number: number): PlayerAppearance {
@@ -73,19 +73,19 @@ export function createDefaultTeamPlayerDrafts(
     TEAM_PLAYER_NUMBERS.length,
     randomSource
   );
-  const standardPlayerIndexes = bodyShapes
-    .map((bodyShape, index) => bodyShape === "medium_standard" ? index : -1)
+  const eligiblePlayerIndexes = bodyShapes
+    .map((bodyShape, index) => canUsePlayerHairStyle(bodyShape, "bald") ? index : -1)
     .filter((index) => index >= 0);
   const hairStyles = createDiverseAppearanceSequence(
     PLAYER_HAIR_STYLE_OPTIONS,
-    standardPlayerIndexes.length,
+    eligiblePlayerIndexes.length,
     randomSource
   );
   const hairStyleByPlayerIndex = new Map(
-    standardPlayerIndexes.map((playerIndex, index) => [playerIndex, hairStyles[index]])
+    eligiblePlayerIndexes.map((playerIndex, index) => [playerIndex, hairStyles[index]])
   );
   const accessoryIdsByPlayer = createRandomAccessorySelections(
-    standardPlayerIndexes,
+    eligiblePlayerIndexes,
     TEAM_PLAYER_NUMBERS.length,
     randomSource
   );
