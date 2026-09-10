@@ -123,6 +123,7 @@ import {
 import { PlayerStatsOverlay } from "../ui/PlayerStatsOverlay";
 import { getPlayerSkinTint } from "../ui/PlayerSkinTone";
 import { navigateTo } from "../systems/Navigation";
+import { preloadLineoutAssets } from "../ui/LineoutAssets";
 import { t } from "../systems/I18n";
 import { getCameraRenderScale } from "../systems/HighDensityRendering";
 import { startSceneCrossfade } from "../systems/SceneCrossfade";
@@ -436,15 +437,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   preload(): void {
-    if (!this.textures.exists("lineout-pitch-background")) {
-      this.load.image("lineout-pitch-background", "assets/images/lineout-pitch-training.png");
-    }
-    if (!this.textures.exists("lineout-ball")) {
-      this.load.image("lineout-ball", "assets/sprites/ball.png");
-    }
-    if (!this.textures.exists("lineout-ball-twist")) {
-      this.load.image("lineout-ball-twist", "assets/sprites/ball2.png");
-    }
+    preloadLineoutAssets(this);
   }
 
   create(): void {

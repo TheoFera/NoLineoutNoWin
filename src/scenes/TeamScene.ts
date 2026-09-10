@@ -276,7 +276,7 @@ export class TeamScene extends Phaser.Scene {
       combinations: activeCombinations.length ? activeCombinations : getAvailableOffensiveCombinations(
         save.offensiveCombinations, getDivision(save.currentDivisionId).offensiveCombinations),
       initialTab: "attack", selectedCombinationId: "", selectedDefensiveSize: 7,
-      onClose: close, onReturnToTeam: close,
+      onClose: close,
       onRename: (id, name) => {
         GameStore.setOffensiveCombinations(renameCombination(GameStore.getSave().offensiveCombinations, id, name));
         close(); this.openCombinations();

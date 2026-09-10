@@ -7,6 +7,8 @@ import {
   useCrispRugbyPlayerTextures
 } from "../ui/RugbyPlayerAssets";
 import { UI } from "../ui/UITheme";
+import { preloadButtonIcons } from "../ui/ButtonIcons";
+import { preloadLineoutAssets } from "../ui/LineoutAssets";
 
 const LOADING_BAR_X = 37;
 const LOADING_BAR_Y = 642;
@@ -29,6 +31,8 @@ export class PreloadScene extends Phaser.Scene {
 
     this.load.audio("referee-whistle", "whistle.mp3");
     preloadRugbyPlayerAssets(this.load);
+    preloadButtonIcons(this.load);
+    preloadLineoutAssets(this);
   }
 
   create(): void {

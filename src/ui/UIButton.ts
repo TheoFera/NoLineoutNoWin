@@ -7,6 +7,7 @@ import {
   type ButtonVisualState
 } from "./ButtonStyle";
 import { UI } from "./UITheme";
+import { createButtonIcon } from "./ButtonIcons";
 
 export type UIButtonOptions = {
   variant?: ButtonVariant;
@@ -30,7 +31,7 @@ export class UIButton extends Phaser.GameObjects.Container {
   private readonly variant: ButtonVariant;
   private readonly onClick: () => void;
   private enabled: boolean;
-  private buttonIcon?: Phaser.GameObjects.Graphics;
+  private buttonIcon?: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
 
   constructor(
     scene: Phaser.Scene,
@@ -77,47 +78,23 @@ export class UIButton extends Phaser.GameObjects.Container {
 
     this.add([this.shadow, this.background, this.label, this.hitArea]);
     if (options.icon) {
-      const icon = scene.add.graphics({ x: -width / 2 + 20, y: 0 });
-      icon.lineStyle(2, UI.colors.paper);
-      if (options.icon === "recruit") {
-        icon.fillStyle(UI.colors.paper);
-        icon.fillCircle(-6, -10, 5);
-        // Épaules larges et buste : silhouette de joueur plutôt que pictogramme en forme de point.
-        icon.beginPath().moveTo(-13, -1).lineTo(-18, 5).lineTo(-13, 9)
-          .lineTo(-10, 6).lineTo(-10, 15).lineTo(-2, 15).lineTo(-2, 6)
-          .lineTo(1, 9).lineTo(5, 5).lineTo(0, -1).closePath().fillPath();
-        icon.lineStyle(3, UI.colors.accent).lineBetween(7, -7, 19, -7).lineBetween(13, -13, 13, -1);
-      } else if (options.icon === "team") {
-        icon.fillStyle(UI.colors.paper);
-        icon.fillCircle(0, -6, 4);
-        icon.fillRoundedRect(-5, 0, 10, 10, 3);
+      const iconX = text ? -width / 2 + 20 : 0;
+      let icon: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+      if (options.icon === "team") {
+        const group = scene.add.graphics({ x: iconX, y: 0 });
+        group.fillStyle(UI.colors.paper);
+        group.fillCircle(0, -6, 4);
+        group.fillRoundedRect(-5, 0, 10, 10, 3);
         for (const side of [-1, 1]) {
-          icon.fillCircle(side * 9, -3, 3);
-          icon.fillRoundedRect(side * 9 - 3, 2, 6, 7, 2);
+          group.fillCircle(side * 9, -3, 3);
+          group.fillRoundedRect(side * 9 - 3, 2, 6, 7, 2);
         }
-      } else if (options.icon === "championship") {
-        // Coupe pleine, anses ouvertes et pied : silhouette lisible à petite taille.
-        icon.beginPath().moveTo(-6, -8).lineTo(-10, -8).lineTo(-10, -4)
-          .lineTo(-7, 0).lineTo(-4, 1).strokePath();
-        icon.beginPath().moveTo(6, -8).lineTo(10, -8).lineTo(10, -4)
-          .lineTo(7, 0).lineTo(4, 1).strokePath();
-        icon.fillStyle(UI.colors.paper);
-        icon.beginPath().moveTo(-6, -10).lineTo(6, -10).lineTo(5, -2)
-          .lineTo(2, 3).lineTo(-2, 3).lineTo(-5, -2).closePath().fillPath();
-        icon.fillRect(-1.5, 2, 3, 6);
-        icon.fillRoundedRect(-6, 8, 12, 3, 1);
+        icon = group;
       } else {
-        icon.strokeCircle(-6, 6, 3);
-        icon.lineBetween(-6, 2, 5, -8);
-        icon.lineBetween(0, -8, 5, -8);
-        icon.lineBetween(5, -8, 5, -3);
-        icon.lineBetween(-10, -8, -5, -3);
-        icon.lineBetween(-10, -3, -5, -8);
-        icon.strokeCircle(7, 6, 3);
+        icon = createButtonIcon(scene, options.icon, iconX);
       }
       this.add(icon);
       this.buttonIcon = icon;
-      if (options.icon === "recruit") icon.setX(0);
       this.label.setX(12).setWordWrapWidth(Math.max(48, width - 48), true);
     }
     scene.add.existing(this);
