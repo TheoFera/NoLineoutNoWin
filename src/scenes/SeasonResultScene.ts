@@ -237,7 +237,7 @@ export class SeasonResultScene extends Phaser.Scene {
 
   private renderContinueButton(): void {
     new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("seasonResult.continue"), () => {
-      navigateTo(this, "LineoutScene", { mode: "training" });
+      navigateTo(this, "TeamScene");
     }, { variant: "primary" });
   }
 }

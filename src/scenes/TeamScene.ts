@@ -1,192 +1,293 @@
 import Phaser from "phaser";
-import type { LineoutPosition } from "../models/Combination";
-import type { FieldPlayer, Player } from "../models/Player";
+import type { Player } from "../models/Player";
 import type { Team } from "../models/Team";
+import { TRAINING_PLAYER_SIZE } from "../config/DisplayConfig";
 import { GameStore } from "../state/GameStore";
-import { assignPlayerToLineoutPosition, getLineoutBenchPlayers, isSelectedForLineout } from "../rules/TeamSelection";
+import { getTeamBenchPlayers, exchangeSquadPlayers, STARTER_FIELD_NUMBERS } from "../rules/TeamSelection";
+import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
-import { renderMenuBackdrop } from "../ui/MenuChrome";
+import { getTrainingPitchAppearance, preloadMatchPitchBackdrop, renderPitchSurface } from "../ui/MatchPitchBackdrop";
 import { UIButton } from "../ui/UIButton";
-import { PlayerCard } from "../ui/PlayerCard";
+import { PlayerStatsOverlay } from "../ui/PlayerStatsOverlay";
 import { UI } from "../ui/UITheme";
 import { UIRoundedRectangle } from "../ui/UIRoundedRectangle";
+import { renderSquadPlayer, renderBenchPlayerPortrait } from "../ui/SquadPlayerView";
+import { RecruitmentOverlay } from "../ui/RecruitmentOverlay";
+import { RugbyPlayer } from "../ui/RugbyPlayer";
+import { animateSquadTravel, type SquadTravelPosition } from "../ui/SquadTravel";
+import { CombinationListOverlay } from "../ui/CombinationListOverlay";
+import { getActiveOffensiveCombinations, getAvailableOffensiveCombinations, renameCombination } from "../rules/CombinationRules";
+import { getDivision } from "../rules/DivisionRules";
+import { UI_DEPTH } from "../ui/UIDepth";
+
+const PAGE_SIZE = 4;
+const STARTER_POSITIONS = [
+  { number: 7, x: 100, y: 285 },
+  { number: 8, x: 195, y: 246 },
+  { number: 9, x: 290, y: 285 },
+  { number: 4, x: 138, y: 424 },
+  { number: 5, x: 252, y: 424 },
+  { number: 1, x: 100, y: 564 },
+  { number: 2, x: 195, y: 606 },
+  { number: 3, x: 290, y: 564 }
+];
+
+type SquadToken = {
+  player: Player;
+  reserve: boolean;
+  view: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Zone;
+  homeX: number;
+  homeY: number;
+  height: number;
+};
+
+type SquadDrag = {
+  token: SquadToken;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+};
 
 export class TeamScene extends Phaser.Scene {
   private team!: Team;
-  private selectedLineoutPosition: LineoutPosition = 1;
-  private inspectedPlayerId: string | "hooker" = "hooker";
+  private page = 0;
+  private tokens: SquadToken[] = [];
+  private controls: UIButton[] = [];
+  private inspector?: PlayerStatsOverlay;
+  private inspectedId?: string;
+  private drag?: SquadDrag;
+  private dropHighlight?: Phaser.GameObjects.Ellipse;
+  private recruitment?: RecruitmentOverlay;
+  private recruitButton?: UIButton;
+  private combinations?: CombinationListOverlay;
 
-  constructor() {
-    super("TeamScene");
-  }
+  constructor() { super("TeamScene"); }
 
-  create(): void {
-    this.team = GameStore.getSave().playerTeam;
-    this.inspectedPlayerId = this.team.lineoutPlayers[0]?.id ?? "hooker";
+  preload(): void { preloadMatchPitchBackdrop(this); }
+
+  create(data: { squadTravel?: SquadTravelPosition[]; combinationOverlayOpen?: boolean } = {}): void {
+    this.input.enabled = true;
+    this.page = 0;
+    this.drag = undefined;
+    this.inspectedId = undefined;
     this.renderScene();
+    animateSquadTravel(this, data.squadTravel, this.tokens.filter((token) => !token.reserve).map((token) => {
+      const body = token.view.getData("squadBody") as RugbyPlayer;
+      return {
+        id: token.player.id, x: token.homeX, y: token.homeY,
+        move: (x: number, y: number, progress: number) => {
+          token.view.setPosition(x, y).setDepth(y);
+          body.setPose("hand").setWalkingFrame(Math.floor(progress * 8) % 2 ? "gauche" : "droite");
+        },
+        finish: () => { body.setWalkingFrame(undefined).setPose("stand_front"); }
+      };
+    }));
+    this.input.on("pointermove", this.movePlayer, this);
+    this.input.on("pointerup", this.releasePlayer, this);
+    this.input.on("pointerupoutside", this.releasePlayer, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.off("pointermove", this.movePlayer, this);
+      this.input.off("pointerup", this.releasePlayer, this);
+      this.input.off("pointerupoutside", this.releasePlayer, this);
+      this.drag = undefined;
+    });
+    if (this.team.pendingRecruitment) this.openRecruitment();
+    else if (data.combinationOverlayOpen) this.openCombinations();
   }
 
   private renderScene(): void {
     this.children.removeAll(true);
-
-    const inspectedPlayer = this.getInspectedPlayer();
-    const benchCount = getLineoutBenchPlayers(this.team).length;
-
-    renderMenuBackdrop(this);
-    this.add.text(195, 42, t("menu.team"), { font: UI.font.title, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 66, this.team.name, { font: UI.font.body, color: UI.colors.muted }).setOrigin(0.5);
-
-    this.renderHookerPanel();
-
-    this.add.text(195, 156, t("team.lineoutTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 178, `${t("team.activePosition")} ${this.selectedLineoutPosition} - ${t("team.reserveCount")} ${benchCount}`, {
-      font: UI.font.small,
-      color: UI.colors.muted
-    }).setOrigin(0.5);
-    this.renderLineoutSlots();
-
-    this.add.text(195, 292, t("team.rosterTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
-    this.add.text(195, 314, t("team.rosterHint"), { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
-    this.renderRoster();
-
-    new PlayerCard(this, 124, 744, inspectedPlayer);
-
-    if (this.isFieldPlayer(inspectedPlayer)) {
-      const assignLabel = `${t("team.assignToPosition")} ${this.selectedLineoutPosition}`;
-      new UIButton(this, 309, 720, 122, 40, assignLabel, () => this.assignInspectedPlayer(), {
-        variant: "primary"
-      });
-      const statusKey = isSelectedForLineout(this.team, inspectedPlayer.id) ? "team.status.lineout" : "team.status.reserve";
-      this.add.text(309, 756, t(statusKey), { font: UI.font.small, color: UI.colors.muted, align: "center", wordWrap: { width: 120 } }).setOrigin(0.5);
-    } else {
-      this.add.text(309, 736, t("team.hookerOnly"), {
-        font: UI.font.body,
-        color: UI.colors.muted,
-        align: "center",
-        wordWrap: { width: 120 }
-      }).setOrigin(0.5);
+    this.recruitment = undefined;
+    this.recruitButton = undefined;
+    this.combinations = undefined;
+    this.inspectedId = undefined;
+    this.tokens = [];
+    this.controls = [];
+    this.dropHighlight = undefined;
+    this.team = GameStore.getSave().playerTeam;
+    renderPitchSurface(this, 195, 422, 390, 844, getTrainingPitchAppearance());
+    this.add.zone(195, 422, 390, 844).setDepth(-1).setInteractive().on("pointerdown", () => {
+      this.inspectedId = undefined;
+      this.inspector?.setVisible(false);
+    });
+    const pitchLines = this.add.graphics().lineStyle(2, UI.colors.paper, 0.85);
+    for (const y of [114, 634]) {
+      for (let x = 0; x < 390; x += 30) pitchLines.lineBetween(x, y, x + 18, y);
     }
+    STARTER_POSITIONS.forEach(({ number, x, y }) => {
+      // L'emplacement visuel suit la place du titulaire, même après recrutement.
+      const index = (STARTER_FIELD_NUMBERS as readonly number[]).indexOf(number);
+      const player = number === 2 ? this.team.hooker : this.team.lineoutPlayers[index];
+      this.renderPlayer(player, x, y, false, TRAINING_PLAYER_SIZE.height);
+    });
+    this.renderBench();
+    this.controls.push(new UIButton(this, 103, 809, 174, 48, t("button.combinations"), () =>
+      this.openCombinations(), { icon: "combinations", fontSize: 15 }));
+    this.controls.push(new UIButton(this, 287, 809, 174, 48, t("menu.championship"), () =>
+      navigateTo(this, "ChampionshipScene", { returnTo: "TeamScene",
+        returnData: { combinationOverlayOpen: Boolean(this.combinations) } }), { icon: "championship", fontSize: 15 }));
+    this.inspector = new PlayerStatsOverlay(this, this.team.colors).setVisible(false);
+  }
 
-    new UIButton(this, 309, 792, 122, 40, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
-      variant: "secondary"
+  private renderPlayer(player: Player, x: number, y: number, reserve: boolean, height: number): void {
+    const view = (reserve
+      ? renderBenchPlayerPortrait(this, x, y, player, this.team.colors)
+      : renderSquadPlayer(this, x, y, player, this.team.colors, height)).setDepth(y);
+    const hit = this.add.zone(x, y - height * 0.43, reserve ? 62 : 76, reserve ? 76 : height * 0.8)
+      .setDepth(y + 1).setInteractive({ useHandCursor: true });
+    const token = { player, reserve, view, hit, homeX: x, homeY: y, height };
+    this.tokens.push(token);
+    hit.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (this.drag || this.recruitment || this.combinations) return;
+      const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      this.drag = { token, pointerId: pointer.id, startX: point.x, startY: point.y, moved: false };
     });
   }
 
-  private renderHookerPanel(): void {
-    const selected = this.inspectedPlayerId === "hooker";
-    const panel = new UIRoundedRectangle(
-      this,
-      195,
-      114,
-      338,
-      52,
-      selected ? UI.colors.panelRaised : UI.colors.panelDark,
-      0.96
-    )
-      .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline)
-      .setRoundedInteractive({ useHandCursor: true });
-    panel.on("pointerup", () => {
-      this.inspectedPlayerId = "hooker";
+  private renderBench(): void {
+    const bench = getTeamBenchPlayers(this.team);
+    const pages = Math.max(1, Math.ceil(bench.length / PAGE_SIZE));
+    this.page = Math.min(this.page, pages - 1);
+    new UIRoundedRectangle(this, 195, 712, 366, 136, UI.colors.panelDark, 0.96)
+      .setStrokeStyle(1, UI.colors.outline);
+    this.add.text(26, 668, t("squad.bench"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0, 0.5);
+    if (pages > 1) {
+      this.controls.push(new UIButton(this, 330, 668, 64, 32, `${this.page + 1} / ${pages} ›`, () => {
+        if (this.recruitment) return;
+        this.page = (this.page + 1) % pages;
+        this.renderScene();
+      }, { fontSize: 12 }));
+    }
+    const visible = bench.slice(this.page * PAGE_SIZE, (this.page + 1) * PAGE_SIZE);
+    visible.forEach((player, index) => {
+      const x = 55 + index * 70;
+      new UIRoundedRectangle(this, x, 732, 62, 76, UI.colors.panelRaised, 0.65)
+        .setStrokeStyle(1, UI.colors.outline);
+      this.renderPlayer(player, x, 762, true, 70);
+    });
+    this.recruitButton = new UIButton(this, 55 + visible.length * 70, 732, 62, 76,
+      "", () => this.openRecruitment(), { icon: "recruit", accessibleLabel: t("squad.recruit") });
+    this.controls.push(this.recruitButton);
+  }
+
+  private movePlayer(pointer: Phaser.Input.Pointer): void {
+    const drag = this.drag;
+    if (!drag || drag.pointerId !== pointer.id) return;
+    const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    if (!drag.moved && Phaser.Math.Distance.Between(point.x, point.y, drag.startX, drag.startY) < 8) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      this.controls.forEach((button) => button.setEnabled(false));
+      this.inspector?.setVisible(false);
+      this.inspectedId = undefined;
+    }
+    drag.token.view.setPosition(drag.token.homeX + point.x - drag.startX, drag.token.homeY + point.y - drag.startY)
+      .setDepth(1200);
+    this.dropHighlight?.destroy();
+    this.dropHighlight = undefined;
+    const target = this.findDropTarget(point.x, point.y, drag.token);
+    if (target) {
+      this.dropHighlight = this.add.ellipse(target.homeX, target.homeY - target.height * 0.43, 70, target.height * 0.9)
+        .setStrokeStyle(3, UI.colors.accent).setDepth(1100);
+    }
+  }
+
+  private findDropTarget(x: number, y: number, source: SquadToken): SquadToken | undefined {
+    return this.tokens.find((target) => target !== source && !(target.reserve && source.reserve)
+      && target.player.role === source.player.role && target.hit.getBounds().contains(x, y));
+  }
+
+  private releasePlayer(pointer: Phaser.Input.Pointer): void {
+    const drag = this.drag;
+    if (!drag || drag.pointerId !== pointer.id) return;
+    this.drag = undefined;
+    this.controls.forEach((button) => button.setEnabled(true));
+    this.dropHighlight?.destroy();
+    this.dropHighlight = undefined;
+    if (!drag.moved) { this.inspectPlayer(drag.token.player); return; }
+    const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const target = this.findDropTarget(point.x, point.y, drag.token);
+    if (target) {
+      GameStore.setPlayerTeam(exchangeSquadPlayers(this.team, drag.token.player.id, target.player.id));
       this.renderScene();
-    });
-
-    const hooker = this.team.hooker;
-    this.add.text(32, 102, `${t("team.hooker")} ${t("team.numberPrefix")}2`, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
-    this.add.text(150, 102, hooker.nickname, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
-    this.add.text(268, 102, `${t("team.throwing")} ${hooker.throwing}`, { font: UI.font.small, color: UI.colors.muted }).setOrigin(0, 0.5);
-    this.add.text(32, 124, t("team.hookerHint"), { font: UI.font.small, color: UI.colors.muted }).setOrigin(0, 0.5);
-  }
-
-  private renderLineoutSlots(): void {
-    const slotLayout = [
-      { position: 1 as LineoutPosition, x: 58, y: 214 },
-      { position: 2 as LineoutPosition, x: 140, y: 214 },
-      { position: 3 as LineoutPosition, x: 222, y: 214 },
-      { position: 4 as LineoutPosition, x: 304, y: 214 },
-      { position: 5 as LineoutPosition, x: 99, y: 258 },
-      { position: 6 as LineoutPosition, x: 195, y: 258 },
-      { position: 7 as LineoutPosition, x: 291, y: 258 }
-    ];
-
-    slotLayout.forEach(({ position, x, y }) => {
-      const player = this.team.lineoutPlayers[position - 1];
-      const selected = this.selectedLineoutPosition === position;
-      const slot = new UIRoundedRectangle(
-        this,
-        x,
-        y,
-        74,
-        36,
-        selected ? UI.colors.panelRaised : UI.colors.panelDark,
-        1
-      )
-        .setStrokeStyle(2, selected ? UI.colors.accent : UI.colors.outline)
-        .setRoundedInteractive({ useHandCursor: true });
-      slot.on("pointerup", () => {
-        this.selectedLineoutPosition = position;
-        this.renderScene();
-      });
-
-      this.add.text(x, y - 9, String(position), { font: UI.font.small, color: UI.colors.muted }).setOrigin(0.5);
-      this.add.text(x, y + 7, player.nickname, { font: "bold 11px Arial", color: UI.colors.text, align: "center", wordWrap: { width: 64 } }).setOrigin(0.5);
-    });
-  }
-
-  private renderRoster(): void {
-    this.team.fieldPlayers.forEach((player, index) => {
-      const y = 348 + index * 32;
-      const selectedForLineout = isSelectedForLineout(this.team, player.id);
-      const inspected = this.inspectedPlayerId === player.id;
-      const row = new UIRoundedRectangle(
-        this,
-        195,
-        y,
-        338,
-        28,
-        inspected ? UI.colors.panelRaised : UI.colors.panelDark,
-        0.96
-      )
-        .setStrokeStyle(1, selectedForLineout ? UI.colors.accent : UI.colors.outline)
-        .setRoundedInteractive({ useHandCursor: true });
-      row.on("pointerup", () => {
-        this.inspectedPlayerId = player.id;
-        this.renderScene();
-      });
-
-      this.add.text(28, y, `${t("team.numberPrefix")}${player.number}`, { font: UI.font.small, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(84, y, player.nickname, { font: UI.font.body, color: UI.colors.text }).setOrigin(0, 0.5);
-      this.add.text(166, y, `${t("team.stat.speedAbbr")} ${player.speed} - ${t("team.stat.strengthAbbr")} ${player.strength} - ${t("team.stat.techniqueAbbr")} ${player.technique}`, {
-        font: UI.font.small,
-        color: UI.colors.muted
-      }).setOrigin(0, 0.5);
-      this.add.text(324, y, t(selectedForLineout ? "team.status.lineoutShort" : "team.status.reserveShort"), {
-        font: "bold 10px Arial",
-        color: selectedForLineout ? UI.colors.textAccent : UI.colors.muted
-      }).setOrigin(1, 0.5);
-    });
-  }
-
-  private assignInspectedPlayer(): void {
-    const inspectedPlayer = this.getInspectedPlayer();
-    if (!this.isFieldPlayer(inspectedPlayer)) {
       return;
     }
-
-    this.team = assignPlayerToLineoutPosition(this.team, this.selectedLineoutPosition, inspectedPlayer.id);
-    GameStore.setPlayerTeam(this.team);
-    this.renderScene();
+    drag.token.view.setPosition(drag.token.homeX, drag.token.homeY).setDepth(drag.token.homeY);
   }
 
-  private getInspectedPlayer(): Player {
-    if (this.inspectedPlayerId === "hooker") {
-      return this.team.hooker;
+  private inspectPlayer(player: Player): void {
+    if (this.inspectedId === player.id) {
+      this.inspectedId = undefined;
+      this.inspector?.setVisible(false);
+      return;
     }
-
-    return this.team.fieldPlayers.find((player) => player.id === this.inspectedPlayerId) ?? this.team.hooker;
+    this.inspectedId = player.id;
+    const roles = player.role === "hooker" ? [t("lineout.hookerLabel")] : [
+      ...(canBeLineoutJumper(player) ? [t("lineout.role.jumper")] : []),
+      ...(canBeLineoutLifter(player) ? [t("lineout.role.lifter")] : [])
+    ];
+    this.inspector?.setPlayerData({
+      name: getTeamBenchPlayers(this.team).some((reserve) => reserve.id === player.id)
+        ? player.nickname : `${t("team.numberPrefix")}${player.number} · ${player.nickname}`,
+      role: roles.join(" • "), colors: this.team.colors,
+      stats: player.role === "hooker" ? [{ label: t("team.throwing"), value: player.throwing }] : [
+        { label: t("team.stat.speed"), value: player.speed },
+        { label: t("team.stat.strength"), value: player.strength },
+        { label: t("team.stat.technique"), value: player.technique }
+      ]
+    });
+    this.inspector?.setVisible(true);
   }
 
-  private isFieldPlayer(player: Player): player is FieldPlayer {
-    return player.role === "field";
+  private openRecruitment(): void {
+    if (this.recruitment) { this.recruitment.toggleClose(); return; }
+    this.combinations?.destroy();
+    this.combinations = undefined;
+    const existingIds = new Set(getTeamBenchPlayers(this.team).map((player) => player.id));
+    this.inspector?.setVisible(false);
+    this.inspectedId = undefined;
+    this.recruitment = new RecruitmentOverlay(this, () => {
+      const bench = getTeamBenchPlayers(GameStore.getSave().playerTeam);
+      const addedIndex = bench.findIndex((player) => !existingIds.has(player.id));
+      if (addedIndex >= 0) this.page = Math.floor(addedIndex / PAGE_SIZE);
+      this.renderScene();
+    });
+    this.add.rectangle(195, 744, 390, 200, UI.colors.scrim, 0.64)
+      .setDepth(UI_DEPTH.overlayContent).setInteractive();
+    this.recruitButton?.setDepth(UI_DEPTH.overlayContent + 1);
+  }
+
+  private travelPositions(): SquadTravelPosition[] {
+    return this.tokens.filter((token) => !token.reserve).map((token) => ({
+      id: token.player.id, x: token.view.x, y: token.view.y
+    }));
+  }
+
+  private openCombinations(): void {
+    if (this.recruitment) this.recruitment.toggleClose();
+    if (this.combinations) { this.combinations.destroy(); this.combinations = undefined; return; }
+    const save = GameStore.getSave();
+    const activeCombinations = getActiveOffensiveCombinations(save.offensiveCombinations, save.offensiveRepertoire);
+    const close = (): void => { this.combinations?.destroy(); this.combinations = undefined; };
+    this.combinations = new CombinationListOverlay(this, {
+      combinations: activeCombinations.length ? activeCombinations : getAvailableOffensiveCombinations(
+        save.offensiveCombinations, getDivision(save.currentDivisionId).offensiveCombinations),
+      initialTab: "attack", selectedCombinationId: "", selectedDefensiveSize: 7,
+      onClose: close, onReturnToTeam: close,
+      onRename: (id, name) => {
+        GameStore.setOffensiveCombinations(renameCombination(GameStore.getSave().offensiveCombinations, id, name));
+        close(); this.openCombinations();
+      },
+      onSelectCombination: (combinationId) => navigateTo(this, "LineoutScene", {
+        mode: "training", trainingMode: "edit", combinationId, squadTravel: this.travelPositions()
+      }),
+      onSelectDefensiveSize: (defensiveSize) => navigateTo(this, "LineoutScene", {
+        mode: "training", trainingMode: "defense-edit", defensiveSize, squadTravel: this.travelPositions()
+      })
+    }).setDepth(UI_DEPTH.overlayBackdrop);
+    this.inspector?.setVisible(false);
   }
 }

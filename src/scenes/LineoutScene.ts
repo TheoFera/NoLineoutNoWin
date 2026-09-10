@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { PLAYER_VISUAL_SCALE } from "../config/DisplayConfig";
+import { TRAINING_PLAYER_SIZE } from "../config/DisplayConfig";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 import { GameStore } from "../state/GameStore";
 import { buildDefensivePlan } from "../ai/DefenseAI";
@@ -127,12 +127,12 @@ import { t } from "../systems/I18n";
 import { getCameraRenderScale } from "../systems/HighDensityRendering";
 import { startSceneCrossfade } from "../systems/SceneCrossfade";
 import { MATH_RANDOM_SOURCE } from "../utils/Random";
+import { animateSquadTravel, type SquadTravelPosition, type SquadTravelTarget } from "../ui/SquadTravel";
 
 const SCREEN_WIDTH = 390;
 const SCREEN_HEIGHT = 844;
 const FIELD_TOP = 0;
 const FIELD_HEIGHT = SCREEN_HEIGHT;
-const PLAYER_FIELD_WIDTH_RATIO = 0.125;
 const PLAYER_FIELD_HEIGHT_RATIO = 0.14;
 const PLAYER_DEPTH_BASE = 100;
 const GROUND_SHADOW_DEPTH = PLAYER_DEPTH_BASE - 1;
@@ -223,6 +223,7 @@ type SecondaryBallWaypoint = BallAnimationWaypoint & {
 };
 
 export type LineoutSceneData = {
+  squadTravel?: SquadTravelPosition[];
   mode: "training" | "match";
   entryTransition?: "from-match-simulation";
   transitionPitchPositionMeters?: number;
@@ -322,6 +323,7 @@ type BallShadowFlightProfile = {
 };
 
 export class LineoutScene extends Phaser.Scene {
+  private squadTravel?: SquadTravelPosition[];
   private mode: "training" | "match" = "training";
   private enterFromMatchSimulation = false;
   private transitionPitchPositionMeters?: number;
@@ -418,6 +420,7 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   init(data: LineoutSceneData): void {
+    this.squadTravel = data.squadTravel;
     this.mode = data.mode ?? "training";
     this.enterFromMatchSimulation = data.entryTransition === "from-match-simulation";
     this.transitionPitchPositionMeters = data.transitionPitchPositionMeters;
@@ -507,6 +510,59 @@ export class LineoutScene extends Phaser.Scene {
     this.input.on("pointermove", this.trackV3ThrowGesture, this);
     this.input.on("pointerup", this.completeV3ThrowGesture, this);
     if (this.enterFromMatchSimulation) this.startMatchLineoutEntryTransition();
+    if (this.mode === "training" && this.squadTravel) {
+      this.animateFromSquad(this.squadTravel);
+      this.squadTravel = undefined;
+    }
+  }
+
+  private getSquadTravelPositions(): SquadTravelPosition[] {
+    const positions = this.children.list.filter((child): child is PlayerToken => child instanceof PlayerToken)
+      .map((token) => ({ id: token.player.id, x: token.x, y: token.y + 4 }));
+    if (this.hookerSprite) positions.push({
+      id: GameStore.getSave().playerTeam.hooker.id, x: this.hookerSprite.x, y: this.hookerSprite.y
+    });
+    return positions;
+  }
+
+  private animateFromSquad(from: SquadTravelPosition[]): void {
+    const targets: SquadTravelTarget[] = this.children.list
+      .filter((child): child is PlayerToken => child instanceof PlayerToken)
+      .map((token) => ({
+        id: token.player.id, x: token.x, y: token.y + 4,
+        move: (x, y) => {
+          token.setIdleBreathingActive(false);
+          token.setPosition(x, y - 4);
+          token.updateWalkingMovement(x / V3_METERS_TO_PIXELS, y / V3_METERS_TO_PIXELS, true);
+          this.syncPlayerTokenDepth(token);
+        },
+        finish: () => { token.stopWalkingMovement().resetPose().setIdleBreathingActive(true); }
+      }));
+    const hooker = this.hookerSprite;
+    if (hooker) {
+      const pose = hooker.getPose();
+      const number = this.children.list.find((child) => child.getData("squadTravelHookerNumber")) as Phaser.GameObjects.Text | undefined;
+      const numberOffsetY = (number?.y ?? hooker.y) - hooker.y;
+      const ballVisible = this.hookerHeldBall?.visible ?? false;
+      targets.push({
+        id: GameStore.getSave().playerTeam.hooker.id, x: hooker.x, y: hooker.y,
+        move: (x, y, progress) => {
+          this.hookerIdleBreathingActive = false;
+          hooker.setPosition(x, y).setPose("hand");
+          hooker.setWalkingFrame(Math.floor(progress * 8) % 2 ? "gauche" : "droite");
+          this.hookerShadow?.setPose("stand_front").setPlayerFeetPosition(x, y);
+          number?.setPosition(x, y + numberOffsetY);
+          this.hookerHeldBall?.setVisible(false);
+        },
+        finish: () => {
+          hooker.setWalkingFrame(undefined).setPose(pose);
+          this.hookerShadow?.setPose(pose);
+          this.hookerHeldBall?.setVisible(ballVisible);
+          this.hookerIdleBreathingActive = true;
+        }
+      });
+    }
+    animateSquadTravel(this, from, targets);
   }
 
   private startMatchLineoutEntryTransition(): void {
@@ -786,7 +842,7 @@ export class LineoutScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.hookerSprite.setDepth(hookerDepth);
     this.hookerHeldBall.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
-    hookerText.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET);
+    hookerText.setDepth(hookerDepth + PLAYER_LABEL_DEPTH_OFFSET).setData("squadTravelHookerNumber", true);
 
     const hitbox = this.add.zone(
       hookerX - layout.playerWidth / 2 - 6,
@@ -1263,8 +1319,9 @@ export class LineoutScene extends Phaser.Scene {
         ? this.closeTrainingCombinationOverlay()
         : this.openTrainingCombinationOverlay(),
       {
-        variant: overlayOpen ? "selected" : "secondary",
-        textColor: overlayOpen ? UI.colors.text : undefined
+        variant: "selected",
+        icon: "combinations",
+        fontSize: 15
       }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
     this.trainingChampionshipButton = new UIButton(
@@ -1274,8 +1331,12 @@ export class LineoutScene extends Phaser.Scene {
       164,
       44,
       t("menu.championship"),
-      () => navigateTo(this, "ChampionshipScene"),
-      { variant: "secondary", enabled: !overlayOpen }
+      () => navigateTo(this, "ChampionshipScene", { returnTo: "LineoutScene", returnData: {
+        mode: "training", trainingMode: this.trainingMode, combinationId: this.selectedCombination.id,
+        editorPhaseIndex: this.trainingEditorPhaseIndex, defensiveSize: this.defensiveEditorSize,
+        defensiveDraftIds: this.defensiveDraftIds ?? undefined, combinationOverlayOpen: overlayOpen
+      } }),
+      { variant: "secondary", icon: "championship", fontSize: 15 }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
   }
 
@@ -1305,6 +1366,7 @@ export class LineoutScene extends Phaser.Scene {
       selectedCombinationId: this.selectedCombination.id,
       selectedDefensiveSize: this.defensiveEditorSize,
       onClose: () => this.closeTrainingCombinationOverlay(),
+      onReturnToTeam: () => navigateTo(this, "TeamScene", { squadTravel: this.getSquadTravelPositions() }),
       onRename: (combinationId, name) => {
         GameStore.setOffensiveCombinations(renameCombination(
           GameStore.getSave().offensiveCombinations,
@@ -1315,7 +1377,8 @@ export class LineoutScene extends Phaser.Scene {
           mode: "training",
           trainingMode: "edit",
           combinationId,
-          combinationOverlayOpen: true
+          combinationOverlayOpen: true,
+          squadTravel: this.getSquadTravelPositions()
         } satisfies LineoutSceneData);
       },
       onSelectCombination: (combinationId) => {
@@ -1326,7 +1389,8 @@ export class LineoutScene extends Phaser.Scene {
         this.scene.restart({
           mode: "training",
           trainingMode: "edit",
-          combinationId
+          combinationId,
+          squadTravel: this.getSquadTravelPositions()
         } satisfies LineoutSceneData);
       },
       onSelectDefensiveSize: (size) => this.restartDefensiveEditor(size)
@@ -2253,7 +2317,8 @@ export class LineoutScene extends Phaser.Scene {
       mode: "training",
       trainingMode: "defense-edit",
       defensiveSize: size,
-      defensiveDraftIds: draft
+      defensiveDraftIds: draft,
+      squadTravel: this.getSquadTravelPositions()
     } satisfies LineoutSceneData);
   }
 
@@ -5283,8 +5348,8 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   private getLayout(): LineoutLayout {
-    const trainingPlayerWidth = Math.round(SCREEN_WIDTH * PLAYER_FIELD_WIDTH_RATIO * PLAYER_VISUAL_SCALE);
-    const trainingPlayerHeight = Math.round(FIELD_HEIGHT * PLAYER_FIELD_HEIGHT_RATIO * PLAYER_VISUAL_SCALE);
+    const trainingPlayerWidth = TRAINING_PLAYER_SIZE.width;
+    const trainingPlayerHeight = TRAINING_PLAYER_SIZE.height;
     const common = {
       fieldTop: FIELD_TOP,
       fieldBottom: SCREEN_HEIGHT,

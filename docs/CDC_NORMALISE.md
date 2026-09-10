@@ -4,7 +4,7 @@ Ce document est la version de travail que Codex doit suivre. Il intègre les cor
 
 ## 1. Concept
 
-Jeu mobile tactique centré sur la touche au rugby. Le joueur passe par un menu d'accueil, puis entre directement dans l'entraînement jouable ou dans un match. Il ne contrôle pas tout le match. Il intervient uniquement sur les touches. Le reste du match est simulé par un timer rapide, un score, la possession et l'occupation.
+Jeu mobile tactique centré sur la touche au rugby. Le joueur passe par un menu d'accueil, puis gère son groupe touche avant de choisir les combinaisons ou le championnat. Il ne contrôle pas tout le match. Il intervient uniquement sur les touches. Le reste du match est simulé par un timer rapide, un score, la possession et l'occupation.
 
 ## 2. Stack
 
@@ -72,7 +72,7 @@ Au lancement :
 
 - le jeu ouvre le menu d'accueil ;
 - si aucune sauvegarde n'existe, le bouton principal mène à la création du club puis de ses huit joueurs ;
-- si une sauvegarde existe, le bouton principal mène directement à l'entraînement jouable.
+- si une sauvegarde existe, le bouton principal mène au gestionnaire du groupe touche.
 
 Boucle principale visée :
 
@@ -81,10 +81,12 @@ Lancement
 → menu d'accueil
 → création du club si besoin
 → création de l'équipe si besoin
-→ entraînement jouable
+→ gestion du groupe touche
+→ combinaisons et entraînement, ou championnat
 → match
 → résultat
-→ retour à l'entraînement jouable
+→ progression et éventuel bilan de saison
+→ retour à la gestion du groupe touche
 ```
 
 Le menu d'accueil affiche au minimum :
@@ -120,7 +122,25 @@ Montée en fin de saison :
 - top 2 = montée
 - sinon maintien
 
-Pas de relégation, recrutement, départs ou vieillissement dans la V1.
+Pas de relégation, départs ou vieillissement dans la V1. Le recrutement gratuit par roue est disponible, sans publicité.
+
+### Groupe touche et recrutement
+
+- À la création : sept titulaires de champ et un talonneur, aucun remplaçant.
+- Le gestionnaire charge le terrain dès l'arrivée et reprend la taille des joueurs de l'entraînement. Placement : 1–2–3 en bas (2 légèrement plus bas), 4–5 au milieu, 7–8–9 en haut (8 légèrement plus haut). Aucun titre ou panneau d'aide ne masque le terrain. Le banc est compact, illimité et paginé sans défilement.
+- Toucher un joueur affiche en haut le même bandeau de statistiques que dans l'entraînement ; il est masqué par défaut.
+- La roue produit un joueur de champ ou un talonneur (probabilité de talonneur : 1/8). Le résultat est sauvegardé avant l'animation.
+- Le joueur peut refuser la recrue ou « Intégrer à l'équipe » : elle rejoint le banc. Son nom est prérempli et modifiable (12 caractères maximum), tiré parmi les noms libres dans l'effectif ; après épuisement de la liste, un suffixe permet de conserver des noms distincts.
+- La génération réutilise `generateLineoutRoster`, comme à la création du club, avec ses profils spécialisés et points forts. Le recrutement conserve un joueur de ce groupe généré, sans produire de répertoire tactique.
+- Niveau tiré : 75 % pour la division actuelle N, 20 % pour N+1, 5 % pour N+2. Ces probabilités sont centralisées dans `LineoutBalance.ts`. Les niveaux au-delà du Top 14 utilisent le générateur du Top 14.
+- La roue présente six portraits cadrés sur le haut du corps, leur poste d'origine (Talon, Pilier, 2ème ligne ou 3ème ligne) et une à trois étoiles. Ce poste provient du profil de génération et reste indépendant du numéro porté ; il ne remplace pas les règles physiques de sauteur et de leveur. Les trois cases N pèsent chacune 25 %, les deux cases N+1 chacune 10 %, et la case N+2 pèse 5 %. Le joueur obtenu correspond à la case indiquée par la roue.
+- Le panneau de recrutement occupe uniquement l'espace entre le haut du bandeau de statistiques et le banc. Son bouton « + joueur » permet également de le fermer, y compris pendant la rotation ; un résultat en attente reste sauvegardé.
+- Pendant le recrutement, le banc et les boutons du bas sont assombris et bloqués. Seul le bouton de recrutement reste éclairé et actif pour refermer le panneau.
+- L'apparition de la recrue est progressive et accompagnée de paillettes animées : effets discrets en N, renforcés en N+1, maximaux en N+2. Le niveau du résultat est sauvegardé. Les sprites et les fiches de statistiques du banc n'affichent pas de numéro.
+- Glisser un remplaçant sur un titulaire, ou un titulaire sur un remplaçant, les échange. Le nouveau titulaire prend le numéro de la place. Deux titulaires de champ peuvent aussi échanger leurs places et numéros. Un dépôt hors d'un joueur compatible ramène le joueur à sa place. Les talonneurs s'échangent uniquement entre eux. Aucun remplacement pendant le match.
+- Les plans offensifs et organisations défensives gardent leurs places et actions lorsque l'identité du titulaire change.
+- « Combinaisons » ouvre d'abord la liste, sans déplacer les joueurs. Le choix d'une combinaison déclenche leur déplacement vers ses placements. Le bouton reste actif dans l'éditeur sans coche. Le bouton « Revenir à la gestion d'équipe » figure au bas de la liste. Les déplacements sont animés dans les deux sens et lors d'un changement de combinaison, sans changer les plans sauvegardés.
+- Le bouton générique « Retour » du championnat restaure l'écran précédent : gestion, liste ou éditeur de combinaisons, avec la sélection courante.
 
 ## 8. Divisions
 
@@ -139,7 +159,7 @@ Pas de relégation, recrutement, départs ou vieillissement dans la V1.
 
 ## 9. Match
 
-Un match dure entre 80 et 82 minutes. Le timer avance vite jusqu'à une touche. Le joueur joue la touche. Puis le timer reprend. En fin de match, un écran de résultat simple s'affiche avant le retour à l'entraînement jouable.
+Un match dure entre 80 et 82 minutes. Le timer avance vite jusqu'à une touche. Le joueur joue la touche. Puis le timer reprend. En fin de match, le résultat, la progression et l'éventuel bilan de saison précèdent le retour au gestionnaire du groupe touche.
 
 Variables internes :
 
@@ -214,8 +234,8 @@ La V1 doit contenir :
 - menu d'accueil simple ;
 - création du club simple ;
 - personnalisation rapide des huit joueurs à la création ;
-- entrée directe dans l'entraînement jouable ;
-- équipe consultable ;
+- gestion du groupe touche avant l'accès à l'éditeur et à l'entraînement ;
+- titulaires, banc et recrutement par roue ;
 - championnat simple ;
 - saison Régionale 3 ;
 - classement ;

@@ -8,6 +8,7 @@ import { getCombinationDisplayName } from "../rules/CombinationRules";
 import { t } from "../systems/I18n";
 import { applyDomControlStyle } from "./DomControlStyle";
 import { renderMenuPanel } from "./MenuChrome";
+import { MATCH_SCORE_OVERLAY_LAYOUT } from "./MatchScoreOverlayLayout";
 import { markTutorialAnchor } from "./TutorialAnchor";
 import { UIButton } from "./UIButton";
 import { UI } from "./UITheme";
@@ -20,15 +21,16 @@ type CombinationListOverlayOptions = {
   selectedCombinationId: string;
   selectedDefensiveSize: DefensiveLineoutSize;
   onClose: () => void;
+  onReturnToTeam?: () => void;
   onRename: (combinationId: string, name: string) => void;
   onSelectCombination: (combinationId: string) => void;
   onSelectDefensiveSize: (size: DefensiveLineoutSize) => void;
 };
 
 const PANEL_X = 195;
-const PANEL_TOP = 32;
+const PANEL_TOP = MATCH_SCORE_OVERLAY_LAYOUT.y;
 const PANEL_WIDTH = 354;
-const TAB_Y = 62;
+const TAB_Y = PANEL_TOP + 30;
 
 export class CombinationListOverlay extends Phaser.GameObjects.Container {
   private readonly options: CombinationListOverlayOptions;
@@ -61,9 +63,10 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
     this.destroyNameInput();
     this.content.removeAll(true);
 
-    const panelBottom = this.activeTab === "attack"
-      ? Math.max(230, 166 + Math.max(0, this.options.combinations.length - 1) * 64)
-      : 516;
+    const listBottom = this.activeTab === "attack"
+      ? PANEL_TOP + Math.max(198, 134 + Math.max(0, this.options.combinations.length - 1) * 64)
+      : PANEL_TOP + 484;
+    const panelBottom = listBottom + (this.options.onReturnToTeam ? 62 : 0);
     const panel = renderMenuPanel(this.scene, {
       x: PANEL_X,
       y: (PANEL_TOP + panelBottom) / 2,
@@ -87,6 +90,8 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
     } else {
       this.renderDefensiveSizes();
     }
+    if (this.options.onReturnToTeam) this.content.add(new UIButton(this.scene, 195,
+      panelBottom - 34, 320, 48, t("squad.returnManagement"), this.options.onReturnToTeam, { fontSize: 14 }));
   }
 
   private renderTabs(): void {
@@ -131,7 +136,7 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
 
   private renderOffensiveCombinations(): void {
     this.options.combinations.forEach((combination, index) => {
-      const y = 122 + index * 64;
+      const y = PANEL_TOP + 90 + index * 64;
       const isSelected = combination.id === this.options.selectedCombinationId;
 
       const displayName = getCombinationDisplayName(combination, t, index);
@@ -164,7 +169,7 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
   }
 
   private renderDefensiveSizes(): void {
-    this.content.add(this.scene.add.text(195, 120, t("lineout.v3.defensiveFormationHint"), {
+    this.content.add(this.scene.add.text(195, PANEL_TOP + 88, t("lineout.v3.defensiveFormationHint"), {
       font: UI.font.body,
       color: UI.colors.muted,
       align: "center",
@@ -175,7 +180,7 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
       const button = new UIButton(
         this.scene,
         195,
-        174 + index * 58,
+        PANEL_TOP + 142 + index * 58,
         320,
         48,
         t("lineout.overlay.defensiveSize").replace("{size}", String(size)),

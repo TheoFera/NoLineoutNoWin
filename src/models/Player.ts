@@ -7,6 +7,7 @@ export type PlayerRole = "field" | "hooker";
 export type FieldPlayer = {
   id: string;
   role: "field";
+  rugbyPosition?: "prop" | "secondRow" | "backRow";
   number: number;
   nickname: string;
   appearance: PlayerAppearance;
@@ -29,4 +30,3 @@ export type Player = FieldPlayer | Hooker;
 export function isHooker(player: Player): player is Hooker {
   return player.role === "hooker";
 }
-

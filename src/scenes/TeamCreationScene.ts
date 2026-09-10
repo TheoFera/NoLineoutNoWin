@@ -434,7 +434,7 @@ export class TeamCreationScene extends Phaser.Scene {
       this.players,
       this.clubDraft.leagueId
     );
-    navigateTo(this, "LineoutScene", { mode: "training" });
+    navigateTo(this, "TeamScene");
   }
 
   private goBack(): void {

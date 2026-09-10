@@ -285,7 +285,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
         return;
       }
 
-      navigateTo(this, "LineoutScene", { mode: "training" });
+      navigateTo(this, "TeamScene");
     }, { variant: "primary" });
   }
 

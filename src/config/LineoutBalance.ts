@@ -1,4 +1,8 @@
 export const LINEOUT_BALANCE = {
+  recruitment: {
+    levelProbabilities: [0.75, 0.20, 0.05],
+    hookerProbability: 1 / 8,
+  },
   positions: {
     minimum: 1,
     maximum: 7

@@ -10,8 +10,15 @@ import type { ChampionshipTeamRecord } from "../models/Championship";
 import { fitTextToWidth } from "../ui/TextFit";
 
 export class ChampionshipScene extends Phaser.Scene {
+  private returnTo: "TeamScene" | "LineoutScene" = "TeamScene";
+  private returnData?: Record<string, unknown>;
   constructor() {
     super("ChampionshipScene");
+  }
+
+  init(data: { returnTo?: string; returnData?: Record<string, unknown> } = {}): void {
+    this.returnTo = data.returnTo === "LineoutScene" ? "LineoutScene" : "TeamScene";
+    this.returnData = data.returnData;
   }
 
   preload(): void {
@@ -111,7 +118,7 @@ export class ChampionshipScene extends Phaser.Scene {
     new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"), {
       variant: "primary"
     });
-    new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, "LineoutScene", { mode: "training" }), {
+    new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, this.returnTo, this.returnData), {
       variant: "secondary"
     });
   }

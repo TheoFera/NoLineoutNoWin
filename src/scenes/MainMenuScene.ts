@@ -23,7 +23,7 @@ export class MainMenuScene extends Phaser.Scene {
 
   private handlePrimaryAction(hasSave: boolean): void {
     if (hasSave) {
-      navigateTo(this, "LineoutScene", { mode: "training" });
+      navigateTo(this, "TeamScene");
       return;
     }
 

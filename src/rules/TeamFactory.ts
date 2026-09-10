@@ -27,6 +27,7 @@ import {
 import { generateLineoutRoster, generateTeamForDivision } from "./TeamGeneration.ts";
 import { normalizeStoredOffensiveCombinations } from "./CombinationRules.ts";
 import { normalizeOffensiveRepertoire } from "./LineoutRepertoire.ts";
+import { numberStartingPlayers } from "./TeamSelection.ts";
 
 const DEFAULT_TEAM_SIZE = 7;
 const DIVISION_IDS = Object.keys(LINEOUT_BALANCE.generation.divisionStats) as DivisionId[];
@@ -135,20 +136,24 @@ export function createDefaultPlayerTeam(
       : { ...player, appearance: createDefaultPlayerAppearance(player.number) };
   });
 
-  return {
+  return numberStartingPlayers({
     ...generated,
     hooker,
     fieldPlayers,
     lineoutPlayers: fieldPlayers.slice(0, DEFAULT_TEAM_SIZE),
     offensiveCombinations: undefined,
     offensiveRepertoire: undefined
-  };
+  });
 }
 
 export function normalizeTeam(team: StoredTeamShape): Team {
   const fallback = createDefaultFieldPlayers(60, "p", createSeededRandom(1));
-  const fieldPlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
-  const lineoutPlayers = normalizeLineoutPlayers(fieldPlayers, team.lineoutPlayers);
+  const availablePlayers = mergeFieldPlayers(team.fieldPlayers ?? team.lineoutPlayers ?? [], fallback);
+  const selectedPlayers = normalizeLineoutPlayers(availablePlayers, team.lineoutPlayers);
+  const { fieldPlayers, lineoutPlayers } = team.id === "player_team"
+    ? numberStartingPlayers({ ...team, fieldPlayers: availablePlayers,
+      lineoutPlayers: selectedPlayers, hooker: normalizeStoredHooker(team.hooker) })
+    : { fieldPlayers: availablePlayers, lineoutPlayers: selectedPlayers };
   const hooker = normalizeStoredHooker(team.hooker);
 
   const offensiveCombinations = team.offensiveCombinations
@@ -160,6 +165,9 @@ export function normalizeTeam(team: StoredTeamShape): Team {
   return {
     ...team,
     hooker,
+    reserveHookers: [...new Map((team.reserveHookers ?? [])
+      .filter((player) => player.id !== hooker.id)
+      .map((player) => [player.id, normalizeStoredHooker(player)])).values()],
     colors: normalizeJerseyColors(team.colors),
     fieldPlayers,
     lineoutPlayers,
@@ -181,9 +189,10 @@ function mergeFieldPlayers(primary: StoredFieldPlayer[], fallback: FieldPlayer[]
     if (!byId.has(player.id)) byId.set(player.id, normalizeStoredFieldPlayer(player));
   }
   for (const player of fallback) {
+    if (byId.size >= DEFAULT_TEAM_SIZE) break;
     if (!byId.has(player.id)) byId.set(player.id, player);
   }
-  return [...byId.values()].slice(0, DEFAULT_TEAM_SIZE);
+  return [...byId.values()];
 }
 
 function normalizeLineoutPlayers(

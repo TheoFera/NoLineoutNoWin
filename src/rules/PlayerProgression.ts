@@ -96,6 +96,9 @@ export function resolvePlayerProgression(
       ...team.fieldPlayers.map((player, index) => buildPlayerProgression(player, fieldPlayers[index]))
     ].filter((summary): summary is PlayerProgressionSummary => summary !== null),
     remainingUsage: {
+      ...Object.fromEntries((team.reserveHookers ?? []).map((player) => [
+        player.id, normalizeUsage(savedUsage[player.id])
+      ])),
       [hooker.id]: hookerProgression.remainingUsage,
       ...Object.fromEntries(fieldPlayerProgressions.map((progression) => [
         progression.player.id,
@@ -111,6 +114,9 @@ export function normalizePlayerProgressionUsage(
 ): PlayerProgressionUsage {
   return {
     [team.hooker.id]: normalizeUsage(usage?.[team.hooker.id]),
+    ...Object.fromEntries((team.reserveHookers ?? []).map((player) => [
+      player.id, normalizeUsage(usage?.[player.id])
+    ])),
     ...Object.fromEntries(team.fieldPlayers.map((player) => [
       player.id,
       normalizeUsage(usage?.[player.id])

@@ -48,8 +48,8 @@ export class ResultScene extends Phaser.Scene {
         font: UI.font.subtitle,
         color: UI.colors.text
       }).setOrigin(0.5);
-      new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("result.backTraining"), () => {
-        navigateTo(this, "LineoutScene", { mode: "training" });
+      new UIButton(this, SCREEN_CENTER_X, 790, 300, 52, t("squad.back"), () => {
+        navigateTo(this, "TeamScene");
       }, { variant: "primary" });
       return;
     }

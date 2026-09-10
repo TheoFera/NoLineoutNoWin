@@ -228,11 +228,22 @@ export class GameStore {
   static setPlayerTeam(team: Team): void {
     const save = this.getSave();
     const normalizedTeam = normalizeTeam(team);
+    const replacements = new Map<string, string>();
+    save.playerTeam.lineoutPlayers.forEach((player, index) => {
+      const replacement = normalizedTeam.lineoutPlayers[index];
+      if (replacement && replacement.id !== player.id) replacements.set(player.id, replacement.id);
+    });
+    const replaceId = (id: string | null): string | null => id ? replacements.get(id) ?? id : null;
     this.save = this.withUpdatedAt({
       ...save,
       playerTeam: normalizedTeam,
-      defensivePriority: normalizeDefensivePriority(save.defensivePriority, normalizedTeam),
-      defenseMemory: normalizeDefenseMemory(save.defenseMemory, normalizedTeam)
+      offensiveCombinations: save.offensiveCombinations.map((combination) => ({
+        ...combination,
+        slots: combination.slots.map((slot) => ({ ...slot, playerId: replaceId(slot.playerId) }))
+      })),
+      defensivePriority: normalizeDefensivePriority(save.defensivePriority.map((id) => replaceId(id)!), normalizedTeam),
+      defenseMemory: normalizeDefenseMemory(Object.fromEntries(Object.entries(save.defenseMemory)
+        .map(([size, slots]) => [size, slots?.map(replaceId)])), normalizedTeam)
     });
     saveGame(this.save);
   }

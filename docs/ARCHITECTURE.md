@@ -36,7 +36,12 @@ BootScene
 → MainMenuScene
 → ClubCreationScene si aucune sauvegarde
 → TeamCreationScene pour personnaliser les huit joueurs
-→ sinon LineoutScene en mode training
+→ TeamScene après création ou pour une sauvegarde existante
+
+TeamScene
+→ gestion des titulaires et du banc, roue de recrutement
+→ LineoutScene en mode training pour les combinaisons
+→ ChampionshipScene pour consulter le championnat et jouer
 
 LineoutScene en mode training
 → TeamScene pour consulter l'équipe
@@ -47,13 +52,14 @@ MatchScene
 → ResultScene en fin de match
 → PlayerProgressionScene après validation du résultat
 → SeasonResultScene si la saison est terminée
-→ sinon LineoutScene en mode training
+→ sinon TeamScene
 ```
 
 Conséquences :
 
 - `MainMenuScene` reste le point d'entrée du joueur ;
-- `TeamCreationScene` finalise la création de la sauvegarde après la personnalisation de l'équipe ;
+- `TeamCreationScene` finalise la sauvegarde des huit joueurs initiaux, sans remplaçants, puis ouvre `TeamScene` ;
+- `TeamScene` est le gestionnaire du groupe touche et le point de retour après le match ;
 - `TrainingScene` n'est plus nécessaire dans le flux principal ;
 - `LineoutScene` porte l'entraînement jouable ;
 - `SettingsScene` reste un écran utilitaire lié au menu d'accueil ;
@@ -85,7 +91,9 @@ LineoutV3Engine.ts
 | `src/scenes/MatchScene.ts` | gère l'avancement du match |
 | `src/scenes/ResultScene.ts` | affiche la fin de match |
 | `src/scenes/PlayerProgressionScene.ts` | présente les hausses de statistiques après le match |
-| `src/scenes/TeamScene.ts` | affiche l'équipe du joueur |
+| `src/scenes/TeamScene.ts` | gestion des titulaires, banc paginé et accès au recrutement |
+| `src/ui/RecruitmentOverlay.ts` | roue animée, résultat à garder ou refuser et renommage facultatif |
+| `src/rules/RecruitmentRules.ts` | qualité et génération injectable des recrues, acceptation sur le banc |
 | `src/scenes/ChampionshipScene.ts` | affiche le championnat |
 | `src/rules/LineoutV3Engine.ts` | moteur officiel d'une touche V3 |
 | `src/rules/LineoutV3Geometry.ts` | géométrie et synchronisation V3 |

@@ -1,5 +1,5 @@
 import type { DivisionId } from "./Division";
-import type { FieldPlayer, Hooker } from "./Player";
+import type { FieldPlayer, Hooker, Player } from "./Player";
 import type { Combination, OffensiveRepertoire } from "./Combination";
 
 export type JerseyColors = {
@@ -18,6 +18,9 @@ export type Team = {
   divisionId: DivisionId;
   colors: JerseyColors;
   hooker: Hooker;
+  reserveHookers?: Hooker[];
+  pendingRecruitment?: Player;
+  pendingRecruitmentBand?: number;
   fieldPlayers: FieldPlayer[]; // effectif disponible pour préparer la touche
   lineoutPlayers: FieldPlayer[]; // exactement 7 joueurs retenus pour la touche en V1
   lineoutStyle?: TeamLineoutStyle;

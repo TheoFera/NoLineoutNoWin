@@ -190,6 +190,7 @@ function createFieldPlayer(
   return {
     id: `${prefix}${index + 1}`,
     role: "field",
+    rugbyPosition: number === 1 || number === 3 ? "prop" : number === 4 || number === 5 ? "secondRow" : "backRow",
     number,
     nickname: PLAYER_NICKNAMES[index] ?? `J${number}`,
     appearance: createDefaultPlayerAppearance(number),
