@@ -95,7 +95,7 @@ export class UIButton extends Phaser.GameObjects.Container {
       }
       this.add(icon);
       this.buttonIcon = icon;
-      this.label.setX(12).setWordWrapWidth(Math.max(48, width - 48), true);
+      this.label.setX(14).setWordWrapWidth(Math.max(48, width - 40), true);
     }
     scene.add.existing(this);
     this.setEnabled(this.enabled);
@@ -104,7 +104,7 @@ export class UIButton extends Phaser.GameObjects.Container {
   setText(text: string): void {
     this.label.setText(text);
     this.label.setFontSize(getButtonFontSize(this.buttonWidth, this.buttonHeight, text));
-    this.label.setWordWrapWidth(Math.max(48, this.buttonWidth - (this.buttonIcon ? 48 : 18)), true);
+    this.label.setWordWrapWidth(Math.max(48, this.buttonWidth - (this.buttonIcon ? 40 : 18)), true);
   }
 
   setEnabled(enabled: boolean): this {

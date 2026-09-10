@@ -1305,7 +1305,7 @@ export class LineoutScene extends Phaser.Scene {
       this,
       103,
       layout.navigationY,
-      164,
+      174,
       44,
       t("button.combinations"),
       () => overlayOpen
@@ -1314,14 +1314,14 @@ export class LineoutScene extends Phaser.Scene {
       {
         variant: "selected",
         icon: "combinations",
-        fontSize: 15
+        fontSize: 18
       }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
     this.trainingChampionshipButton = new UIButton(
       this,
       287,
       layout.navigationY,
-      164,
+      174,
       44,
       t("menu.championship"),
       () => navigateTo(this, "ChampionshipScene", { returnTo: "LineoutScene", returnData: {
@@ -1329,7 +1329,7 @@ export class LineoutScene extends Phaser.Scene {
         editorPhaseIndex: this.trainingEditorPhaseIndex, defensiveSize: this.defensiveEditorSize,
         defensiveDraftIds: this.defensiveDraftIds ?? undefined, combinationOverlayOpen: overlayOpen
       } }),
-      { variant: "secondary", icon: "championship", fontSize: 15 }
+      { variant: "secondary", icon: "championship", fontSize: 18 }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
   }
 

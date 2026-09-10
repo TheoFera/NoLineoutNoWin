@@ -3,7 +3,8 @@ import type { Player } from "../models/Player";
 import type { Team } from "../models/Team";
 import { TRAINING_PLAYER_SIZE } from "../config/DisplayConfig";
 import { GameStore } from "../state/GameStore";
-import { getTeamBenchPlayers, exchangeSquadPlayers, STARTER_FIELD_NUMBERS } from "../rules/TeamSelection";
+import { getTeamBenchPlayers, exchangeSquadPlayers, STARTER_FIELD_NUMBERS, getSquadLevel, removeSquadPlayer } from "../rules/TeamSelection";
+import { SquadOverview } from "../ui/SquadOverview";
 import { canBeLineoutJumper, canBeLineoutLifter } from "../rules/LineoutPlayerRoles";
 import { navigateTo } from "../systems/Navigation";
 import { t } from "../systems/I18n";
@@ -41,6 +42,7 @@ type SquadToken = {
   homeX: number;
   homeY: number;
   height: number;
+  benchMask?: Phaser.Display.Masks.GeometryMask;
 };
 
 type SquadDrag = {
@@ -57,6 +59,7 @@ export class TeamScene extends Phaser.Scene {
   private tokens: SquadToken[] = [];
   private controls: UIButton[] = [];
   private inspector?: PlayerStatsOverlay;
+  private overview?: SquadOverview;
   private inspectedId?: string;
   private drag?: SquadDrag;
   private dropHighlight?: Phaser.GameObjects.Ellipse;
@@ -112,6 +115,7 @@ export class TeamScene extends Phaser.Scene {
     this.add.zone(195, 422, 390, 844).setDepth(-1).setInteractive().on("pointerdown", () => {
       this.inspectedId = undefined;
       this.inspector?.setVisible(false);
+      this.overview?.showOverview();
     });
     const pitchLines = this.add.graphics().lineStyle(2, UI.colors.paper, 0.85);
     for (const y of [114, 634]) {
@@ -125,11 +129,12 @@ export class TeamScene extends Phaser.Scene {
     });
     this.renderBench();
     this.controls.push(new UIButton(this, 103, 809, 174, 48, t("button.combinations"), () =>
-      this.openCombinations(), { icon: "combinations", fontSize: 15 }));
+      this.openCombinations(), { icon: "combinations", fontSize: 18 }));
     this.controls.push(new UIButton(this, 287, 809, 174, 48, t("menu.championship"), () =>
       navigateTo(this, "ChampionshipScene", { returnTo: "TeamScene",
-        returnData: { combinationOverlayOpen: Boolean(this.combinations) } }), { icon: "championship", fontSize: 15 }));
+        returnData: { combinationOverlayOpen: Boolean(this.combinations) } }), { icon: "championship", fontSize: 18 }));
     this.inspector = new PlayerStatsOverlay(this, this.team.colors).setVisible(false);
+    this.overview = new SquadOverview(this, getSquadLevel(this.team));
   }
 
   private renderPlayer(player: Player, x: number, y: number, reserve: boolean, height: number): void {
@@ -138,7 +143,15 @@ export class TeamScene extends Phaser.Scene {
       : renderSquadPlayer(this, x, y, player, this.team.colors, height)).setDepth(y);
     const hit = this.add.zone(x, y - height * 0.43, reserve ? 62 : 76, reserve ? 76 : height * 0.8)
       .setDepth(y + 1).setInteractive({ useHandCursor: true });
-    const token = { player, reserve, view, hit, homeX: x, homeY: y, height };
+    let benchMask: Phaser.Display.Masks.GeometryMask | undefined;
+    if (reserve) {
+      const clip = this.add.graphics().fillStyle(0xffffff)
+        .fillRoundedRect(x - 30, y - 67, 60, 74, UI.radius - 1).setVisible(false);
+      benchMask = clip.createGeometryMask();
+      view.setMask(benchMask);
+      view.once(Phaser.GameObjects.Events.DESTROY, () => benchMask?.destroy());
+    }
+    const token = { player, reserve, view, hit, homeX: x, homeY: y, height, benchMask };
     this.tokens.push(token);
     hit.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.drag || this.recruitment || this.combinations) return;
@@ -167,6 +180,9 @@ export class TeamScene extends Phaser.Scene {
       new UIRoundedRectangle(this, x, 732, 62, 76, UI.colors.panelRaised, 0.65)
         .setStrokeStyle(1, UI.colors.outline);
       this.renderPlayer(player, x, 762, true, 70);
+      // Bordure au-dessus du portrait, dont le masque suit l'intérieur arrondi.
+      new UIRoundedRectangle(this, x, 732, 62, 76, UI.colors.panelRaised, 0)
+        .setStrokeStyle(1, UI.colors.outline).setDepth(764);
     });
     this.recruitButton = new UIButton(this, 55 + visible.length * 70, 732, 62, 76,
       "", () => this.openRecruitment(), { icon: "recruit", accessibleLabel: t("squad.recruit") });
@@ -180,12 +196,15 @@ export class TeamScene extends Phaser.Scene {
     if (!drag.moved && Phaser.Math.Distance.Between(point.x, point.y, drag.startX, drag.startY) < 8) return;
     if (!drag.moved) {
       drag.moved = true;
+      // Le joueur doit pouvoir sortir de sa carte pendant l'échange.
+      drag.token.view.clearMask();
       this.controls.forEach((button) => button.setEnabled(false));
       this.inspector?.setVisible(false);
       this.inspectedId = undefined;
     }
     drag.token.view.setPosition(drag.token.homeX + point.x - drag.startX, drag.token.homeY + point.y - drag.startY)
       .setDepth(1200);
+    this.overview?.showTrash(this.overview.containsPoint(point.x, point.y));
     this.dropHighlight?.destroy();
     this.dropHighlight = undefined;
     const target = this.findDropTarget(point.x, point.y, drag.token);
@@ -209,6 +228,14 @@ export class TeamScene extends Phaser.Scene {
     this.dropHighlight = undefined;
     if (!drag.moved) { this.inspectPlayer(drag.token.player); return; }
     const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    if (this.overview?.containsPoint(point.x, point.y)) {
+      const result = removeSquadPlayer(this.team, drag.token.player.id);
+      if (!result.error) GameStore.setPlayerTeam(result.team);
+      this.renderScene();
+      if (result.error) this.overview?.showError(t(`squad.removeError.${result.error}`));
+      return;
+    }
+    this.overview?.showOverview();
     const target = this.findDropTarget(point.x, point.y, drag.token);
     if (target) {
       GameStore.setPlayerTeam(exchangeSquadPlayers(this.team, drag.token.player.id, target.player.id));
@@ -216,15 +243,18 @@ export class TeamScene extends Phaser.Scene {
       return;
     }
     drag.token.view.setPosition(drag.token.homeX, drag.token.homeY).setDepth(drag.token.homeY);
+    if (drag.token.benchMask) drag.token.view.setMask(drag.token.benchMask);
   }
 
   private inspectPlayer(player: Player): void {
     if (this.inspectedId === player.id) {
       this.inspectedId = undefined;
       this.inspector?.setVisible(false);
+      this.overview?.showOverview();
       return;
     }
     this.inspectedId = player.id;
+    this.overview?.setVisible(false);
     const roles = player.role === "hooker" ? [t("lineout.hookerLabel")] : [
       ...(canBeLineoutJumper(player) ? [t("lineout.role.jumper")] : []),
       ...(canBeLineoutLifter(player) ? [t("lineout.role.lifter")] : [])
@@ -255,8 +285,8 @@ export class TeamScene extends Phaser.Scene {
       if (addedIndex >= 0) this.page = Math.floor(addedIndex / PAGE_SIZE);
       this.renderScene();
     });
-    this.add.rectangle(195, 744, 390, 200, UI.colors.scrim, 0.64)
-      .setDepth(UI_DEPTH.overlayContent).setInteractive();
+    this.add.rectangle(195, 422, 390, 844, UI.colors.scrim, 0.64)
+      .setDepth(UI_DEPTH.overlayBackdrop).setInteractive();
     this.recruitButton?.setDepth(UI_DEPTH.overlayContent + 1);
   }
 
@@ -289,5 +319,7 @@ export class TeamScene extends Phaser.Scene {
       })
     }).setDepth(UI_DEPTH.overlayBackdrop);
     this.inspector?.setVisible(false);
+    this.inspectedId = undefined;
+    this.overview?.showOverview();
   }
 }

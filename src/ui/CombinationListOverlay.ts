@@ -90,8 +90,11 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
     } else {
       this.renderDefensiveSizes();
     }
-    if (this.options.onReturnToTeam) this.content.add(new UIButton(this.scene, 195,
-      panelBottom - 34, 320, 48, t("squad.returnManagement"), this.options.onReturnToTeam, { fontSize: 14 }));
+    if (this.options.onReturnToTeam) {
+      this.content.add(this.scene.add.rectangle(PANEL_X, listBottom - 9, 320, 1, UI.colors.divider));
+      this.content.add(new UIButton(this.scene, 195,
+        panelBottom - 34, 320, 48, t("squad.returnManagement"), this.options.onReturnToTeam, { fontSize: 14 }));
+    }
   }
 
   private renderTabs(): void {

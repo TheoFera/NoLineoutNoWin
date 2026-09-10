@@ -11,6 +11,34 @@ export function getTeamBenchPlayers(team: Team): Player[] {
   return [...getLineoutBenchPlayers(team), ...(team.reserveHookers ?? [])];
 }
 
+/** Indicateur d'affichage : moyenne des huit titulaires, avec un poids égal par joueur. */
+export function getSquadLevel(team: Team): number {
+  const fieldTotal = team.lineoutPlayers.reduce((sum, player) =>
+    sum + (player.speed + player.strength + player.technique) / 3, 0);
+  return Math.round((fieldTotal + team.hooker.throwing) / (team.lineoutPlayers.length + 1));
+}
+
+export function removeSquadPlayer(team: Team, playerId: string):
+  { team: Team; error?: "minimumPlayers" | "lastHooker" | "minimumFieldPlayers" } {
+  const hookers = [team.hooker, ...(team.reserveHookers ?? [])];
+  const isHooker = hookers.some((player) => player.id === playerId);
+  if (!isHooker && !team.fieldPlayers.some((player) => player.id === playerId)) return { team };
+  if (team.fieldPlayers.length + hookers.length <= 8) return { team, error: "minimumPlayers" };
+  if (isHooker && hookers.length <= 1) return { team, error: "lastHooker" };
+  // L'éditeur et le match nécessitent toujours sept joueurs de champ.
+  if (!isHooker && team.fieldPlayers.length <= 7) return { team, error: "minimumFieldPlayers" };
+  let updated = team;
+  if (team.hooker.id === playerId) {
+    updated = swapStarterWithReserve(team, playerId, team.reserveHookers![0].id);
+  } else if (team.lineoutPlayers.some((player) => player.id === playerId)) {
+    updated = swapStarterWithReserve(team, playerId, getLineoutBenchPlayers(team)[0].id);
+  }
+  return { team: numberStartingPlayers({ ...updated,
+    fieldPlayers: updated.fieldPlayers.filter((player) => player.id !== playerId),
+    reserveHookers: (updated.reserveHookers ?? []).filter((player) => player.id !== playerId)
+  }) };
+}
+
 export const STARTER_FIELD_NUMBERS = [1, 3, 4, 5, 7, 8, 9] as const;
 
 export function numberStartingPlayers(team: Team): Team {

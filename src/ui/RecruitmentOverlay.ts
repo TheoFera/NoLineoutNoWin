@@ -51,21 +51,19 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
     this.close();
   }
 
-  private renderFrame(title: string, result = false): void {
+  private renderFrame(title: string): void {
     this.removeAll(true);
-    // Le banc et le bouton de recrutement restent visibles et accessibles.
-    this.add(this.scene.add.rectangle(195, 323, 390, 618, UI.colors.scrim, 0.25).setInteractive());
     this.add(new UIRoundedRectangle(this.scene, 195, 323, 366, 618, UI.colors.panelDark, 1)
-      .setStrokeStyle(2, UI.colors.outline));
-    this.text(195, result ? 56 : 43, title, result ? 19 : 23, 330);
+      .setStrokeStyle(2, UI.colors.outline).setRoundedInteractive());
+    this.text(195, 56, title, 19, 330);
   }
 
   private renderWheel(): void {
     this.renderFrame(t("recruit.title"));
     const team = GameStore.getSave().playerTeam;
     const offers = generateRecruitmentWheel(team, MATH_RANDOM_SOURCE);
-    this.text(195, 83, t("recruit.hint"), 13, 310);
-    const wheel = this.scene.add.container(195, 286);
+    const wheelY = 310;
+    const wheel = this.scene.add.container(195, wheelY);
     this.add(wheel);
     wheel.add(this.scene.add.circle(0, 0, 160, UI.colors.panelRaised).setStrokeStyle(4, UI.colors.outline));
     const colors = [UI.colors.accent, UI.colors.info, UI.colors.success, UI.colors.outline, UI.colors.warning, UI.colors.panelRaised];
@@ -99,13 +97,13 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
           stroke: UI.colors.textStroke, strokeThickness: 2 }).setOrigin(0.5);
       wheel.add([stars, profile, chance]);
     });
-    this.add(this.scene.add.circle(195, 286, 32, UI.colors.panelDark).setStrokeStyle(2, UI.colors.outlineStrong));
-    const ball = this.scene.add.graphics({ x: 195, y: 286 });
+    this.add(this.scene.add.circle(195, wheelY, 32, UI.colors.panelDark).setStrokeStyle(2, UI.colors.outlineStrong));
+    const ball = this.scene.add.graphics({ x: 195, y: wheelY });
     ball.fillStyle(UI.colors.paper).fillEllipse(0, 0, 25, 41);
     ball.lineStyle(2, UI.colors.panelDark).lineBetween(0, -14, 0, 14);
     for (const y of [-6, 0, 6]) ball.lineBetween(-4, y, 4, y);
     this.add(ball.setAngle(35));
-    this.add(this.scene.add.triangle(195, 126, 0, 0, 26, 0, 13, 26, UI.colors.accent));
+    this.add(this.scene.add.triangle(195, wheelY - 160, 0, 0, 26, 0, 13, 26, UI.colors.accent));
     const launch = new UIButton(this.scene, 195, 551, 314, 54, t("recruit.spin"), () => {
       launch.setEnabled(false);
       const roll = randomFloat(0, 1, MATH_RANDOM_SOURCE);
@@ -131,7 +129,7 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
     const team = GameStore.getSave().playerTeam;
     const player = team.pendingRecruitment;
     if (!player) { this.close(); return; }
-    this.renderFrame(t("recruit.result"), true);
+    this.renderFrame(t("recruit.result"));
     const band = Math.max(0, Math.min(2, team.pendingRecruitmentBand ?? 0));
     this.renderRevealGlow(band);
     const revealedPlayer = renderSquadPlayer(this.scene, 195, 303, player, team.colors, 185, undefined, false)

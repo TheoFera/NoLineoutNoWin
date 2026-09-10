@@ -10,5 +10,8 @@ export const PLAYER_NICKNAMES = [
   "Bébert",
   "Jojo",
   "Polo",
-  "Lulu"
+  "Lulu",
+  "Vince",
+  "Tof",
+  "Seb"
 ];
