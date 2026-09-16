@@ -24,6 +24,9 @@ import {
   clearSave, loadGame, loadTutorialState, saveGame, saveTutorialState, setSavePersistenceSuspended
 } from "../systems/SaveSystem";
 import type { TutorialState } from "../models/TutorialState";
+import type { CoachTutorialProgress } from "../models/TutorialState";
+import type { Player } from "../models/Player";
+import { createCoachTutorialProgress, normalizeCoachTutorialProgress, createCoachCombination, COACH_SIMPLE_ID, COACH_SECOND_ID } from "../rules/CoachTutorialRules";
 import type { LineoutPosition } from "../models/Combination";
 import type { OpponentAiMemory } from "../models/LineoutAI";
 import type { MatchCompletionSummary } from "../models/PlayerProgression";
@@ -102,6 +105,85 @@ export class GameStore {
     saveTutorialState(this.tutorial);
   }
 
+  static getCoachTutorial(): CoachTutorialProgress | undefined {
+    return this.isTutorialEnabled() && !this.isTestModeActive() ? this.save?.coachTutorial : undefined;
+  }
+
+  static updateCoachTutorial(update: Partial<CoachTutorialProgress>): void {
+    const progress = this.getCoachTutorial();
+    if (!this.save || !progress) return;
+    this.save = this.withUpdatedAt({ ...this.save, coachTutorial: { ...progress, ...update } });
+    saveGame(this.save);
+  }
+
+  static setPendingRecruitment(player: Player, band: number, guided: boolean): void {
+    const save = this.getSave();
+    const progress = this.getCoachTutorial();
+    // Une seule écriture pour le résultat et le cadeau utilisé, avant toute animation.
+    this.save = this.withUpdatedAt({ ...save,
+      playerTeam: { ...save.playerTeam, pendingRecruitment: player, pendingRecruitmentBand: band },
+      coachTutorial: guided && progress ? { ...progress, recruitmentUsed: true, firstRecruitId: player.id } : save.coachTutorial });
+    saveGame(this.save);
+  }
+
+  static advanceCoachStep(id: string, index: number, finished: boolean): void {
+    const progress = this.getCoachTutorial();
+    if (!progress) return;
+    this.updateCoachTutorial({ steps: { ...progress.steps, [id]: index },
+      completed: finished ? [...new Set([...progress.completed, id])] : progress.completed });
+  }
+
+  /** Le rappel ne remet ni l'effectif ni les combinaisons d'une partie à zéro. */
+  static replayCoachExplanations(): void {
+    if (!this.save) return;
+    const progress = this.save.coachTutorial;
+    this.setTutorialEnabled(true);
+    this.save = this.withUpdatedAt({ ...this.save, coachTutorial: progress
+      ? { ...progress, steps: { ...progress.steps, "reminder.roles": 0 }, completed: progress.completed.filter((id) => !id.startsWith("reminder.")) }
+      : { ...createCoachTutorialProgress(), matchesCompleted: 6, recruitmentUsed: true, completed: ["graduation"] } });
+    saveGame(this.save);
+  }
+
+  static prepareCoachTeam(): void {
+    const progress = this.getCoachTutorial();
+    if (!progress || !this.save || progress.matchesCompleted >= 6) return;
+    const stage = progress.matchesCompleted;
+    const key = stage === 0 ? "initial" : stage === 1 ? "movement" : stage === 2 ? "choice"
+      : stage === 4 ? "five" : stage === 5 ? "feint" : "";
+    if (!key || progress.prepared.includes(key)) return;
+    let combinations = [...this.save.offensiveCombinations];
+    let active = [...this.save.offensiveRepertoire.activeCombinationIds];
+    // Rattraper les plans manquants si Charles a été désactivé pendant certains matchs.
+    if (key !== "initial" && !combinations.some((combination) => combination.id === COACH_SIMPLE_ID)) {
+      combinations.push(createCoachCombination(this.save.playerTeam));
+      active = [COACH_SIMPLE_ID];
+    }
+    if (stage >= 2 && key !== "choice" && !combinations.some((combination) => combination.id === COACH_SECOND_ID)) {
+      combinations.push(createCoachCombination(this.save.playerTeam, true));
+      active = [COACH_SIMPLE_ID, COACH_SECOND_ID];
+    }
+    if (key === "initial") {
+      combinations.push(createCoachCombination(this.save.playerTeam));
+      active = [COACH_SIMPLE_ID];
+    } else if (key === "movement") {
+      combinations = combinations.map((combination) => combination.id === COACH_SIMPLE_ID
+        ? { ...combination, plan: { phases: [{ id: "charles-deplacement", actions: [] }] } } : combination);
+    } else if (key === "choice") {
+      combinations.push(createCoachCombination(this.save.playerTeam, true));
+      active = [COACH_SIMPLE_ID, COACH_SECOND_ID];
+    } else if (key === "five") {
+      combinations = combinations.map((combination) => combination.id === COACH_SECOND_ID
+        ? createCoachCombination(this.save!.playerTeam, true, true) : combination);
+    } else if (key === "feint") {
+      combinations = combinations.map((combination) => combination.id === COACH_SECOND_ID
+        ? { ...combination, plan: { phases: [{ id: "charles-feinte", actions: [] }] } } : combination);
+    }
+    this.save = this.withUpdatedAt({ ...this.save, offensiveCombinations: combinations,
+      offensiveRepertoire: { ...this.save.offensiveRepertoire, activeCombinationIds: active },
+      coachTutorial: { ...progress, prepared: [...progress.prepared, key] } });
+    saveGame(this.save);
+  }
+
   static getSave(): SaveGame {
     if (!this.save) {
       this.createNewSave(t("club.defaultName"));
@@ -126,6 +208,7 @@ export class GameStore {
     const offensiveCombinations = normalizeOffensiveCombinations();
     const save: SaveGame = {
       version: 6,
+      coachTutorial: this.isTutorialEnabled() ? createCoachTutorialProgress() : undefined,
       language: getLanguage(),
       currentDivisionId: "regionale_3",
       season: 1,
@@ -155,6 +238,8 @@ export class GameStore {
     this.save = null;
     this.match = null;
     clearSave();
+    this.tutorial = { enabled: true, introductionSeen: false };
+    saveTutorialState(this.tutorial);
   }
 
   static isTestModeActive(): boolean {
@@ -274,7 +359,8 @@ export class GameStore {
     this.save = this.withUpdatedAt({
       ...save,
       offensiveCombinations: normalizedCombinations,
-      offensiveRepertoire: normalizeOffensiveRepertoire(
+      offensiveRepertoire: this.getCoachTutorial() && (save.coachTutorial?.matchesCompleted ?? 6) < 2
+        ? { activeCombinationIds: [COACH_SIMPLE_ID], reserveCombinationIds: [] } : normalizeOffensiveRepertoire(
         normalizedCombinations.map((combination) => combination.id),
         division.offensiveCombinations,
         save.offensiveRepertoire,
@@ -419,7 +505,8 @@ export class GameStore {
       currentDivisionId: outcome.divisionId,
       season: outcome.season,
       championship: outcome.championship,
-      offensiveRepertoire: normalizeOffensiveRepertoire(
+      offensiveRepertoire: this.getCoachTutorial() && this.save.coachTutorial!.matchesCompleted < 1
+        ? { activeCombinationIds: [COACH_SIMPLE_ID], reserveCombinationIds: [] } : normalizeOffensiveRepertoire(
         this.save.offensiveCombinations.map((combination) => combination.id),
         nextDivision.offensiveCombinations,
         this.save.offensiveRepertoire,
@@ -443,7 +530,10 @@ export class GameStore {
         ...this.save.opponentTeams,
         [updatedOpponent.id]: updatedOpponent
       },
-      playerProgressionUsage: progression.remainingUsage
+      playerProgressionUsage: progression.remainingUsage,
+      coachTutorial: this.save.coachTutorial && !this.isTestModeActive()
+        ? { ...this.save.coachTutorial, matchesCompleted: this.save.coachTutorial.matchesCompleted + 1 }
+        : this.save.coachTutorial
     });
     this.match = null;
     saveGame(this.save);
@@ -471,6 +561,7 @@ export class GameStore {
     return {
       ...save,
       version: 6,
+      coachTutorial: normalizeCoachTutorialProgress(save.coachTutorial),
       clubLeagueId,
       playerTeam,
       championship: normalizeChampionshipState(
@@ -481,7 +572,9 @@ export class GameStore {
         clubLeagueId
       ),
       offensiveCombinations,
-      offensiveRepertoire: isEmptyOffensiveRepertoire(currentRepertoire)
+      offensiveRepertoire: this.isTutorialEnabled() && save.coachTutorial?.prepared?.includes("initial") && save.coachTutorial.matchesCompleted < 2
+        ? { activeCombinationIds: [COACH_SIMPLE_ID], reserveCombinationIds: [] }
+        : isEmptyOffensiveRepertoire(currentRepertoire)
         ? createEmptyOffensiveRepertoire()
         : normalizeOffensiveRepertoire(
           offensiveCombinations.map((combination) => combination.id),

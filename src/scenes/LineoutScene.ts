@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
+import { coachAction, coachControl } from "../ui/CoachTutorialEvents";
+import { COACH_SIMPLE_ID, COACH_SECOND_ID, coachDefensiveJumpAt, coachDefensiveTiming } from "../rules/CoachTutorialRules";
+import { COACH_LESSONS } from "../data/CoachTutorial";
 import { TRAINING_PLAYER_SIZE } from "../config/DisplayConfig";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 import { GameStore } from "../state/GameStore";
@@ -437,14 +442,36 @@ export class LineoutScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharlesIntroduction(this);
     preloadLineoutAssets(this);
   }
 
   create(): void {
+    this.coach = undefined;
+    this.coachThrowGrade = undefined;
+    this.coachJumpPlayerId = undefined;
+    this.coachDefenseDestination = undefined;
     const save = GameStore.getSave();
     const match = GameStore.getMatch();
 
     this.resetSceneState();
+    const coachProgress = GameStore.getCoachTutorial();
+    if (this.mode === "training" && this.trainingMode === "edit" && this.trainingEditorPhaseIndex === null) {
+      const firstStep = COACH_LESSONS.find((lesson) => lesson.id === "editor.first")
+        ?.steps[coachProgress?.steps["editor.first"] ?? 0];
+      if (coachProgress?.matchesCompleted === 0 && !coachProgress.completed.includes("editor.first")
+        && ["coach.firstJumpPlayer", "coach.firstJumpAction", "coach.train"].includes(firstStep?.key ?? "")) {
+        this.trainingEditorPhaseIndex = 0;
+      }
+      const movement = coachProgress?.steps.movement ?? 0;
+      const feint = coachProgress?.steps.feint ?? 0;
+      if (coachProgress?.matchesCompleted === 1 && movement >= 2 && !coachProgress.completed.includes("movement")) {
+        this.trainingEditorPhaseIndex = movement >= 8 ? 1 : 0;
+      }
+      if (coachProgress?.matchesCompleted === 5 && feint >= 1 && !coachProgress.completed.includes("feint")) {
+        this.trainingEditorPhaseIndex = feint >= 4 ? 1 : 0;
+      }
+    }
     this.sceneCameraBaseZoom = getCameraRenderScale(this);
     this.cameras.main
       .resetFX()
@@ -507,6 +534,130 @@ export class LineoutScene extends Phaser.Scene {
       this.animateFromSquad(this.squadTravel);
       this.squadTravel = undefined;
     }
+    this.restoreCoachInspection();
+    this.coach = new CoachTutorialDirector(this, {
+      scope: () => this.coachScope(), target: (id) => this.coachTarget(id),
+      prepareStep: (step) => {
+        if (step.target === "combination.train" || step.target?.startsWith("phase.")) {
+          this.hidePlayerInspector();
+          this.hideTrainingActionOverlay();
+        }
+      }
+    });
+  }
+
+  private coach?: CoachTutorialDirector;
+  private coachJumpPlayerId?: string;
+  private coachThrowGrade?: { grade: string; delta: number };
+  private coachDefenseDestination?: Phaser.Geom.Rectangle;
+
+  private restoreCoachInspection(): void {
+    const progress = GameStore.getCoachTutorial();
+    if (!progress || this.mode !== "training" || this.trainingMode !== "edit") return;
+    const scope = this.selectedCombination.id === COACH_SIMPLE_ID ? "editor.simple" : "editor.second";
+    const lesson = COACH_LESSONS.find((item) => item.scope === scope && item.min <= progress.matchesCompleted
+      && (item.max === undefined || progress.matchesCompleted <= item.max) && !progress.completed.includes(item.id));
+    if (!lesson) return;
+    const index = progress.steps[lesson.id] ?? 0;
+    const target = lesson.steps[index]?.target ?? "";
+    if (!target.startsWith("stat.") && !target.startsWith("action.")) return;
+    const previous = lesson.steps.slice(0, index).reverse().find((step) => step.target?.startsWith("player."));
+    const position = Number(previous?.target?.split(".")[1]) as LineoutPosition;
+    const token = this.attackTokens.find((item) => item.getData("lineoutPosition") === position);
+    if (!token) return;
+    this.setInspectedPlayer(token.player);
+    if (target.startsWith("action.") && this.trainingEditorPhaseIndex !== null) this.renderTrainingActionOverlay(token, position);
+  }
+
+  private coachDefender() {
+    const engine = this.v3Engine;
+    const snapshot = engine?.getSnapshot();
+    if (!engine || !snapshot) return undefined;
+    const selected = snapshot.players.find((player) => player.player.id === this.coachJumpPlayerId);
+    if (selected) return selected;
+    const candidates = snapshot.players.filter((player) => player.side === "defendingTeam"
+      && engine.getCompatibleLifterIds(player.player.id).length > 0
+      && getLineoutV3PositionForDepth(player.position.depthMeters) !== 1);
+    const depth = getLineoutV3DepthForPosition(this.opponentTargetPosition ?? 4);
+    const player = candidates.sort((a, b) => Math.abs(a.position.depthMeters - depth) - Math.abs(b.position.depthMeters - depth))[0];
+    this.coachJumpPlayerId = player?.player.id;
+    return player;
+  }
+
+  private coachScope(): string {
+    if (!this.input.enabled || this.v3ResolutionHandled) return "";
+    if (this.mode === "training") {
+      if (this.trainingCombinationOverlay) return "list";
+      if (this.trainingMode === "practice") return "practice";
+      if (this.trainingMode === "defense-edit") return "defenseEditor";
+      return this.selectedCombination.id === COACH_SIMPLE_ID ? "editor.simple"
+        : this.selectedCombination.id === COACH_SECOND_ID ? "editor.second" : "";
+    }
+    const progress = GameStore.getCoachTutorial();
+    if (!progress) return "";
+    if (this.shouldShowCombinationSelection()) {
+      const history = GameStore.getMatch()?.lineoutHistory.filter((entry) => entry.throwingSide === "us") ?? [];
+      const last = history.at(-1);
+      const repeated = last && history.filter((entry) => entry.targetPosition === last.targetPosition).length >= 2;
+      return progress.matchesCompleted >= 2 && repeated && !progress.completed.includes("adaptation") ? "repetition" : "choice";
+    }
+    if (!this.isDefensiveMatch()) {
+      const snapshot = this.v3Engine?.getSnapshot();
+      if (progress.matchesCompleted >= 1 && !progress.completed.includes("fatigue") && !snapshot?.combinationStarted
+        && snapshot?.players.some((player) => player.side === "throwingTeam"
+          && player.fatiguePercent >= LINEOUT_BALANCE.tutorial.fatigueExplanationPercent)) return "fatigue";
+      return "attack";
+    }
+    const snapshot = this.v3Engine?.getSnapshot();
+    const defender = this.coachDefender();
+    if (!snapshot || !defender) return "";
+    if (progress.completed.includes("defense.first") && !progress.completed.includes("defense.jump")) {
+      // Un saut anticipé doit pouvoir se terminer, sans bloquer sur une action devenue impossible.
+      if (!this.v3Engine?.canJumpDefender(defender.player.id)) return "";
+      const jumpAt = coachDefensiveJumpAt(snapshot, defender);
+      if (jumpAt !== undefined && snapshot.elapsedMs >= jumpAt) return "defense.jump";
+    }
+    return "defense";
+  }
+
+  private coachTarget(id: string): Phaser.Geom.Rectangle | undefined {
+    const layout = this.getLayout();
+    if (id.startsWith("player.")) return this.attackTokens.find((token) => token.getData("lineoutPosition") === Number(id.split(".")[1]))?.getInteractionBounds();
+    if (id.startsWith("destination.")) {
+      const position = Number(id.split(".")[1]) as LineoutPosition;
+      const source = this.attackTokens.find((token) => token.getData("lineoutPosition") === position - 1);
+      if (!source) return undefined;
+      const bounds = source.getBounds();
+      bounds.y += this.positionY(position, layout) - source.y;
+      return bounds;
+    }
+    if (id === "hooker") return this.hookerSprite?.getBounds();
+    if (id.startsWith("throw.")) {
+      const plan = getV3CombinationPlan(this.selectedCombination);
+      const jumper = plan.phases.flatMap((phase) => phase.actions).find((action) => action.type === "jump");
+      const depth = jumper ? this.getTrainingPreviewDepth(jumper.playerPosition, plan.phases.length - 1)
+        : getLineoutV3DepthForPosition(3);
+      const distance = getLineoutV3GestureDistanceForDepth(depth);
+      const y = layout.fieldBottom - 40;
+      return new Phaser.Geom.Rectangle(layout.fieldWidth / 2 - 26, (id === "throw.end" ? y - distance : y) - 24, 52, 48);
+    }
+    const defender = this.coachDefender();
+    if (id === "defense.jumper" || id === "defense.swipeEnd") {
+      const bounds = defender && this.findV3Token(defender.player.id)?.getInteractionBounds();
+      if (bounds && id === "defense.swipeEnd") bounds.x += LINEOUT_BALANCE.gameplayV3.gesture.playerActionSwipeMinimumPixels * 3;
+      return bounds;
+    }
+    if (id.startsWith("defense.") && defender) {
+      const handle = this.v3GroupHandles.get(defender.player.id);
+      if (!handle?.visible) return undefined;
+      if (id === "defense.handle") return handle.getBounds();
+      if (!this.coachDefenseDestination) {
+        this.coachDefenseDestination = handle.getBounds();
+        this.coachDefenseDestination.y += defender.position.depthMeters > getLineoutV3DepthForPosition(4) ? 45 : -45;
+      }
+      return this.coachDefenseDestination;
+    }
+    return undefined;
   }
 
   private getSquadTravelPositions(): SquadTravelPosition[] {
@@ -584,8 +735,13 @@ export class LineoutScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     this.updateHookerIdleBreathing(time);
-    this.updateV3Runtime(delta);
-    this.updateV3DynamicCamera(delta);
+    if (!this.coach?.paused) {
+      const progress = GameStore.getCoachTutorial();
+      const slow = this.isDefensiveMatch() && progress?.completed.includes("defense.first")
+        && !progress.completed.includes("defense.jump");
+      this.updateV3Runtime(delta * (slow ? LINEOUT_BALANCE.tutorial.defensiveSlowMotionScale : 1));
+      this.updateV3DynamicCamera(delta);
+    }
     if (this.v3ThrowGesture) {
       this.updateV3ThrowPowerGauge(this.getPointerWorldPosition(this.v3ThrowGesture.pointer));
     }
@@ -1103,6 +1259,7 @@ export class LineoutScene extends Phaser.Scene {
       getCombinationName: (combination) => this.getUserCombinationDisplayName(combination),
       getPlayersLabel: (count) => t("match.comboPlayers").replace("{count}", String(count)),
       onSelect: (combination) => {
+        coachAction(this, `select.${combination.id}`);
         this.scene.restart({
           mode: "match",
           combinationId: combination.id,
@@ -1257,6 +1414,7 @@ export class LineoutScene extends Phaser.Scene {
 
   private bindMatchDefenseToken(token: PlayerToken): void {
     token.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (this.coach?.waitingForJump && token.player.id !== this.coachJumpPlayerId) return;
       const pointerPosition = this.getPointerWorldPosition(pointer);
       this.hidePlayerInspector();
       this.dragState = {
@@ -1317,6 +1475,7 @@ export class LineoutScene extends Phaser.Scene {
         fontSize: 18
       }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
+    coachControl(this.trainingCombinationsButton, "team.combinations", "open.combinations");
     this.trainingChampionshipButton = new UIButton(
       this,
       287,
@@ -1331,6 +1490,7 @@ export class LineoutScene extends Phaser.Scene {
       } }),
       { variant: "secondary", icon: "championship", fontSize: 18 }
     ).setDepth(overlayOpen ? UI_DEPTH.overlayContent + 2 : LINEOUT_ACTION_DEPTH);
+    coachControl(this.trainingChampionshipButton, "team.championship", "open.championship");
   }
 
   private openTrainingCombinationOverlay(): void {
@@ -1534,6 +1694,7 @@ export class LineoutScene extends Phaser.Scene {
         label.on("pointerup", () => this.toggleTrainingAction(playerPosition, action.type));
       }
       container.add([bubble, label]);
+      coachControl(bubble, `action.${action.type}`);
     });
     this.trainingActionOverlay = container;
   }
@@ -1550,7 +1711,7 @@ export class LineoutScene extends Phaser.Scene {
     const phase = plan.phases[this.trainingEditorPhaseIndex];
     const current = phase.actions.find((action) => action.playerPosition === playerPosition);
     phase.actions = phase.actions.filter((action) => action.playerPosition !== playerPosition);
-    if (current?.type === type && removeWhenAlreadySelected) {
+    if (current?.type === type && removeWhenAlreadySelected && !this.coach?.isWaitingFor(`action.${type}.${playerPosition}`)) {
       this.persistTrainingPlan(plan, this.trainingEditorPhaseIndex, playerPosition);
       return;
     }
@@ -1777,6 +1938,12 @@ export class LineoutScene extends Phaser.Scene {
       sanitizedPlan
     );
     GameStore.setOffensiveCombinations(updated);
+    for (const phase of sanitizedPlan.phases) {
+      for (const action of phase.actions) {
+        if (action.type === "move") coachAction(this, `move.${action.playerPosition}.${getLineoutV3PositionForDepth(action.destinationDepthMeters)}`);
+        else coachAction(this, `action.${action.type}.${action.playerPosition}`);
+      }
+    }
     this.restartTrainingEditor({
       editorPhaseIndex: phaseIndex,
       editorSelectedPosition: selectedPosition
@@ -1988,6 +2155,7 @@ export class LineoutScene extends Phaser.Scene {
 
     if (drag.origin.kind === "training-action") {
       this.renderTrainingActionOverlay(drag.token, drag.origin.playerPosition);
+      this.setInspectedPlayer(drag.token.player);
       return;
     }
 
@@ -1999,6 +2167,7 @@ export class LineoutScene extends Phaser.Scene {
     if (drag.origin.kind === "match-defense") {
       const snapshot = this.v3Engine?.getSnapshot();
       if (snapshot) {
+        if (this.coach?.waitingForJump) return;
         if (!snapshot.defenseLocked) {
           this.setInspectedPlayer(drag.token.player);
           return;
@@ -2390,6 +2559,7 @@ export class LineoutScene extends Phaser.Scene {
     if (!this.v3Engine || !this.canControlV3Throw() || this.v3ThrowGesture) return;
     const point = this.getPointerWorldPosition(pointer);
     this.handleV3Events(this.v3Engine.startCombination());
+    coachAction(this, "throw.started");
     this.v3ThrowGesture = {
       pointer,
       contactStartedAtMs: this.time.now,
@@ -2498,6 +2668,7 @@ export class LineoutScene extends Phaser.Scene {
       drag.lifterIds
     ));
     this.syncV3Objects();
+    if (Math.abs(drag.handle.y - drag.homeY) >= 20) coachAction(this, "defense.move");
   }
 
   private trackV3ThrowGesture(pointer: Phaser.Input.Pointer): void {
@@ -2535,8 +2706,12 @@ export class LineoutScene extends Phaser.Scene {
     if (!released.validation.valid) {
       this.destroyV3ThrowPowerGauge();
       this.flashStatus(t(`lineout.v3.gesture.${released.validation.reason}`));
+      coachAction(this, `throw.rejected.${released.validation.reason}`);
       return;
     }
+    const coachFeedback = this.v3Engine.getThrowPowerFeedback(throwGesture.distancePixels);
+    this.coachThrowGrade = coachFeedback ? { grade: coachFeedback.grade, delta: coachFeedback.requestedDepthMeters - coachFeedback.expectedDepthMeters } : undefined;
+    coachAction(this, "throw.accepted");
     this.scheduleV3ThrowPowerGaugeHide();
     this.handleV3Events(released.events);
     this.scheduleV3AiDefensiveJump();
@@ -3066,6 +3241,7 @@ export class LineoutScene extends Phaser.Scene {
         const jumpingPlayer = this.v3Engine?.getSnapshot().players.find((state) => (
           state.player.id === event.playerId
         ));
+        if (this.isDefensiveMatch() && jumpingPlayer?.side === "defendingTeam") coachAction(this, "defense.jump");
         if (!event.feint && jumpingPlayer?.side === "throwingTeam") {
           this.scheduleV3AiDefensiveJump();
         }
@@ -3088,6 +3264,7 @@ export class LineoutScene extends Phaser.Scene {
       } else if (event.type === "ballContact") {
         this.animateV3Contest(event.playerIds);
       } else if (event.type === "resolved") {
+        this.recordCoachResolution(event);
         this.handleV3Resolution(event.resolution);
       }
     }
@@ -3310,6 +3487,23 @@ export class LineoutScene extends Phaser.Scene {
           .setVisible(true);
       }
     }
+  }
+
+  private recordCoachResolution(event: Extract<LineoutV3Event, { type: "resolved" }>): void {
+    const progress = GameStore.getCoachTutorial();
+    if (!progress || progress.matchesCompleted >= 6) return;
+    const defensive = this.isDefensiveMatch();
+    const won = event.resolution.ballTeam === (defensive ? "defendingTeam" : "throwingTeam");
+    let comment = won ? (defensive ? "steal" : "won") : "lost";
+    const snapshot = this.v3Engine?.getSnapshot();
+    if (defensive && snapshot) comment = coachDefensiveTiming(snapshot) ?? comment;
+    if (!defensive && this.coachThrowGrade) {
+      if (this.coachThrowGrade.grade !== "perfect") comment = this.coachThrowGrade.delta < 0 ? "short" : "long";
+      else if (!won) comment = "dosed";
+    }
+    const practice = this.mode === "training" && this.trainingMode === "practice";
+    GameStore.updateCoachTutorial({ pendingComment: `coach.comment.${comment}`,
+      completed: practice ? [...new Set([...progress.completed, `practice.${progress.matchesCompleted}`])] : progress.completed });
   }
 
   private getV3LifterApproachProgress(
@@ -4814,12 +5008,15 @@ export class LineoutScene extends Phaser.Scene {
     this.inspectedPlayer = player;
     this.refreshPlayerInspector();
     this.inspectorPanel?.setVisible(true);
+    const token = this.attackTokens.find((item) => item.player.id === player?.id);
+    if (token) coachAction(this, `inspect.${token.getData("lineoutPosition")}`);
   }
 
   private bindPlayerInspectorDismissal(): void {
     this.input.on(
       "pointerdown",
       (_pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.coach?.paused) return;
         const clickedPlayer = currentlyOver.some(
           (gameObject) => gameObject.getData(PLAYER_TOKEN_HIT_AREA_DATA_KEY) === true
         );

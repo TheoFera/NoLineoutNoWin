@@ -216,7 +216,7 @@ dézoom et la simulation reprennent automatiquement en match. Dans le mode
 « S'entraîner », le dézoom est suivi d'un retour automatique à l'éditeur de la
 combinaison.
 
-## 12. Futur tutoriel avec personnage
+## 12. Tutoriel avec Charles
 
 Tout contrôle important susceptible d'être expliqué doit pouvoir recevoir un ancrage via `markTutorialAnchor`.
 
@@ -228,7 +228,29 @@ Ancrages existants :
 - `combination.add-phase` et `combination.remove-phase` ;
 - `combination.train`.
 
-Le futur personnage utilisera une bulle inspirée d'un consultant TV. La bulle ne masque jamais le contrôle présenté. Le tutoriel reste court, contextuel, désactivable et rejouable.
+Charles accompagne les six premiers matchs : bloc à trois et premiers lancers,
+déplacements offensifs, deuxième combinaison et adaptation adverse, recrutement
+et remplacement, alignement à cinq et déplacement défensif, puis feinte.
+Les statistiques sont expliquées au moment où leur rôle devient concret.
+
+Les dialogues et les étapes se trouvent dans `src/data/CoachTutorial.ts`.
+`CoachTutorialDirector` attend les événements réels des commandes ;
+`CharlesCoachOverlay` assombrit le reste de l'écran et dégage le trajet des gestes.
+Charles reste au centre pour les transitions et se réduit au-dessus ou en dessous
+de la cible pour les actions. Une caméra dédiée passe après celle du score et garde
+ses bulles lisibles pendant les zooms du terrain. Le moteur attend pendant les
+explications. Le premier saut défensif est guidé par un glissement vers la droite
+depuis la zone interactive du sauteur, sans garantir l'issue du duel. Cette étape
+ne suspend le jeu que si le moteur autorise encore ce saut.
+
+La progression appartient à la sauvegarde du club (`coachTutorial`). Les anciens
+clubs sans cette propriété restent inchangés. Le réglage général reste indépendant.
+Les bulles d’action n’affichent aucun bouton : le contour de la cible clignote,
+sans point blanc qui masque le contenu. Les bulles explicatives gardent « Continuer ».
+Les conseils et le réglage du tutoriel restent accessibles dans les options.
+Réinitialiser la partie réactive le tutoriel et remet aussi son introduction à zéro.
+Le premier recrutement guidé fournit un lifteur deux étoiles ; le résultat et
+l'utilisation de ce cadeau sont enregistrés ensemble avant l'animation.
 
 ## 13. Erreurs à éviter
 

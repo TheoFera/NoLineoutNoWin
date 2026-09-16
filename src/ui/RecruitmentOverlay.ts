@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GameStore } from "../state/GameStore";
-import { acceptRecruit, generateRecruitmentWheel, getRecruitmentProfile } from "../rules/RecruitmentRules";
+import { acceptRecruit, generateRecruitmentWheel, getRecruitmentProfile, generateCoachRecruit } from "../rules/RecruitmentRules";
+import { coachAction, coachControl } from "./CoachTutorialEvents";
 import { MATH_RANDOM_SOURCE, randomFloat } from "../utils/Random";
 import { t } from "../systems/I18n";
 import { UI } from "./UITheme";
@@ -12,6 +13,7 @@ import { UI_DEPTH } from "./UIDepth";
 import { PlayerStatsOverlay } from "./PlayerStatsOverlay";
 
 export class RecruitmentOverlay extends Phaser.GameObjects.Container {
+  coachScope = "wheel";
   private nameInput?: HTMLInputElement;
   private spin?: Phaser.Tweens.Tween;
   private revealTweens: Phaser.Tweens.Tween[] = [];
@@ -51,6 +53,12 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
     this.close();
   }
 
+  setCoachGuidance(active: boolean): void {
+    if (!this.nameInput) return;
+    this.nameInput.disabled = active;
+    this.nameInput.style.visibility = active ? "hidden" : "visible";
+  }
+
   private renderFrame(title: string): void {
     this.removeAll(true);
     this.add(new UIRoundedRectangle(this.scene, 195, 323, 366, 618, UI.colors.panelDark, 1)
@@ -62,6 +70,9 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
     this.renderFrame(t("recruit.title"));
     const team = GameStore.getSave().playerTeam;
     const offers = generateRecruitmentWheel(team, MATH_RANDOM_SOURCE);
+    const tutorial = GameStore.getCoachTutorial();
+    const guided = Boolean(tutorial && !tutorial.recruitmentUsed);
+    if (guided) offers[3] = { ...generateCoachRecruit(team, MATH_RANDOM_SOURCE), probability: offers[3].probability };
     const wheelY = 310;
     const wheel = this.scene.add.container(195, wheelY);
     this.add(wheel);
@@ -106,6 +117,7 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
     this.add(this.scene.add.triangle(195, wheelY - 160, 0, 0, 26, 0, 13, 26, UI.colors.accent));
     const launch = new UIButton(this.scene, 195, 551, 314, 54, t("recruit.spin"), () => {
       launch.setEnabled(false);
+      this.coachScope = "spinning";
       const roll = randomFloat(0, 1, MATH_RANDOM_SOURCE);
       let cumulative = 0;
       let selected = offers.length - 1;
@@ -113,9 +125,10 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
         cumulative += offers[index].probability;
         if (roll < cumulative) { selected = index; break; }
       }
+      if (guided) selected = 3;
       const offer = offers[selected];
-      GameStore.setPlayerTeam({ ...GameStore.getSave().playerTeam,
-        pendingRecruitment: offer.player, pendingRecruitmentBand: offer.band });
+      GameStore.setPendingRecruitment(offer.player, offer.band, guided);
+      coachAction(this.scene, "recruit.spin");
       this.spin = this.scene.tweens.add({ targets: wheel, angle: 1800 - selected * 60,
         duration: 3600, ease: "Cubic.easeOut", onComplete: () => {
           this.renderResult();
@@ -123,9 +136,11 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
       });
     }, { variant: "primary" });
     this.add(launch);
+    coachControl(launch, "recruit.spin");
   }
 
   private renderResult(): void {
+    this.coachScope = "recruitResult";
     const team = GameStore.getSave().playerTeam;
     const player = team.pendingRecruitment;
     if (!player) { this.close(); return; }
@@ -145,11 +160,12 @@ export class RecruitmentOverlay extends Phaser.GameObjects.Container {
         { label: t("team.stat.technique"), value: player.technique }
       ] });
     this.add(stats.setPosition(38, 329).setScale(314 / 354));
+    coachControl(stats, "recruit.stats");
     this.createNameInput();
-    this.add(new UIButton(this.scene, 195, 519, 300, 48, t("recruit.keep"), () => {
+    this.add(coachControl(new UIButton(this.scene, 195, 519, 300, 48, t("recruit.keep"), () => {
       GameStore.setPlayerTeam(acceptRecruit(GameStore.getSave().playerTeam, this.nameInput?.value));
       this.close();
-    }, { variant: "primary" }));
+    }, { variant: "primary" }), "recruit.keep", "recruit.keep"));
     this.add(new UIButton(this.scene, 195, 583, 300, 44, t("recruit.decline"), () => {
       GameStore.setPlayerTeam({ ...GameStore.getSave().playerTeam,
         pendingRecruitment: undefined, pendingRecruitmentBand: undefined });

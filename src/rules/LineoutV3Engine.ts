@@ -279,8 +279,8 @@ export class LineoutV3Engine {
     return events;
   }
 
-  jumpDefender(playerId: string, preferredLifterIds?: readonly string[]): LineoutV3Event[] {
-    if (!this.defenseLocked || !this.ball || this.resolution) return [];
+  canJumpDefender(playerId: string, preferredLifterIds?: readonly string[]): boolean {
+    if (!this.defenseLocked || !this.ball || this.resolution) return false;
     const player = this.playersById.get(playerId);
     if (
       !player
@@ -288,7 +288,13 @@ export class LineoutV3Engine {
       || player.engagedByPlayerId
       || player.hasJumped
       || !["ready", "moving"].includes(player.activity)
-    ) return [];
+    ) return false;
+    return this.findEligibleDefensiveJumpLifters(player, preferredLifterIds).length > 0;
+  }
+
+  jumpDefender(playerId: string, preferredLifterIds?: readonly string[]): LineoutV3Event[] {
+    if (!this.canJumpDefender(playerId, preferredLifterIds)) return [];
+    const player = this.playersById.get(playerId)!;
     const lifters = this.findEligibleDefensiveJumpLifters(player, preferredLifterIds);
     if (lifters.length === 0) return [];
     this.stopMovementForJump(player);

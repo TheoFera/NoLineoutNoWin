@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { coachControl } from "./CoachTutorialEvents";
 import type { Combination } from "../models/Combination";
 import {
   countAssignedPlayers,
@@ -111,6 +112,7 @@ export class LineoutCombinationOverlay extends Phaser.GameObjects.Container {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     hitArea.on("pointerup", () => options.onSelect(combination));
+    coachControl(hitArea, `match.combo.${combination.id}`);
 
     const name = scene.add.text(left + 20, top + 22, options.getCombinationName(combination), {
       font: `bold ${Math.max(13, Math.min(17, Math.round(height * 0.24)))}px Arial`,

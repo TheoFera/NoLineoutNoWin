@@ -21,6 +21,11 @@ import { CombinationListOverlay } from "../ui/CombinationListOverlay";
 import { getActiveOffensiveCombinations, getAvailableOffensiveCombinations, renameCombination } from "../rules/CombinationRules";
 import { getDivision } from "../rules/DivisionRules";
 import { UI_DEPTH } from "../ui/UIDepth";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
+import { coachAction, coachControl } from "../ui/CoachTutorialEvents";
+import { getCoachRecruitmentTarget } from "../rules/RecruitmentRules";
+import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 
 const PAGE_SIZE = 4;
 const STARTER_POSITIONS = [
@@ -69,7 +74,7 @@ export class TeamScene extends Phaser.Scene {
 
   constructor() { super("TeamScene"); }
 
-  preload(): void { preloadMatchPitchBackdrop(this); }
+  preload(): void { preloadMatchPitchBackdrop(this); preloadCharlesIntroduction(this); }
 
   create(data: { squadTravel?: SquadTravelPosition[]; combinationOverlayOpen?: boolean } = {}): void {
     this.input.enabled = true;
@@ -99,9 +104,20 @@ export class TeamScene extends Phaser.Scene {
     });
     if (this.team.pendingRecruitment) this.openRecruitment();
     else if (data.combinationOverlayOpen) this.openCombinations();
+    new CoachTutorialDirector(this, {
+      scope: () => this.recruitment?.coachScope ?? (this.combinations ? "list" : "team"),
+      onBlocking: (active) => this.recruitment?.setCoachGuidance(active),
+      target: (id) => {
+        if (id !== "recruit.target" && id !== "recruit.bench") return undefined;
+        const playerId = id === "recruit.bench" ? GameStore.getCoachTutorial()?.firstRecruitId
+          : getCoachRecruitmentTarget(this.team).id;
+        return this.tokens.find((token) => token.player.id === playerId)?.hit.getBounds();
+      }
+    });
   }
 
   private renderScene(): void {
+    GameStore.prepareCoachTeam();
     this.children.removeAll(true);
     this.recruitment = undefined;
     this.recruitButton = undefined;
@@ -133,8 +149,14 @@ export class TeamScene extends Phaser.Scene {
     this.controls.push(new UIButton(this, 287, 809, 174, 48, t("menu.championship"), () =>
       navigateTo(this, "ChampionshipScene", { returnTo: "TeamScene",
         returnData: { combinationOverlayOpen: Boolean(this.combinations) } }), { icon: "championship", fontSize: 18 }));
+    coachControl(this.controls[this.controls.length - 2], "team.combinations", "open.combinations");
+    coachControl(this.controls[this.controls.length - 1], "team.championship", "open.championship");
     this.inspector = new PlayerStatsOverlay(this, this.team.colors).setVisible(false);
     this.overview = new SquadOverview(this, getSquadLevel(this.team));
+    const progress = GameStore.getCoachTutorial();
+    if (progress?.steps["recruit.need"] === 1 && !progress.completed.includes("recruit.need")) {
+      this.inspectPlayer(getCoachRecruitmentTarget(this.team));
+    }
   }
 
   private renderPlayer(player: Player, x: number, y: number, reserve: boolean, height: number): void {
@@ -187,6 +209,9 @@ export class TeamScene extends Phaser.Scene {
     this.recruitButton = new UIButton(this, 55 + visible.length * 70, 732, 62, 76,
       "", () => this.openRecruitment(), { icon: "recruit", accessibleLabel: t("squad.recruit") });
     this.controls.push(this.recruitButton);
+    coachControl(this.recruitButton, "team.recruit", "recruit.open");
+    const tutorial = GameStore.getCoachTutorial();
+    if (tutorial && tutorial.matchesCompleted < LINEOUT_BALANCE.tutorial.recruitmentAfterMatches) this.recruitButton.setEnabled(false);
   }
 
   private movePlayer(pointer: Phaser.Input.Pointer): void {
@@ -238,6 +263,9 @@ export class TeamScene extends Phaser.Scene {
     this.overview?.showOverview();
     const target = this.findDropTarget(point.x, point.y, drag.token);
     if (target) {
+      const tutorial = GameStore.getCoachTutorial();
+      if (tutorial?.firstRecruitId === drag.token.player.id && !target.reserve
+        && target.player.id === getCoachRecruitmentTarget(this.team).id) coachAction(this, "recruit.swap");
       GameStore.setPlayerTeam(exchangeSquadPlayers(this.team, drag.token.player.id, target.player.id));
       this.renderScene();
       return;
@@ -270,9 +298,12 @@ export class TeamScene extends Phaser.Scene {
       ]
     });
     this.inspector?.setVisible(true);
+    if (player.id === getCoachRecruitmentTarget(this.team).id) coachAction(this, "inspect.recruitTarget");
   }
 
   private openRecruitment(): void {
+    const tutorial = GameStore.getCoachTutorial();
+    if (tutorial && tutorial.matchesCompleted < LINEOUT_BALANCE.tutorial.recruitmentAfterMatches) return;
     if (this.recruitment) { this.recruitment.toggleClose(); return; }
     this.combinations?.destroy();
     this.combinations = undefined;

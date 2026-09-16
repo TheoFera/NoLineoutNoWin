@@ -104,6 +104,10 @@ export class PlayerToken extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
+  getInteractionBounds(): Phaser.Geom.Rectangle {
+    return this.hitTarget.getBounds();
+  }
+
   setSelected(selected: boolean): void {
     this.selectionRing.setVisible(selected);
 

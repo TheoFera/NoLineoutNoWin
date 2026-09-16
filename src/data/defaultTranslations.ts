@@ -1,4 +1,5 @@
 import { GENERATED_LINEOUT_COMBINATIONS } from "./LineoutCombinations.ts";
+import { coachTranslations } from "./CoachTutorial";
 
 export type Language = "fr" | "en";
 export type TranslationKey = string;
@@ -19,6 +20,7 @@ const generatedCombinationTranslations: Record<
 }));
 
 export const translations: Record<TranslationKey, Record<Language, string>> = {
+  ...coachTranslations,
   "squad.title": { fr: "Gestion du groupe touche", en: "Lineout squad management" },
   "squad.starters": { fr: "Titulaires", en: "Starters" },
   "squad.bench": { fr: "Remplaçants", en: "Substitutes" },
@@ -89,10 +91,10 @@ export const translations: Record<TranslationKey, Record<Language, string>> = {
   "league.provence_alpes_cote_d_azur": { fr: "Provence Alpes Côte d’Azur", en: "Provence-Alpes-Côte d’Azur" },
   "league.ile_de_france": { fr: "Île-de-France", en: "Île-de-France" },
   "teamCreation.title": { fr: "Création de l'équipe", en: "Team creation" },
-  "teamCreation.subtitle": { fr: "Personnalise tes 8 joueurs", en: "Customize your 8 players" },
+  "teamCreation.subtitle": { fr: "Ton équipe commence avec 8 joueurs", en: "Customize your 8 players" },
   "teamCreation.nicknameForPlayer": { fr: "Nom du joueur n° {number}", en: "Name of player #{number}" },
   "teamCreation.nicknamePlaceholder": { fr: "Ex. Nono", en: "E.g. Nono" },
-  "teamCreation.chooseBodyShape": { fr: "Choisis le gabarit de ton joueur", en: "Choose your player's body shape" },
+  "teamCreation.chooseBodyShape": { fr: "Personnalise tes joueurs", en: "Choose your player's body shape" },
   "teamCreation.skinTone": { fr: "Couleur de peau", en: "Skin tone" },
   "teamCreation.skinToneOption": { fr: "Teinte {number}", en: "Tone {number}" },
   "teamCreation.hairStyle": { fr: "Coupes de cheveux", en: "Haircuts" },

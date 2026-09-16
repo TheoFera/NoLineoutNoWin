@@ -5,6 +5,7 @@ import type { Team } from "./Team";
 import type { LineoutVideoMatch, OpponentAiMemory } from "./LineoutAI";
 import type { PlayerProgressionUsage } from "./PlayerProgression";
 import type { FfrLeagueId } from "./ClubLocation";
+import type { CoachTutorialProgress } from "./TutorialState";
 
 export const DEFENSIVE_LINEOUT_SIZES = [2, 3, 4, 5, 6, 7] as const;
 
@@ -16,6 +17,7 @@ export type DefensiveLayout = Array<string | null>;
 export type DefenseMemory = Partial<Record<DefensiveLineoutSize, DefensiveLayout>>;
 
 type SaveGameBase = {
+  coachTutorial?: CoachTutorialProgress;
   language: "fr" | "en";
   currentDivisionId: DivisionId;
   season: number;

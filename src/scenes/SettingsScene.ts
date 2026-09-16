@@ -1,4 +1,7 @@
 import Phaser from "phaser";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
+import { UIButton } from "../ui/UIButton";
 import { APP_VERSION } from "../config/AppVersion";
 import { GameStore } from "../state/GameStore";
 import { navigateTo } from "../systems/Navigation";
@@ -14,6 +17,7 @@ import { Modal } from "../ui/Modal";
 import { UI } from "../ui/UITheme";
 
 export class SettingsScene extends Phaser.Scene {
+  private coachReminder = false;
   private versionTapCount = 0;
   private firstVersionTapAt = 0;
 
@@ -22,12 +26,14 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharlesIntroduction(this);
     if (!this.textures.exists("option-menu-background")) {
       this.load.image("option-menu-background", "assets/images/option-menu-background.png");
     }
   }
 
   create(): void {
+    this.coachReminder = false;
     const currentLanguage = getLanguage();
     const currentResolution = getRenderResolution();
 
@@ -65,6 +71,12 @@ export class SettingsScene extends Phaser.Scene {
     });
 
     this.renderTutorialSettings();
+    if (GameStore.hasSave() && !GameStore.isTestModeActive()) {
+      new UIButton(this, 195, 550, 284, 40, t("coach.replay"), () => {
+        GameStore.replayCoachExplanations(); this.coachReminder = true;
+      }, { fontSize: 14 });
+      new CoachTutorialDirector(this, { scope: () => this.coachReminder ? "reminder" : "" });
+    }
 
     this.add.text(195, 580, t("settings.currentGameTitle"), { font: UI.font.subtitle, color: UI.colors.text }).setOrigin(0.5);
 

@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
 import type { SeasonSummary } from "../models/Championship";
 import type {
   PlayerProgressionSummary,
@@ -53,6 +55,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharlesIntroduction(this);
     preloadMatchPitchBackdrop(this);
   }
 
@@ -67,6 +70,7 @@ export class PlayerProgressionScene extends Phaser.Scene {
 
     this.renderTeamProgressionPanel();
     this.renderContinueButton();
+    new CoachTutorialDirector(this, { scope: () => "progression" });
   }
 
   private renderHeader(): void {

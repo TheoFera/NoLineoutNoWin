@@ -1,7 +1,7 @@
 import { LINEOUT_BALANCE } from "../config/LineoutBalance.ts";
 import { PLAYER_NICKNAMES } from "../data/defaultNames.ts";
 import { getGeneratedTeamPlayerAppearance } from "../data/PlayerAppearanceOptions.ts";
-import type { Player } from "../models/Player.ts";
+import type { Player, FieldPlayer } from "../models/Player.ts";
 import type { Team } from "../models/Team.ts";
 import { getNextDivision } from "./DivisionRules.ts";
 import { generateLineoutRoster } from "./TeamGeneration.ts";
@@ -26,7 +26,7 @@ function getUnusedNickname(players: Player[], rng: RandomSource): string {
   return name;
 }
 
-export function generateRecruit(team: Team, rng: RandomSource, forcedBand?: number): { player: Player; band: number } {
+export function generateRecruit(team: Team, rng: RandomSource, forcedBand?: number, tutorialLifter = false): { player: Player; band: number } {
   const roll = randomFloat(0, 1, rng);
   const chances = getRecruitmentBandProbabilities();
   const band = forcedBand ?? (roll < chances[0] ? 0 : roll < chances[0] + chances[1] ? 1 : 2);
@@ -41,13 +41,29 @@ export function generateRecruit(team: Team, rng: RandomSource, forcedBand?: numb
   // Aucun répertoire tactique n'est généré pour une recrue individuelle.
   const roster = generateLineoutRoster({ divisionId, prefix: id, hookerId: id,
     hookerNickname: nickname, clubModifier: 0, rng });
-  const generated: Player = randomFloat(0, 1, rng) < LINEOUT_BALANCE.recruitment.hookerProbability
+  const generated: Player = tutorialLifter ? [...roster.fieldPlayers].sort((a, b) => b.strength - a.strength)[0]
+    : randomFloat(0, 1, rng) < LINEOUT_BALANCE.recruitment.hookerProbability
     ? roster.hooker : pickOne(roster.fieldPlayers, rng);
   const appearance = getGeneratedTeamPlayerAppearance(id, randomInt(0, 100000, rng), generated.appearance);
   const player: Player = generated.role === "hooker"
     ? { ...generated, id, nickname, appearance }
     : { ...generated, id, nickname, appearance, number: Math.max(8, ...team.fieldPlayers.map((p) => p.number)) + 1 };
   return { player, band };
+}
+
+export function getCoachRecruitmentTarget(team: Team): FieldPlayer {
+  const jumper = [...team.lineoutPlayers].sort((a, b) => b.technique - a.technique)[0];
+  return team.lineoutPlayers.filter((player) => player.id !== jumper.id)
+    .sort((a, b) => b.strength - a.strength)[1];
+}
+
+export function generateCoachRecruit(team: Team, rng: RandomSource): { player: Player; band: number } {
+  const offer = generateRecruit(team, rng, LINEOUT_BALANCE.tutorial.firstRecruitBand, true);
+  if (offer.player.role === "field") {
+    offer.player.strength = Math.min(LINEOUT_BALANCE.score.maximum, Math.max(offer.player.strength,
+      getCoachRecruitmentTarget(team).strength + LINEOUT_BALANCE.tutorial.minimumRecruitStrengthGain));
+  }
+  return offer;
 }
 
 export function acceptRecruit(team: Team, nickname?: string): Team {

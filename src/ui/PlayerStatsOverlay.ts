@@ -5,6 +5,7 @@ import {
   PLAYER_STATS_OVERLAY_DEPTH
 } from "./MatchScoreOverlayLayout";
 import { UI } from "./UITheme";
+import { t } from "../systems/I18n";
 
 export type PlayerStatsOverlayData = {
   name: string;
@@ -83,6 +84,8 @@ export class PlayerStatsOverlay extends Phaser.GameObjects.Container {
     const cardWidth = (availableWidth - STAT_GAP * (statCount - 1)) / statCount;
     this.statLabels.forEach((label, index) => {
       const stat = visibleStats[index];
+      const statName = ["speed", "strength", "technique"].find((name) => stat?.label === t(`team.stat.${name}`));
+      this.statValues[index].setData("tutorial-anchor", statName ? `stat.${statName}` : "stat.throwing");
       const visible = Boolean(stat);
       const centerX = STATS_LEFT + cardWidth / 2 + index * (cardWidth + STAT_GAP);
       label

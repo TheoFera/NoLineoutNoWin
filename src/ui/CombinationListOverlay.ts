@@ -12,6 +12,7 @@ import { MATCH_SCORE_OVERLAY_LAYOUT } from "./MatchScoreOverlayLayout";
 import { markTutorialAnchor } from "./TutorialAnchor";
 import { UIButton } from "./UIButton";
 import { UI } from "./UITheme";
+import { coachControl } from "./CoachTutorialEvents";
 
 type CombinationOverlayTab = "attack" | "defense";
 
@@ -168,6 +169,7 @@ export class CombinationListOverlay extends Phaser.GameObjects.Container {
         { variant: "secondary", fontSize: 26, flipX: true }
       );
       this.content.add([row, rename]);
+      coachControl(row, `combination.${combination.id}`, `select.${combination.id}`);
     });
   }
 

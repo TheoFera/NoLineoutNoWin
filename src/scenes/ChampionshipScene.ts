@@ -8,6 +8,9 @@ import { UIButton } from "../ui/UIButton";
 import { UI } from "../ui/UITheme";
 import type { ChampionshipTeamRecord } from "../models/Championship";
 import { fitTextToWidth } from "../ui/TextFit";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
+import { coachControl } from "../ui/CoachTutorialEvents";
 
 export class ChampionshipScene extends Phaser.Scene {
   private returnTo: "TeamScene" | "LineoutScene" = "TeamScene";
@@ -22,6 +25,7 @@ export class ChampionshipScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharlesIntroduction(this);
     if (!this.textures.exists("championship-menu-background")) {
       this.load.image("championship-menu-background", "assets/images/championship-menu-background.png");
     }
@@ -115,12 +119,14 @@ export class ChampionshipScene extends Phaser.Scene {
       }).setOrigin(0.5);
     });
 
-    new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"), {
+    coachControl(new UIButton(this, 195, 724, 260, 48, t("match.playNow"), () => navigateTo(this, "MatchScene"), {
       variant: "primary"
-    });
+    }), "match.play", "match.play");
     new UIButton(this, 195, 788, 220, 42, t("button.back"), () => navigateTo(this, this.returnTo, this.returnData), {
       variant: "secondary"
     });
+    new CoachTutorialDirector(this, { scope: () => "championship",
+      target: (id) => id === "championship.table" ? new Phaser.Geom.Rectangle(24, 255, 342, 430) : undefined });
   }
 
   private renderChampionshipBackground(): void {

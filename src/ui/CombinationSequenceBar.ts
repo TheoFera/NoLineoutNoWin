@@ -3,6 +3,7 @@ import { UIButton } from "./UIButton";
 import { UI } from "./UITheme";
 import { MATCH_SCORE_OVERLAY_LAYOUT } from "./MatchScoreOverlayLayout";
 import { markTutorialAnchor } from "./TutorialAnchor";
+import { coachAction, coachControl } from "./CoachTutorialEvents";
 
 type CombinationSequenceLabels = {
   placement: string;
@@ -130,9 +131,10 @@ export class CombinationSequenceBar extends Phaser.GameObjects.Container {
     const hitArea = scene.add.zone(x, TRACK_Y, 50, 42)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .on("pointerup", () => options.onSelectPhase(phaseIndex));
+      .on("pointerup", () => { coachAction(scene, `phase.${phaseIndex}`); options.onSelectPhase(phaseIndex); });
 
     markTutorialAnchor(hitArea, "combination.phase");
+    coachControl(hitArea, `phase.${phaseIndex}`);
     this.add([label, hitArea]);
   }
 
@@ -147,6 +149,7 @@ export class CombinationSequenceBar extends Phaser.GameObjects.Container {
         hitHeight: 52
       });
       markTutorialAnchor(add, "combination.add-phase");
+      add.setData("coach-action", "phase.add");
       this.add(add);
     }
 
@@ -177,6 +180,7 @@ export class CombinationSequenceBar extends Phaser.GameObjects.Container {
       fontSize: 9
     });
     markTutorialAnchor(train, "combination.train");
+    train.setData("coach-action", "train");
     this.add(train);
   }
 }

@@ -7,6 +7,7 @@ import {
   type ButtonVisualState
 } from "./ButtonStyle";
 import { UI } from "./UITheme";
+import { coachAction } from "./CoachTutorialEvents";
 import { createButtonIcon } from "./ButtonIcons";
 
 export type UIButtonOptions = {
@@ -71,6 +72,8 @@ export class UIButton extends Phaser.GameObjects.Container {
     this.hitArea.on("pointerup", () => {
       if (!this.enabled) return;
       this.setVisualState("normal");
+      const action = this.getData("coach-action") as string | undefined;
+      if (action) coachAction(scene, action);
       this.onClick();
     });
     this.hitArea.on("pointerout", () => this.setVisualState(this.enabled ? "normal" : "disabled"));

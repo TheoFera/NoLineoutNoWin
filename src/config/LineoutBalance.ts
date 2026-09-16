@@ -1,4 +1,14 @@
 export const LINEOUT_BALANCE = {
+  tutorial: {
+    recruitmentAfterMatches: 3,
+    finalLessonAfterMatches: 5,
+    firstRecruitBand: 1,
+    minimumRecruitStrengthGain: 1,
+    defensiveSlowMotionScale: 0.35,
+    defensiveTimingToleranceMs: 140,
+    commentDurationMs: 3400,
+    fatigueExplanationPercent: 5,
+  },
   recruitment: {
     levelProbabilities: [0.75, 0.20, 0.05],
     hookerProbability: 1 / 8,

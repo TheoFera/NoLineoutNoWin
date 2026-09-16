@@ -230,6 +230,7 @@ export function getCombinationDisplayName(
 ): string {
   const customName = combination.customName?.trim();
   if (customName && customName.length > 0) return customName;
+  if (combination.nameKey.startsWith("coach.combo.")) return translate(combination.nameKey);
   if (defaultIndex !== undefined) {
     return translate("lineout.v3.defaultCombinationName")
       .replace("{number}", String(defaultIndex + 1));

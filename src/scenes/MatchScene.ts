@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { CoachTutorialDirector } from "../ui/CoachTutorialDirector";
+import { preloadCharlesIntroduction } from "../ui/CharlesIntroductionOverlay";
 import { LINEOUT_BALANCE } from "../config/LineoutBalance";
 import { GameStore } from "../state/GameStore";
 import { getDivision } from "../rules/DivisionRules";
@@ -154,6 +156,7 @@ export class MatchScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharlesIntroduction(this);
     preloadMatchPitchBackdrop(this);
     if (!this.textures.exists("lineout-ball")) {
       this.load.image("lineout-ball", "assets/sprites/ball.png");
@@ -244,6 +247,7 @@ export class MatchScene extends Phaser.Scene {
     }
 
     this.render(match);
+    new CoachTutorialDirector(this, { scope: () => "simulation", pauseTimers: true });
   }
 
   private renderMissingValidCombination(): void {
